@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<!-- Icons: Lucide (https://lucide.dev) — ISC License -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>焚火</title>
+<meta name="description" content="作業中にバックグラウンドで流す、調整できる焚火と季節の環境音">
+<meta property="og:title" content="焚火">
+<meta property="og:description" content="作業中にバックグラウンドで流す、調整できる焚火と季節の環境音">
+<meta property="og:type" content="website">
+<style>
+  :root { --fg:#f3d9b8; --dim:#b89873; --panel:rgba(24,15,9,.72); --line:rgba(255,190,120,.18); --accent:#ff9a3c; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:#080503; color:var(--fg); overflow:hidden;
+    font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:pointer; }
+  body.video-off canvas { display:none; }
+  .ui { transition:opacity .6s; }
+  body.idle:not(.panel-open) .ui { opacity:0; pointer-events:none; }
+  body.idle:not(.panel-open) canvas { cursor:none; }
+  #fuel { position:fixed; left:16px; bottom:16px; font-size:12px; color:var(--dim); display:flex; align-items:center; gap:8px; user-select:none; }
+  #dots { display:flex; gap:4px; }
+  #dots i { width:14px; height:5px; border-radius:2px; background:var(--accent); opacity:.15; display:block; }
+  #feed { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); padding:10px 22px; border-radius:999px;
+    border:1px solid var(--line); background:var(--panel); color:var(--fg); font:inherit; font-size:14px; cursor:pointer; backdrop-filter:blur(6px); }
+  #feed:hover { border-color:rgba(255,190,120,.5); }
+  #gear { position:fixed; right:14px; bottom:14px; width:42px; height:42px; border-radius:50%; border:1px solid var(--line);
+    background:var(--panel); color:var(--fg); font-size:20px; cursor:pointer; backdrop-filter:blur(6px); line-height:1; }
+  #panel { position:fixed; right:14px; bottom:64px; width:min(300px,calc(100vw - 28px)); max-height:calc(100vh - 90px); overflow:auto;
+    padding:14px 16px; border-radius:14px; border:1px solid var(--line); background:var(--panel); backdrop-filter:blur(8px);
+    font-size:13px; display:none; }
+  body.panel-open #panel { display:block; }
+  .row { margin:10px 0; }
+  .row label { display:flex; justify-content:space-between; color:var(--dim); margin-bottom:4px; }
+  .row output { color:var(--fg); font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; accent-color:var(--accent); margin:0; }
+  .chk { display:flex; align-items:center; gap:8px; margin:10px 0; cursor:pointer; color:var(--fg); }
+  .chk input { accent-color:var(--accent); width:16px; height:16px; }
+  #panel h2 { margin:0 0 4px; font-size:13px; font-weight:600; color:var(--dim); letter-spacing:.1em; }
+  #panel .hint { font-size:11px; color:var(--dim); margin-top:10px; line-height:1.5; }
+  #start { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    background:rgba(6,4,2,.55); z-index:10; text-align:center; padding:20px; }
+  #start button { padding:16px 40px; font-size:20px; border-radius:999px; border:1px solid rgba(255,190,120,.5);
+    background:rgba(60,32,14,.8); color:var(--fg); cursor:pointer; font-family:inherit; letter-spacing:.15em; }
+  #start button:hover { background:rgba(90,46,18,.9); }
+  #start p { margin:0; color:var(--dim); font-size:13px; line-height:1.7; }
+  body.started #start { display:none; }
+  #panel h2 { margin:16px 0 4px; padding-top:10px; border-top:1px solid var(--line); }
+  #panel h2:first-of-type { margin-top:12px; }
+  .seg { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:4px; }
+  .seg button { flex:1; padding:7px 0; background:transparent; border:0; color:var(--dim); cursor:pointer; font:inherit; }
+  .seg button.on { background:rgba(255,154,60,.25); color:var(--fg); }
+  .ehead { display:flex; align-items:center; gap:8px; color:var(--fg); margin-bottom:4px; }
+  .ehead span { flex:1; }
+  .ehead output { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .ehead input { accent-color:var(--accent); width:16px; height:16px; margin:0; }
+  .note { font-size:11px; color:var(--dim); margin:2px 0 0 24px; }
+  .row.off { opacity:.4; }
+  .ic { display:inline-flex; vertical-align:-3px; }
+  .ic svg { width:1.15em; height:1.15em; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  #gear svg { width:22px; height:22px; }
+  #gear { display:flex; align-items:center; justify-content:center; }
+  #feed .ic, .seg .ic, .chk .ic, .row .ic { margin-right:6px; }
+  .seg button { display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="start">
+  <button id="ignite">火をつける</button>
+  <p>音が出ます。クリックで薪をくべられます。<br>右下の歯車で調整できます。</p>
+</div>
+
+<div id="fuel" class="ui"><span>薪</span><span id="dots"></span><span id="fuelTxt"></span></div>
+<button id="feed" class="ui" type="button"><span class="ic" data-icon="flame"></span>薪をくべる</button>
+<button id="gear" class="ui" type="button" aria-label="設定"><span class="ic" data-icon="settings"></span></button>
+<div id="panel" class="ui">
+  <div class="seg" id="seasonSeg"></div>
+  <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
+  <h2>焚火</h2>
+  <div id="sliders"></div>
+  <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
+  <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
+  <h2>環境音</h2>
+  <div id="envAll"></div>
+  <h2 id="seasonH">季節の音</h2>
+  <div id="envSeason"></div>
+  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。</div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* Lucide icons (ISC License, https://lucide.dev) — inline, 24x24 stroke icons */
+var ICONS = {
+  'settings': '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  'flame': '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>',
+  'eye-off': '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+  'volume-2': '<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+  'flower-2': '<path d="M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1"/><circle cx="12" cy="8" r="2"/><path d="M12 10v12"/><path d="M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z"/><path d="M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  'leaf': '<path d="M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20"/><path d="M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13"/>',
+  'snowflake': '<path d="m10 20-1.25-2.5L6 18"/><path d="M10 4 8.75 6.5 6 6"/><path d="m14 20 1.25-2.5L18 18"/><path d="m14 4 1.25 2.5L18 6"/><path d="m17 21-3-6h-4"/><path d="m17 3-3 6 1.5 3"/><path d="M2 12h6.5L10 9"/><path d="m20 10-1.5 2 1.5 2"/><path d="M22 12h-6.5L14 15"/><path d="m4 10 1.5 2L4 14"/><path d="m7 21 3-6-1.5-3"/><path d="m7 3 3 6h4"/>'
+};
+function iconSvg(name) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
+}
+Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function (el) { el.innerHTML = iconSvg(el.getAttribute('data-icon')); });
+var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
+
+/* ---------- 設定 ---------- */
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false };
+var SLIDERS = [
+  ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
+  ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
+  ['crackSize','パチパチの大きさ',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
+  ['roar','燃焼音（ゴー）の音量',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
+  ['master','全体音量',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
+  ['speed','燃える速さ',0.2,3,0.05,function(v){return '×'+v.toFixed(2);}]
+];
+var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
+var SEAS_JA = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
+var ENV = [
+  { id: 'wave', label: 'さざ波', scope: 'all' }, { id: 'insect', label: '虫の声', scope: 'all' },
+  { id: 'rain', label: '雨', scope: 'all' }, { id: 'wind', label: '風', scope: 'all' },
+  { id: 'brook', label: 'せせらぎ', scope: 'spring' },
+  { id: 'chime', label: '風鈴', scope: 'summer' }, { id: 'fw', label: '遠くの花火', scope: 'summer' },
+  { id: 'leaves', label: '落ち葉のカサカサ', scope: 'autumn' },
+  { id: 'kettle', label: 'やかんのしゅんしゅん', scope: 'winter' },
+  { id: 'snowq', label: '雪の静けさ（音がこもる）', scope: 'winter', noVol: true }
+];
+(function () {
+  var m = new Date().getMonth() + 1;
+  DEFAULTS.season = m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+  DEFAULTS.seasonFx = true;
+  ENV.forEach(function (e) { DEFAULTS['on_' + e.id] = false; DEFAULTS['vol_' + e.id] = 0.7; });
+})();
+var STORE_KEY = 'takibi.settings.v1';
+var S = {};
+(function load() {
+  var k; for (k in DEFAULTS) S[k] = DEFAULTS[k];
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      var o = JSON.parse(raw);
+      for (k in DEFAULTS) {
+        if (typeof DEFAULTS[k] === 'number' && typeof o[k] === 'number' && isFinite(o[k])) S[k] = o[k];
+        else if (typeof DEFAULTS[k] === 'boolean' && typeof o[k] === 'boolean') S[k] = o[k];
+        else if (k === 'season' && SEASONS.indexOf(o[k]) >= 0) S[k] = o[k];
+      }
+    }
+  } catch (e) {}
+})();
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* ---------- 状態（燃料モデル） ---------- */
+var MAX_FUEL = 8;
+var started = false;
+var fuel = 0;          // 薪の量。1本 = 1.0
+var flame = 0;         // なめらかな炎の強さ 0..~1.3（音・映像の両方が参照）
+var boost = 0;         // くべた直後の「パチパチ増」 1→0
+var drops = [];        // 落下中の薪 {t0, landAt, dx, ang}
+var lastFeedAt = 0;
+var lastStep = performance.now();
+var visible = !document.hidden;
+
+function smooth(a, b, x) { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); }
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; }
+function drawingOn() { return !S.videoOff && visible; }
+
+function flameTarget() {
+  var t = 1.2 * (1 - Math.exp(-fuel / 3));
+  t *= smooth(0.03, 0.3, fuel);
+  return t * (1 + 0.2 * boost);
+}
+function emberLevel() { return started ? 1 - smooth(0.02, 0.5, fuel) : 0; }
+
+function addLog() {
+  if (!started) return;
+  if (fuel + drops.length >= MAX_FUEL - 0.01) return;
+  var now = performance.now();
+  if (drawingOn()) {
+    drops.push({ t0: now, landAt: now + 450, dx: rnd(-0.18, 0.18), ang: rnd(-0.6, 0.6) });
+  } else {
+    land({ dx: 0 });
+  }
+  if (ac) playClack();
+}
+function land(d) {
+  fuel = Math.min(MAX_FUEL, fuel + 1);
+  flame *= 0.55;      // 一瞬弱まる
+  boost = 1;          // その後 大きくなる＋パチパチ増
+  if (ac) playThud();
+  if (drawingOn()) burstSparks(d.dx * SC.S, 26);
+}
+
+function step() {
+  var now = performance.now();
+  var dt = (now - lastStep) / 1000;
+  lastStep = now;
+  if (!started) return;
+  if (dt > 7200) dt = 7200;
+  var n = Math.min(600, Math.max(1, Math.ceil(dt)));
+  var h = dt / n;
+  for (var i = 0; i < n; i++) {
+    fuel = Math.max(0, fuel - S.speed * (0.006 + 0.003 * fuel) * h);
+    if (S.autoFeed && fuel + drops.length < 0.8 && (now - lastFeedAt) > 3000) {
+      lastFeedAt = now;
+      addLog();
+    }
+    var tg = flameTarget();
+    var tau = tg > flame ? 2.5 : 1.5;
+    flame += (tg - flame) * (1 - Math.exp(-h / tau));
+    boost *= Math.exp(-h / 5);
+  }
+  for (var j = drops.length - 1; j >= 0; j--) {
+    if (now >= drops[j].landAt || !drawingOn()) { var d = drops.splice(j, 1)[0]; land(d); }
+  }
+  updateFuelUI();
+}
+
+/* ---------- UI ---------- */
+var dotsEl = document.getElementById('dots'), fuelTxt = document.getElementById('fuelTxt');
+var dotEls = [];
+for (var di = 0; di < MAX_FUEL; di++) { var it = document.createElement('i'); dotsEl.appendChild(it); dotEls.push(it); }
+var lastFuelShown = -1;
+function updateFuelUI() {
+  var shown = Math.round(fuel * 10);
+  if (shown === lastFuelShown) return;
+  lastFuelShown = shown;
+  for (var i = 0; i < MAX_FUEL; i++) {
+    dotEls[i].style.opacity = (0.15 + 0.85 * Math.min(1, Math.max(0, fuel - i))).toFixed(2);
+  }
+  fuelTxt.textContent = fuel < 0.05 ? '熾火' : fuel.toFixed(1) + '本';
+}
+
+var slidersEl = document.getElementById('sliders');
+SLIDERS.forEach(function (d) {
+  var key = d[0], row = document.createElement('div');
+  row.className = 'row';
+  var lab = document.createElement('label'), sp = document.createElement('span'), out = document.createElement('output');
+  if (key === 'master') sp.innerHTML = '<span class="ic">' + iconSvg('volume-2') + '</span>'; sp.appendChild(document.createTextNode(d[1])); lab.appendChild(sp); lab.appendChild(out);
+  var inp = document.createElement('input');
+  inp.type = 'range'; inp.min = d[2]; inp.max = d[3]; inp.step = d[4];
+  inp.value = S[key]; out.textContent = d[5](S[key]);
+  inp.addEventListener('input', function () {
+    S[key] = parseFloat(inp.value); out.textContent = d[5](S[key]); save(); applyFilter();
+  });
+  row.appendChild(lab); row.appendChild(inp); slidersEl.appendChild(row);
+});
+var autoEl = document.getElementById('autoFeed'), vidEl = document.getElementById('videoOff');
+autoEl.checked = S.autoFeed; vidEl.checked = S.videoOff;
+autoEl.addEventListener('change', function () { S.autoFeed = autoEl.checked; save(); });
+vidEl.addEventListener('change', function () { S.videoOff = vidEl.checked; save(); applyVideoMode(); });
+
+var canvas = document.getElementById('cv');
+var segEl = document.getElementById('seasonSeg'), fxEl = document.getElementById('seasonFx');
+SEASONS.forEach(function (sn) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.innerHTML = '<span class="ic">' + iconSvg(SEAS_ICON[sn]) + '</span>' + SEAS_JA[sn]; b.dataset.s = sn;
+  b.addEventListener('click', function () { S.season = sn; save(); refreshSeasonUI(); ensureDrift(); });
+  segEl.appendChild(b);
+});
+fxEl.checked = S.seasonFx;
+fxEl.addEventListener('change', function () { S.seasonFx = fxEl.checked; save(); ensureDrift(); });
+var envRows = {};
+ENV.forEach(function (e) {
+  var row = document.createElement('div'); row.className = 'row';
+  var head = document.createElement('div'); head.className = 'ehead';
+  var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!S['on_' + e.id];
+  var nm = document.createElement('span'); nm.textContent = e.label;
+  var out = document.createElement('output');
+  head.appendChild(chk); head.appendChild(nm); head.appendChild(out);
+  row.appendChild(head);
+  chk.addEventListener('change', function () { S['on_' + e.id] = chk.checked; save(); });
+  var rng = null;
+  if (!e.noVol) {
+    rng = document.createElement('input'); rng.type = 'range'; rng.min = 0; rng.max = 1; rng.step = 0.01;
+    rng.value = S['vol_' + e.id]; out.textContent = Math.round(S['vol_' + e.id] * 100) + '%';
+    rng.addEventListener('input', function () {
+      S['vol_' + e.id] = parseFloat(rng.value); out.textContent = Math.round(S['vol_' + e.id] * 100) + '%'; save();
+    });
+    row.appendChild(rng);
+  }
+  var note = null;
+  if (e.id === 'insect') {
+    note = document.createElement('div'); note.className = 'note'; note.textContent = '冬は虫が鳴きません'; note.style.display = 'none';
+    row.appendChild(note);
+  }
+  document.getElementById(e.scope === 'all' ? 'envAll' : 'envSeason').appendChild(row);
+  envRows[e.id] = { row: row, chk: chk, rng: rng, note: note, scope: e.scope };
+});
+function refreshSeasonUI() {
+  var winter = S.season === 'winter';
+  Array.prototype.forEach.call(segEl.children, function (b) { b.classList.toggle('on', b.dataset.s === S.season); });
+  document.getElementById('seasonH').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
+  ENV.forEach(function (e) {
+    var r = envRows[e.id];
+    r.row.style.display = (r.scope === 'all' || r.scope === S.season) ? '' : 'none';
+    if (e.id === 'insect') {
+      r.row.classList.toggle('off', winter); r.chk.disabled = winter;
+      if (r.rng) r.rng.disabled = winter;
+      r.note.style.display = winter ? '' : 'none';
+    }
+  });
+}
+refreshSeasonUI();
+function applyFilter() { canvas.style.filter = 'brightness(' + S.brightness.toFixed(2) + ')'; }
+function applyVideoMode() {
+  document.body.classList.toggle('video-off', S.videoOff);
+  if (S.videoOff) { flames.length = 0; sparks.length = 0; visualQ.length = 0; drift.length = 0; fwQ.length = 0; }
+  else { resize(); }
+  kickRaf();
+}
+
+document.getElementById('gear').addEventListener('click', function (e) {
+  e.stopPropagation(); document.body.classList.toggle('panel-open');
+});
+document.getElementById('panel').addEventListener('click', function (e) { e.stopPropagation(); });
+document.getElementById('feed').addEventListener('click', function (e) { e.stopPropagation(); addLog(); });
+canvas.addEventListener('click', function () { addLog(); });
+document.body.addEventListener('click', function (e) {
+  if (document.body.classList.contains('panel-open') && !e.target.closest('#panel') && !e.target.closest('#gear')) {
+    document.body.classList.remove('panel-open');
+  }
+});
+var idleTimer = 0, uiForcedHidden = false;
+function wakeUI() {
+  if (uiForcedHidden) return;
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(function () { document.body.classList.add('idle'); }, 4000);
+}
+['pointermove', 'pointerdown', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, wakeUI, { passive: true }); });
+window.addEventListener('keydown', function (e) {
+  if (e.target && e.target.tagName === 'INPUT' && e.code === 'Space') return;
+  if (e.code === 'Space') { e.preventDefault(); addLog(); wakeUI(); }
+  else if (e.key === 'h' || e.key === 'H') {
+    uiForcedHidden = !uiForcedHidden;
+    if (uiForcedHidden) { document.body.classList.add('idle'); document.body.classList.remove('panel-open'); }
+    else wakeUI();
+  }
+});
+wakeUI();
+
+/* ---------- 音 (Web Audio 手続き合成) ---------- */
+var ac = null, master, comp, bus, whiteBuf, brownBuf;
+var roarA, roarB, roarC;      // {f, g}
+var snowLP, L = {}, waveN, gSp, gSu, gAu, suzuGate;
+var nextCrackle = 0;
+var LOOK = 1.5;               // 先読み秒数（背景タブでタイマーが1秒に間引かれても途切れない）
+var visualQ = [], fwQ = [];
+
+function makeBuffers() {
+  var sr = ac.sampleRate, i, last = 0;
+  whiteBuf = ac.createBuffer(1, sr * 2, sr);
+  var w = whiteBuf.getChannelData(0);
+  for (i = 0; i < w.length; i++) w[i] = Math.random() * 2 - 1;
+  brownBuf = ac.createBuffer(1, sr * 6, sr);
+  var b = brownBuf.getChannelData(0), max = 0;
+  for (i = 0; i < b.length; i++) {
+    last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+    b[i] = last; if (Math.abs(last) > max) max = Math.abs(last);
+  }
+  // 継ぎ目のクリック防止: 先頭を末尾とクロスフェード
+  var fade = Math.floor(sr * 0.25);
+  for (i = 0; i < fade; i++) {
+    var a = i / fade;
+    b[i] = b[i] * a + b[b.length - fade + i] * (1 - a);
+  }
+  var norm = 0.9 / (max || 1);
+  for (i = 0; i < b.length; i++) b[i] *= norm;
+}
+function loopSrc(buf, rate) {
+  var s = ac.createBufferSource();
+  s.buffer = buf; s.loop = true; s.playbackRate.value = rate || 1;
+  s.start(0, Math.random() * (buf.duration - 0.5));
+  return s;
+}
+function initAudio() {
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  ac = new AC();
+  master = ac.createGain(); master.gain.value = 0;
+  comp = ac.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.knee.value = 20; comp.ratio.value = 6;
+  comp.attack.value = 0.004; comp.release.value = 0.2;
+  bus = ac.createGain(); bus.gain.value = 0.9;
+  snowLP = ac.createBiquadFilter(); snowLP.type = 'lowpass'; snowLP.frequency.value = 20000; snowLP.Q.value = 0.5;
+  bus.connect(snowLP); snowLP.connect(master); master.connect(comp); comp.connect(ac.destination);
+  makeBuffers();
+
+  function chain(src, type, freq, q, gainVal) {
+    var f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    var gn = ac.createGain(); gn.gain.value = gainVal;
+    src.connect(f); f.connect(gn); gn.connect(bus);
+    return { f: f, g: gn };
+  }
+  roarA = chain(loopSrc(brownBuf, 1), 'lowpass', 500, 0.7, 0);     // 「ゴー」本体
+  roarB = chain(loopSrc(brownBuf, 0.55), 'lowpass', 200, 0.5, 0);  // 低い唸り
+  roarC = chain(loopSrc(whiteBuf, 1), 'bandpass', 2600, 0.4, 0);   // 微かな「シュー」
+
+  initEnv();
+  nextCrackle = ac.currentTime + 0.3;
+}
+
+/* ---- 環境音レイヤー（ノードは1度だけ作りゲインで出し入れ） ---- */
+var ENV_BASE = { wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, chime: 1.5, fw: 1.4, leaves: 1.4, kettle: 0.8 };
+function avail(id) {
+  var e = ENV.filter(function (x) { return x.id === id; })[0];
+  if (!e) return false;
+  if (id === 'insect' && S.season === 'winter') return false;
+  return e.scope === 'all' || e.scope === S.season;
+}
+function lvl(id) {
+  if (!avail(id) || !S['on_' + id]) return 0;
+  return (ENV_BASE[id] || 1) * S['vol_' + id] * S['vol_' + id];
+}
+function mkG(v, dest) { var n = ac.createGain(); n.gain.value = v; if (dest) n.connect(dest); return n; }
+function mkF(type, f, q, dest) {
+  var n = ac.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; if (dest) n.connect(dest); return n;
+}
+function mkOsc(type, f, dest) { var o = ac.createOscillator(); o.type = type; o.frequency.value = f; if (dest) o.connect(dest); o.start(); return o; }
+function initEnv() {
+  ENV.forEach(function (e) { if (!e.noVol) L[e.id] = mkG(0, bus); });
+  var src;
+  // さざ波: 白色ノイズ→ローパス→ゲインを数秒周期で寄せ/引き
+  waveN = { lp: mkF('lowpass', 500, 0.7), g: mkG(0.05) };
+  src = loopSrc(whiteBuf, 1); src.connect(waveN.lp); waveN.lp.connect(waveN.g); waveN.g.connect(L.wave);
+  // 虫（夏）: 6.2kHz帯ノイズを 48Hz で振幅変調した連続音「ジー」
+  gSu = mkG(0, L.insect);
+  var amSu = mkG(0.5, gSu);
+  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 6200, 5, amSu));
+  mkOsc('sine', 48, mkG(0.4, amSu.gain));
+  // 虫（春）: 低め控えめの 1.25kHz を 7Hz で揺らす
+  gSp = mkG(0, L.insect);
+  var amSp = mkG(0.5, gSp);
+  mkOsc('sine', 1250, amSp); mkOsc('sine', 7, mkG(0.45, amSp.gain));
+  // 虫（秋・鈴虫）: 4.5kHz を 16Hz で振幅変調、ゲートで「リーン」を区切る
+  gAu = mkG(0, L.insect);
+  suzuGate = mkG(0, gAu);
+  var amAu = mkG(0.5, suzuGate);
+  mkOsc('sine', 4500, amAu); mkOsc('sine', 16, mkG(0.5, amAu.gain));
+  // 雨: 細かい帯域ノイズ（雫は個別にスケジュール）
+  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 3800, 0.35, mkG(0.55, L.rain)));
+  // 風: ブラウンノイズ→BP。中心周波数と音量を非同期の低速LFOで揺らす
+  var wbp = mkF('bandpass', 500, 1.4), wg = mkG(1.2, L.wind);
+  src = loopSrc(brownBuf, 1); src.connect(wbp); wbp.connect(wg);
+  mkOsc('sine', 0.09, mkG(220, wbp.frequency)); mkOsc('sine', 0.23, mkG(120, wbp.frequency));
+  mkOsc('sine', 0.13, mkG(0.5, wg.gain));
+  // せせらぎ: 2つの高域BPを緩くゆらす
+  var bg1 = mkG(0.45, L.brook), bf1 = mkF('bandpass', 2400, 0.9, bg1), bf2 = mkF('bandpass', 1200, 1.5, bg1);
+  src = loopSrc(whiteBuf, 1); src.connect(bf1); src.connect(bf2);
+  mkOsc('sine', 0.6, mkG(500, bf1.frequency)); mkOsc('sine', 0.9, mkG(250, bf2.frequency));
+  // やかん: 高域の細いシュー音を緩く揺らす
+  var kg = mkG(0.35, L.kettle);
+  src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 4500, 0.7, mkF('bandpass', 7000, 1.5, kg)));
+  mkOsc('sine', 0.3, mkG(0.15, kg.gain));
+}
+function playWave(t) {
+  var a = rnd(2.2, 3.8), b = rnd(3, 5.5), pk = rnd(0.6, 1);
+  waveN.g.gain.setValueAtTime(0.05, t);
+  waveN.g.gain.linearRampToValueAtTime(pk, t + a);
+  waveN.g.gain.linearRampToValueAtTime(0.05, t + a + b);
+  waveN.lp.frequency.setValueAtTime(450, t);
+  waveN.lp.frequency.linearRampToValueAtTime(1500, t + a);
+  waveN.lp.frequency.linearRampToValueAtTime(400, t + a + b);
+  return a + b + rnd(0, 1.2);
+}
+function playRain(t) {
+  noiseBurst(t, 0.03, 'bandpass', rnd(2500, 7000), 2, rnd(0.08, 0.3), L.rain);
+  return expSample(18);
+}
+function playSuzu(t) {
+  var d = rnd(0.8, 1.6);
+  suzuGate.gain.setValueAtTime(0, t);
+  suzuGate.gain.linearRampToValueAtTime(1, t + 0.08);
+  suzuGate.gain.setValueAtTime(1, t + d - 0.1);
+  suzuGate.gain.linearRampToValueAtTime(0, t + d);
+  return d + rnd(0.6, 2);
+}
+function playCricket(t) {
+  var n = 2 + Math.floor(Math.random() * 3), tc = t;
+  for (var i = 0; i < n; i++, tc += 0.05) {
+    var o = ac.createOscillator(), gn = ac.createGain();
+    o.type = 'sine'; o.frequency.value = 4000 + rnd(-60, 60);
+    gn.gain.setValueAtTime(0.0001, tc);
+    gn.gain.exponentialRampToValueAtTime(0.35, tc + 0.004);
+    gn.gain.exponentialRampToValueAtTime(0.0001, tc + 0.03);
+    o.connect(gn); gn.connect(L.insect); o.start(tc); o.stop(tc + 0.04);
+    o.onended = function () { try { this.disconnect(); } catch (e) {} };
+  }
+  return rnd(0.5, 2.2);
+}
+function playBubble(t) {
+  var o = ac.createOscillator(), gn = ac.createGain(), f0 = rnd(500, 1400);
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.8, t + 0.04);
+  gn.gain.setValueAtTime(rnd(0.03, 0.09), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  o.connect(gn); gn.connect(L.brook); o.start(t); o.stop(t + 0.08);
+  o.onended = function () { try { this.disconnect(); } catch (e) {} };
+  return expSample(14);
+}
+function bell(t, base, pk) {
+  var ratios = [1, 2.32, 4.25, 6.63], amps = [1, 0.5, 0.25, 0.12], dec = [3, 2, 1.2, 0.7];
+  for (var i = 0; i < 4; i++) {
+    var o = ac.createOscillator(), gn = ac.createGain();
+    o.type = 'sine'; o.frequency.value = base * ratios[i] * rnd(0.998, 1.002);
+    gn.gain.setValueAtTime(pk * amps[i], t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dec[i]);
+    o.connect(gn); gn.connect(L.chime); o.start(t); o.stop(t + dec[i] + 0.05);
+    o.onended = function () { try { this.disconnect(); } catch (e) {} };
+  }
+}
+function playChime(t) {
+  var base = [1568, 1760, 2093, 2349, 2637][Math.floor(Math.random() * 5)];
+  var pk = 0.1 * rnd(0.5, 1);
+  bell(t, base, pk);
+  if (Math.random() < 0.25) bell(t + rnd(0.2, 0.6), base * rnd(0.9, 1.1), pk * 0.7);
+  return rnd(4, 25);
+}
+function playFireworks(t) {
+  noiseBurst(t, 0.5, 'lowpass', 150, 0.7, 1.0, L.fw);
+  noiseBurst(t, 1.5, 'lowpass', 90, 0.7, 0.4, L.fw);
+  var o = ac.createOscillator(), gn = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(65, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+  gn.gain.setValueAtTime(0.8, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+  o.connect(gn); gn.connect(L.fw); o.start(t); o.stop(t + 0.75);
+  o.onended = function () { try { this.disconnect(); } catch (e) {} };
+  noiseBurst(t + 0.35, 0.4, 'lowpass', 110, 0.7, 0.35, L.fw);
+  if (drawingOn() && fwQ.length < 20) {
+    fwQ.push({ t: t, x: rnd(0.15, 0.85) * W, y: rnd(0.08, 0.4) * H, hue: [15, 45, 200, 320, 110][Math.floor(Math.random() * 5)] });
+  }
+  return rnd(25, 70);
+}
+function playLeaves(t) {
+  var n = Math.random() < 0.08 ? 12 + Math.floor(Math.random() * 7) : 2 + Math.floor(Math.random() * 5), tc = t;
+  for (var i = 0; i < n; i++) {
+    noiseBurst(tc, rnd(0.015, 0.05), 'bandpass', rnd(3000, 7500), 0.9, rnd(0.05, 0.22), L.leaves);
+    tc += rnd(0.01, 0.07);
+  }
+  return expSample(1.2);
+}
+function playKnock(t) {
+  var n = 2 + Math.floor(Math.random() * 3), tc = t;
+  for (var i = 0; i < n; i++, tc += rnd(0.12, 0.22)) noiseBurst(tc, 0.07, 'bandpass', rnd(300, 600), 3, 0.5, L.kettle);
+  return rnd(1.5, 4);
+}
+var SCH = {
+  wave:    { on: function () { return lvl('wave') > 0; }, init: function () { return 0.1; }, fn: playWave, next: 0 },
+  rain:    { on: function () { return lvl('rain') > 0; }, init: function () { return 0.1; }, fn: playRain, next: 0 },
+  suzu:    { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playSuzu, next: 0 },
+  cricket: { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playCricket, next: 0 },
+  brook:   { on: function () { return lvl('brook') > 0; }, init: function () { return 0.1; }, fn: playBubble, next: 0 },
+  chime:   { on: function () { return lvl('chime') > 0; }, init: function () { return rnd(1, 4); }, fn: playChime, next: 0 },
+  fw:      { on: function () { return lvl('fw') > 0; }, init: function () { return rnd(6, 20); }, fn: playFireworks, next: 0 },
+  leaves:  { on: function () { return lvl('leaves') > 0; }, init: function () { return rnd(0.1, 1); }, fn: playLeaves, next: 0 },
+  kettle:  { on: function () { return lvl('kettle') > 0; }, init: function () { return rnd(0.5, 2); }, fn: playKnock, next: 0 }
+};
+function envTick(t) {
+  ENV.forEach(function (e) { if (!e.noVol) L[e.id].gain.setTargetAtTime(lvl(e.id), t, 0.6); });   // 2秒前後でフェード
+  var se = S.season;
+  gSp.gain.setTargetAtTime(se === 'spring' ? 0.5 : 0, t, 0.6);
+  gSu.gain.setTargetAtTime(se === 'summer' ? 0.7 : 0, t, 0.6);
+  gAu.gain.setTargetAtTime(se === 'autumn' ? 1 : 0, t, 0.6);
+  snowLP.frequency.setTargetAtTime(se === 'winter' && S.on_snowq ? 900 : 20000, t, 0.8);
+}
+function schedEnv(t) {
+  for (var key in SCH) {
+    var c = SCH[key];
+    if (!c.on()) { c.next = 0; continue; }
+    if (!c.next || c.next < t) c.next = t + c.init();
+    var guard = 0;
+    while (c.next < t + LOOK && guard++ < 40) c.next += Math.max(0.05, c.fn(c.next));
+  }
+}
+
+function noiseBurst(t, decay, type, freq, q, peak, dest) {
+  var src = ac.createBufferSource();
+  src.buffer = whiteBuf;
+  var f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  var gn = ac.createGain();
+  gn.gain.setValueAtTime(peak, t);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+  src.connect(f); f.connect(gn); gn.connect(dest || bus);
+  src.start(t, Math.random() * 1.5, decay * 1.3 + 0.01);
+  src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); } catch (e) {} };
+}
+function playCrackle(t, lv) {
+  var mult = 0.25 + 1.75 * S.crackSize;
+  var amp = (0.3 + 0.7 * Math.min(1, lv)) * mult;
+  var f = 1500 * Math.pow(4, Math.random());        // 1.5k〜6kHz
+  var peak = (0.12 + 0.55 * Math.pow(Math.random(), 2)) * amp * 2;
+  noiseBurst(t, rnd(0.004, 0.03), 'bandpass', f, rnd(1.2, 3), peak);
+  return peak / (amp * 2);
+}
+function playPop(t, lv) {
+  var mult = 0.25 + 1.75 * S.crackSize;
+  var amp = (0.4 + 0.6 * Math.min(1, lv)) * mult;
+  noiseBurst(t, rnd(0.07, 0.13), 'bandpass', rnd(260, 700), 0.8, 1.1 * amp);
+  noiseBurst(t, 0.02, 'bandpass', rnd(2500, 4500), 1, 0.5 * amp);
+}
+function playThud() {
+  var t = ac.currentTime + 0.005;
+  noiseBurst(t, 0.2, 'lowpass', 220, 0.7, 0.9);
+  var o = ac.createOscillator(), gn = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+  gn.gain.setValueAtTime(0.5, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  o.connect(gn); gn.connect(bus); o.start(t); o.stop(t + 0.2);
+  o.onended = function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} };
+}
+function playClack() {
+  noiseBurst(ac.currentTime + 0.005, 0.03, 'bandpass', 900, 1.5, 0.25);
+}
+function expSample(rate) { return -Math.log(1 - Math.random()) / rate; }
+
+function crackleLevel(fl, em) { return Math.pow(Math.max(0, fl), 1.2) * (1 + 2.5 * boost) + 0.05 * em; }
+
+function audioTick() {
+  if (!ac) return;
+  var t = ac.currentTime;
+  var tt = performance.now() / 1000;
+  var lfo = 0.5 * Math.sin(tt * 0.7) + 0.3 * Math.sin(tt * 1.9 + 1) + 0.2 * Math.sin(tt * 4.3 + 2);
+  var lfo2 = Math.sin(tt * 0.37 + 0.5) * 0.6 + Math.sin(tt * 1.13) * 0.4;
+  var em = emberLevel();
+  var fl = started ? flame : 0;
+  var vol = S.roar * S.roar;
+  var lvl = 0.02 + 0.85 * Math.pow(Math.min(1.3, fl), 1.1) + 0.03 * em;
+
+  master.gain.setTargetAtTime(started ? S.master * S.master : 0, t, 0.1);
+  roarA.g.gain.setTargetAtTime(vol * lvl * (0.8 + 0.2 * lfo), t, 0.3);
+  roarA.f.frequency.setTargetAtTime(380 + 420 * fl + 150 * lfo2, t, 0.3);
+  roarB.g.gain.setTargetAtTime(vol * lvl * 0.6 * (0.85 + 0.15 * lfo2), t, 0.4);
+  roarC.g.gain.setTargetAtTime(vol * (0.004 + 0.05 * fl) * (0.6 + 0.4 * Math.random()), t, 0.15);
+  roarC.f.frequency.setTargetAtTime(2200 + 1200 * fl + 500 * lfo, t, 0.3);
+
+  envTick(t);
+  if (started && ac.state === 'running') schedEnv(t);
+  if (!started || ac.state !== 'running') { nextCrackle = t + 0.1; return; }
+  if (nextCrackle < t) nextCrackle = t + 0.02;
+
+  var guard = 0;
+  while (nextCrackle < t + LOOK && guard++ < 60) {
+    var rate = (0.2 + 7 * S.crackFreq) * crackleLevel(fl, em);
+    if (rate < 0.02 || S.crackFreq <= 0.001) { nextCrackle = t + 0.5; break; }
+    var t0 = nextCrackle;
+    var isPop = Math.random() < (0.03 + 0.05 * S.crackFreq) * Math.min(1, fl + 0.2 * boost);
+    if (isPop) {
+      playPop(t0, fl);
+      queueVisual(t0, 14);
+    } else {
+      var r = Math.random(), n = r < 0.5 ? 1 : r < 0.75 ? 2 : r < 0.9 ? 3 : 4;
+      var tc = t0;
+      for (var k = 0; k < n; k++) {
+        var pk = playCrackle(tc, fl);
+        queueVisual(tc, 1 + Math.round(3 * pk));
+        tc += rnd(0.008, 0.045);
+      }
+    }
+    nextCrackle = t0 + expSample(rate);
+  }
+  // 極低頻度からの復帰が遅れないよう、予約が遠すぎるときは（無記憶性を利用して）引き直す
+  if (nextCrackle > t + 2.5) {
+    var r2 = (0.2 + 7 * S.crackFreq) * crackleLevel(fl, em);
+    nextCrackle = t + expSample(Math.max(0.05, r2));
+  }
+}
+function queueVisual(t, count) {
+  if (!drawingOn()) return;
+  if (visualQ.length < 200) visualQ.push({ t: t, n: count });
+}
+
+/* ---------- 映像 ---------- */
+var g = canvas.getContext('2d');
+var W = 0, H = 0, DPR = 1;
+var SC = { S: 300, cx: 0, gy: 0 };
+var flames = [], sparks = [];
+var MAX_FLAME = 520, MAX_SPARK = 220;
+var raf = 0, lastFrame = 0;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  SC.S = Math.min(W * 0.46, H * 0.42);
+  SC.cx = W / 2; SC.gy = H * 0.8;
+  ensureDrift();
+}
+window.addEventListener('resize', function () { if (drawingOn()) resize(); });
+
+// 色ごとのグロースプライト（炎の年齢に対応）
+var NB = 14, sprites = [];
+(function () {
+  var stops = [[255,225,140],[255,190,80],[255,160,50],[235,100,25],[190,50,15],[110,25,10]];
+  for (var i = 0; i < NB; i++) {
+    var p = i / (NB - 1) * (stops.length - 1), a = Math.floor(p), b = Math.min(stops.length - 1, a + 1), fr = p - a;
+    var c = [0, 1, 2].map(function (k) { return Math.round(stops[a][k] + (stops[b][k] - stops[a][k]) * fr); });
+    var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    var x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(' + c + ',1)'); gr.addColorStop(0.35, 'rgba(' + c + ',0.45)'); gr.addColorStop(1, 'rgba(' + c + ',0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    sprites.push(cv);
+  }
+})();
+
+var LOGS = [
+  [-0.07, 0.09, 0.3], [0.07, 0.09, -0.3], [0, 0.13, 0.03], [-0.10, 0.22, -0.5],
+  [0.10, 0.22, 0.5], [0, 0.30, 0.1], [-0.22, 0.20, 0.55], [0.22, 0.20, -0.55]
+];
+
+function rrect(x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.arcTo(x + w, y, x + w, y + r, r);
+  g.lineTo(x + w, y + h - r); g.arcTo(x + w, y + h, x + w - r, y + h, r);
+  g.lineTo(x + r, y + h); g.arcTo(x, y + h, x, y + h - r, r);
+  g.lineTo(x, y + r); g.arcTo(x, y, x + r, y, r); g.closePath();
+}
+function drawLog(x, y, ang, heat, seed) {
+  var s = SC.S, len = 0.56 * s, rad = 0.055 * s;
+  g.save(); g.translate(x, y); g.rotate(ang);
+  var gr = g.createLinearGradient(0, -rad, 0, rad);
+  gr.addColorStop(0, '#513320'); gr.addColorStop(0.5, '#33200f'); gr.addColorStop(1, '#150b06');
+  g.fillStyle = gr; rrect(-len / 2, -rad, len, rad * 2, rad * 0.6); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1;
+  for (var i = 0; i < 4; i++) {
+    var yy = -rad * 0.6 + i * rad * 0.42, o = ((seed * 7 + i * 13) % 10) / 10;
+    g.beginPath(); g.moveTo(-len * 0.42 + o * len * 0.1, yy); g.lineTo(len * (0.1 + o * 0.3), yy + 1); g.stroke();
+  }
+  g.fillStyle = '#7a5537'; g.beginPath(); g.ellipse(len / 2 - rad * 0.3, 0, rad * 0.55, rad * 0.92, 0, 0, 6.29); g.fill();
+  g.strokeStyle = 'rgba(40,20,8,.6)'; g.beginPath(); g.ellipse(len / 2 - rad * 0.3, 0, rad * 0.25, rad * 0.5, 0, 0, 6.29); g.stroke();
+  if (heat > 0.01) {
+    var hg = g.createLinearGradient(0, -rad, 0, rad);
+    hg.addColorStop(0, 'rgba(255,120,30,' + (0.55 * heat).toFixed(3) + ')');
+    hg.addColorStop(1, 'rgba(160,30,10,' + (0.15 * heat).toFixed(3) + ')');
+    g.fillStyle = hg; rrect(-len / 2, -rad, len, rad * 2, rad * 0.6); g.fill();
+  }
+  g.restore();
+}
+
+function spawnFlame(n) {
+  var s = SC.S, f = Math.min(1.2, flame);
+  for (var i = 0; i < n && flames.length < MAX_FLAME; i++) {
+    flames.push({
+      x: SC.cx + gauss() * (0.09 + 0.14 * f) * s,
+      y: SC.gy - (0.16 + rnd(0, 0.08)) * s,
+      vy: -(0.55 + 0.6 * f) * s * rnd(0.7, 1.3),
+      vx: gauss() * 0.05 * s,
+      size: (0.11 + 0.06 * f) * s * rnd(0.6, 1.3),
+      life: rnd(0.55, 1.25) * (0.7 + 0.5 * f), age: 0, seed: Math.random() * 10
+    });
+  }
+}
+function burstSparks(dx, n) {
+  var s = SC.S;
+  for (var i = 0; i < n && sparks.length < MAX_SPARK; i++) {
+    sparks.push({
+      x: SC.cx + dx + gauss() * 0.12 * s, y: SC.gy - 0.22 * s,
+      vx: gauss() * 0.35 * s, vy: -rnd(0.4, 1.3) * s,
+      life: rnd(0.9, 2.2), age: 0, size: rnd(3, 6.5)
+    });
+  }
+}
+function sparkBurstSmall(n) {
+  var s = SC.S, f = Math.min(1.2, flame);
+  for (var i = 0; i < n && sparks.length < MAX_SPARK; i++) {
+    sparks.push({
+      x: SC.cx + gauss() * 0.10 * s, y: SC.gy - 0.25 * s,
+      vx: gauss() * 0.16 * s, vy: -rnd(0.25, 0.9) * s * (0.6 + 0.6 * f),
+      life: rnd(0.8, 2.0), age: 0, size: rnd(2.5, 5.5)
+    });
+  }
+}
+
+var SEAS = {
+  spring: ['#0e0814', '#180e1e', '#100913'],
+  summer: ['#030718', '#081334', '#050d22'],
+  autumn: ['#120604', '#22100a', '#160905'],
+  winter: ['#07101a', '#15263a', '#0e1b2b']
+};
+var drift = [], fwGlows = [];
+var ffSprite = document.createElement('canvas');
+ffSprite.width = ffSprite.height = 32;
+(function () {
+  var x = ffSprite.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(230,255,150,1)'); gr.addColorStop(0.3, 'rgba(180,255,90,0.5)'); gr.addColorStop(1, 'rgba(120,220,60,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
+})();
+function ensureDrift() {
+  drift.length = 0;
+  if (!S.seasonFx || S.videoOff || !W) return;
+  var N = { spring: 34, summer: 18, autumn: 30, winter: 70 }[S.season];
+  N = Math.max(8, Math.round(N * Math.min(1, W * H / 900000)));
+  for (var i = 0; i < N; i++) {
+    drift.push({
+      x: rnd(0, W), y: S.season === 'summer' ? rnd(H * 0.35, H * 0.95) : rnd(0, H),
+      vx: rnd(-30, -6), vy: rnd(22, 55), rot: rnd(0, 6.28), vr: rnd(-2, 2),
+      size: rnd(0.6, 1.2), ph: rnd(0, 20), a: rnd(0, 6.28), f: rnd(0.6, 1.6), c: Math.floor(Math.random() * 4)
+    });
+  }
+}
+var LEAFC = ['#c8471c', '#e0842a', '#a02c14', '#d9a12e'];
+function drawSeason(dt, now) {
+  var se = S.season, i, p;
+  // 遠くの花火の光（音と同時）
+  if (ac) {
+    var ct = ac.currentTime;
+    while (fwQ.length && fwQ[0].t <= ct) { var e = fwQ.shift(); fwGlows.push({ x: e.x, y: e.y, a: 1, hue: e.hue }); }
+  }
+  if (fwGlows.length) {
+    g.globalCompositeOperation = 'lighter';
+    for (i = fwGlows.length - 1; i >= 0; i--) {
+      var w = fwGlows[i]; w.a *= Math.exp(-dt / 0.9);
+      if (w.a < 0.02) { fwGlows.splice(i, 1); continue; }
+      var R = Math.min(W, H) * 0.45;
+      var gr = g.createRadialGradient(w.x, w.y, 0, w.x, w.y, R);
+      gr.addColorStop(0, 'hsla(' + w.hue + ',90%,65%,' + (0.30 * w.a).toFixed(3) + ')');
+      gr.addColorStop(1, 'hsla(' + w.hue + ',90%,50%,0)');
+      g.fillStyle = gr; g.fillRect(w.x - R, w.y - R, R * 2, R * 2);
+    }
+  }
+  if (!drift.length) { g.globalCompositeOperation = 'source-over'; return; }
+  if (se === 'summer') {
+    g.globalCompositeOperation = 'lighter';
+    for (i = 0; i < drift.length; i++) {
+      p = drift[i];
+      p.a += (Math.random() - 0.5) * 2 * dt;
+      var sp = 10 + 12 * p.size;
+      p.x += Math.cos(p.a) * sp * dt; p.y += (Math.sin(p.a) * sp - 2) * dt;
+      if (p.x < 0 || p.x > W) p.a = Math.PI - p.a;
+      if (p.y < H * 0.3 || p.y > H * 0.97) p.a = -p.a;
+      var b = Math.max(0, Math.sin(now * p.f + p.ph)); b = b * b;
+      if (b < 0.02) continue;
+      g.globalAlpha = b * 0.9;
+      var r = 8 + 6 * p.size;
+      g.drawImage(ffSprite, p.x - r, p.y - r, r * 2, r * 2);
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    return;
+  }
+  g.globalCompositeOperation = 'source-over';
+  if (se === 'winter') {
+    g.fillStyle = 'rgba(232,242,255,0.75)'; g.beginPath();
+    for (i = 0; i < drift.length; i++) {
+      p = drift[i];
+      p.y += p.vy * 0.6 * p.size * dt; p.x += (p.vx * 0.3 + Math.sin(now * 0.8 + p.ph) * 12) * dt;
+      if (p.y > H + 5) { p.y = -5; p.x = rnd(0, W); }
+      if (p.x < -5) p.x = W + 5; else if (p.x > W + 5) p.x = -5;
+      var rr = 1 + 1.6 * p.size;
+      g.moveTo(p.x + rr, p.y); g.arc(p.x, p.y, rr, 0, 6.29);
+    }
+    g.fill();
+    return;
+  }
+  for (i = 0; i < drift.length; i++) {
+    p = drift[i];
+    var sway = se === 'autumn' ? 30 : 20;
+    p.y += p.vy * dt * (se === 'autumn' ? 1.1 : 0.8);
+    p.x += (p.vx + Math.sin(now * 1.3 + p.ph) * sway) * dt;
+    p.rot += p.vr * dt;
+    if (p.y > H + 20) { p.y = -20; p.x = rnd(0, W); }
+    if (p.x < -30) p.x = W + 30; else if (p.x > W + 30) p.x = -30;
+    g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
+    var z = 5 + 5 * p.size;
+    if (se === 'spring') {
+      g.fillStyle = 'rgba(255,186,208,0.8)';
+      g.beginPath(); g.ellipse(0, 0, z, z * 0.55, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,225,235,0.5)';
+      g.beginPath(); g.ellipse(-z * 0.2, 0, z * 0.5, z * 0.25, 0, 0, 6.29); g.fill();
+    } else {
+      g.fillStyle = LEAFC[p.c]; g.globalAlpha = 0.85;
+      g.beginPath(); g.moveTo(0, -z * 1.1); g.quadraticCurveTo(z * 1.1, -z * 0.2, 0, z * 1.1);
+      g.quadraticCurveTo(-z * 1.1, -z * 0.2, 0, -z * 1.1); g.fill(); g.globalAlpha = 1;
+    }
+    g.restore();
+  }
+}
+
+var sparkAcc = 0, flameAcc = 0;
+function render(dt) {
+  var s = SC.S, f = started ? flame : 0, em = emberLevel(), now = performance.now() / 1000;
+  var flick = 0.92 + 0.08 * Math.sin(now * 9) * Math.sin(now * 3.1 + 1) + 0.03 * Math.sin(now * 23);
+
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  var bg = g.createLinearGradient(0, 0, 0, H);
+  var sc = SEAS[S.season];
+  bg.addColorStop(0, sc[0]); bg.addColorStop(0.7, sc[1]); bg.addColorStop(1, sc[2]);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  // 地面
+  var gg = g.createRadialGradient(SC.cx, SC.gy, 0, SC.cx, SC.gy, s * 1.6);
+  gg.addColorStop(0, '#1a100a'); gg.addColorStop(1, 'rgba(10,6,4,0)');
+  g.fillStyle = gg; g.save(); g.translate(0, SC.gy); g.scale(1, 0.22); g.translate(0, -SC.gy);
+  g.fillRect(0, SC.gy - s * 2, W, s * 4); g.restore();
+
+  // 地面と周囲のグロー
+  g.globalCompositeOperation = 'lighter';
+  var ga = (0.34 * Math.min(1.2, f) + 0.10 * em) * flick;
+  if (ga > 0.005) {
+    var R = s * (1.1 + 1.0 * Math.min(1.2, f));
+    var gl = g.createRadialGradient(SC.cx, SC.gy - 0.3 * s, 0, SC.cx, SC.gy - 0.3 * s, R);
+    gl.addColorStop(0, 'rgba(255,130,40,' + ga.toFixed(3) + ')');
+    gl.addColorStop(0.5, 'rgba(200,70,20,' + (ga * 0.35).toFixed(3) + ')');
+    gl.addColorStop(1, 'rgba(120,30,10,0)');
+    g.fillStyle = gl; g.fillRect(0, 0, W, H);
+    g.save(); g.translate(0, SC.gy); g.scale(1, 0.28); g.translate(0, -SC.gy);
+    var fg = g.createRadialGradient(SC.cx, SC.gy, 0, SC.cx, SC.gy, s * 1.5);
+    fg.addColorStop(0, 'rgba(255,140,50,' + (ga * 0.8).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(255,100,30,0)');
+    g.fillStyle = fg; g.fillRect(SC.cx - s * 1.6, SC.gy - s * 1.6, s * 3.2, s * 3.2); g.restore();
+  }
+  g.globalCompositeOperation = 'source-over';
+
+  // 薪（燃料量に応じて本数が変わる）
+  var shown = started ? Math.min(MAX_FUEL, Math.max(1, Math.ceil(fuel - 0.02))) : 1;
+  var heat = started ? Math.min(1, f * 0.9 + em * (0.5 + 0.3 * Math.sin(now * 1.5))) : 0;
+  for (var i = 0; i < shown; i++) {
+    var L = LOGS[i];
+    drawLog(SC.cx + L[0] * s * 2, SC.gy - L[1] * s + 0.02 * s, L[2], heat * (0.6 + 0.4 * ((i * 37) % 10) / 10), i);
+  }
+  // 落下中の薪
+  var pn = performance.now();
+  for (var k = 0; k < drops.length; k++) {
+    var d = drops[k], p = Math.min(1, (pn - d.t0) / (d.landAt - d.t0)), e = p * p;
+    var ty = SC.gy - 0.22 * s, sy = ty - s * 1.1;
+    drawLog(SC.cx + d.dx * s, sy + (ty - sy) * e, d.ang * (1 - 0.6 * e), 0, k);
+  }
+
+  // 熾火の点
+  if (em > 0.02) {
+    g.globalCompositeOperation = 'lighter';
+    for (var m = 0; m < 9; m++) {
+      var ex = SC.cx + Math.sin(m * 2.3 + 1) * 0.44 * s, ey = SC.gy - (0.06 + 0.05 * ((m * 5) % 4)) * s;
+      var pulse = 0.55 + 0.45 * Math.sin(now * (0.8 + m * 0.17) + m);
+      g.globalAlpha = em * pulse * 0.9;
+      var sr = (0.05 + 0.02 * (m % 3)) * s;
+      g.drawImage(sprites[NB - 3], ex - sr, ey - sr, sr * 2, sr * 2);
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  }
+
+  // 炎パーティクル
+  if (started && f > 0.03) {
+    flameAcc += 280 * f * dt;
+    var nn = Math.floor(flameAcc); flameAcc -= nn; spawnFlame(nn);
+  }
+  g.globalCompositeOperation = 'lighter';
+  for (var a = flames.length - 1; a >= 0; a--) {
+    var q = flames[a];
+    q.age += dt;
+    var t = q.age / q.life;
+    if (t >= 1) { flames[a] = flames[flames.length - 1]; flames.pop(); continue; }
+    q.x += (q.vx + Math.sin(q.age * 7 + q.seed) * 0.05 * s - (q.x - SC.cx) * 1.0) * dt;
+    q.y += q.vy * dt;
+    q.vy *= (1 - 0.5 * dt);
+    var sz = q.size * (1 - t * 0.75);
+    g.globalAlpha = Math.min(1, (1 - t) * 0.27 * Math.min(1, t * 8 + 0.2));
+    g.drawImage(sprites[Math.min(NB - 1, (t * NB) | 0)], q.x - sz, q.y - sz, sz * 2, sz * 2);
+  }
+
+  // 音と同期した火の粉（AudioContext の時刻で発火）
+  if (ac) {
+    var ct = ac.currentTime;
+    while (visualQ.length && visualQ[0].t <= ct) {
+      var ev = visualQ.shift();
+      sparkBurstSmall(ev.n > 8 ? ev.n : ev.n + 1);
+    }
+    if (visualQ.length > 150) visualQ.length = 0;
+  }
+  if (started && f > 0.05) {
+    sparkAcc += (2 + 8 * f) * dt;
+    var sn = Math.floor(sparkAcc); sparkAcc -= sn; sparkBurstSmall(sn);
+  }
+  for (var j = sparks.length - 1; j >= 0; j--) {
+    var sp = sparks[j];
+    sp.age += dt;
+    var st = sp.age / sp.life;
+    if (st >= 1) { sparks[j] = sparks[sparks.length - 1]; sparks.pop(); continue; }
+    sp.vx += (Math.sin(sp.age * 5 + j) * 0.25 * s) * dt;
+    sp.vx *= (1 - 0.6 * dt);
+    sp.vy = sp.vy * (1 - 0.7 * dt) - 0.05 * s * dt;
+    sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+    var tw = 0.6 + 0.4 * Math.sin(sp.age * 30 + j * 3);
+    var r = sp.size * (1 - st * 0.6);
+    g.globalAlpha = (1 - st) * tw;
+    g.drawImage(sprites[Math.min(NB - 1, 1 + (st * 4) | 0)], sp.x - r, sp.y - r, r * 2, r * 2);
+  }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  drawSeason(dt, now);
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
+
+function frame(ts) {
+  raf = 0;
+  if (!drawingOn()) return;
+  var dt = lastFrame ? Math.min(0.05, (ts - lastFrame) / 1000) : 0.016;
+  lastFrame = ts;
+  render(dt);
+  raf = requestAnimationFrame(frame);
+}
+function kickRaf() {
+  if (drawingOn() && !raf) { lastFrame = 0; raf = requestAnimationFrame(frame); }
+}
+
+document.addEventListener('visibilitychange', function () {
+  visible = !document.hidden;
+  if (visible) {
+    flames.length = 0; sparks.length = 0; visualQ.length = 0; fwQ.length = 0;
+    if (ac && ac.state === 'suspended' && started) { try { ac.resume(); } catch (e) {} }
+    if (!S.videoOff) resize();
+    kickRaf();
+  } else {
+    visualQ.length = 0; fwQ.length = 0;
+  }
+});
+
+/* ---------- 起動 ---------- */
+document.getElementById('ignite').addEventListener('click', function () {
+  if (started) return;
+  try { initAudio(); if (ac && ac.state === 'suspended') ac.resume(); } catch (e) { ac = null; }
+  started = true;
+  document.body.classList.add('started');
+  fuel = 2.5; flame = 0; boost = 0.6;
+  lastStep = performance.now();
+  updateFuelUI();
+  wakeUI();
+});
+
+applyFilter();
+document.body.classList.toggle('video-off', S.videoOff);
+resize();
+updateFuelUI();
+kickRaf();
+// rAFに依存しないタイマー: シミュレーション更新と音の先読みスケジュール
+setInterval(function () { step(); audioTick(); }, 50);
+
+})();
+</script>
+</body>
+</html>
