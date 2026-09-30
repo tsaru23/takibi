@@ -9,6 +9,9 @@
 <meta property="og:title" content="焚火">
 <meta property="og:description" content="作業中にバックグラウンドで流す、調整できる焚火と季節の環境音">
 <meta property="og:type" content="website">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/"}}
+</script>
 <style>
   :root { --fg:#f3d9b8; --dim:#b89873; --panel:rgba(24,15,9,.72); --line:rgba(255,190,120,.18); --accent:#ff9a3c; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -16,6 +19,12 @@
     font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif; }
   canvas { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:pointer; }
   body.video-off canvas { display:none; }
+  body.view-3d #cv { display:none; }
+  #cv3 { touch-action:none; }
+  #toast { position:fixed; top:14px; left:50%; transform:translateX(-50%); padding:6px 14px; border-radius:999px; border:1px solid var(--line);
+    background:var(--panel); color:var(--dim); font-size:12px; opacity:0; transition:opacity .5s; pointer-events:none; z-index:5; }
+  #toast.on { opacity:1; }
+  .seg button:disabled { opacity:.35; cursor:not-allowed; }
   .ui { transition:opacity .6s; }
   body.idle:not(.panel-open) .ui { opacity:0; pointer-events:none; }
   body.idle:not(.panel-open) canvas { cursor:none; }
@@ -73,6 +82,7 @@
   <p>音が出ます。クリックで薪をくべられます。<br>右下の歯車で調整できます。</p>
 </div>
 
+<div id="toast" role="status"></div>
 <div id="fuel" class="ui"><span>薪</span><span id="dots"></span><span id="fuelTxt"></span></div>
 <button id="feed" class="ui" type="button"><span class="ic" data-icon="flame"></span>薪をくべる</button>
 <button id="gear" class="ui" type="button" aria-label="設定"><span class="ic" data-icon="settings"></span></button>
@@ -80,6 +90,8 @@
   <div class="seg" id="seasonSeg"></div>
   <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
   <h2>焚火</h2>
+  <div class="row"><label><span>表示</span></label><div class="seg" id="viewSeg"></div></div>
+  <div class="row" id="grassRow"><label><span>草の量（3D）</span></label><div class="seg" id="grassSeg"></div></div>
   <div id="sliders"></div>
   <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
   <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
@@ -87,7 +99,7 @@
   <div id="envAll"></div>
   <h2 id="seasonH">季節の音</h2>
   <div id="envSeason"></div>
-  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。</div>
+  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。3D表示ではドラッグで視点を少し回せます。</div>
 </div>
 
 <script>
@@ -112,7 +124,7 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function 
 var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
 
 /* ---------- 設定 ---------- */
-var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false };
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, view:'2d', grass:'normal', grassAuto:'' };
 var SLIDERS = [
   ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
   ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
@@ -121,6 +133,7 @@ var SLIDERS = [
   ['master','全体音量',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
   ['speed','燃える速さ',0.2,3,0.05,function(v){return '×'+v.toFixed(2);}]
 ];
+var GRASS = ['many', 'normal', 'few', 'none'], GRASS_JA = { many: '多い', normal: 'ふつう', few: '少ない', none: 'なし' };
 var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
 var SEAS_JA = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
 var ENV = [
@@ -150,6 +163,9 @@ var S = {};
         if (typeof DEFAULTS[k] === 'number' && typeof o[k] === 'number' && isFinite(o[k])) S[k] = o[k];
         else if (typeof DEFAULTS[k] === 'boolean' && typeof o[k] === 'boolean') S[k] = o[k];
         else if (k === 'season' && SEASONS.indexOf(o[k]) >= 0) S[k] = o[k];
+        else if (k === 'view' && (o[k] === '2d' || o[k] === '3d')) S[k] = o[k];
+        else if (k === 'grass' && GRASS.indexOf(o[k]) >= 0) S[k] = o[k];
+        else if (k === 'grassAuto' && (o[k] === '' || GRASS.indexOf(o[k]) >= 0)) S[k] = o[k];
       }
     }
   } catch (e) {}
@@ -171,6 +187,8 @@ function smooth(a, b, x) { x = Math.min(1, Math.max(0, (x - a) / (b - a))); retu
 function rnd(a, b) { return a + Math.random() * (b - a); }
 function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; }
 function drawingOn() { return !S.videoOff && visible; }
+var curView = '2d';   // 実際に表示中のモード（'2d' | '3d'）
+function draw2dOn() { return drawingOn() && curView === '2d'; }
 
 function flameTarget() {
   var t = 1.2 * (1 - Math.exp(-fuel / 3));
@@ -184,7 +202,9 @@ function addLog() {
   if (fuel + drops.length >= MAX_FUEL - 0.01) return;
   var now = performance.now();
   if (drawingOn()) {
-    drops.push({ t0: now, landAt: now + 450, dx: rnd(-0.18, 0.18), ang: rnd(-0.6, 0.6) });
+    var dr = { t0: now, landAt: now + 450, dx: rnd(-0.18, 0.18), ang: rnd(-0.6, 0.6) };
+    drops.push(dr);
+    emitLog({ type: 'drop', t0: dr.t0, landAt: dr.landAt, dx: dr.dx, ang: dr.ang });
   } else {
     land({ dx: 0 });
   }
@@ -195,7 +215,10 @@ function land(d) {
   flame *= 0.55;      // 一瞬弱まる
   boost = 1;          // その後 大きくなる＋パチパチ増
   if (ac) playThud();
-  if (drawingOn()) burstSparks(d.dx * SC.S, 26);
+  if (drawingOn()) {
+    if (curView === '2d') burstSparks(d.dx * SC.S, 26);
+    emitLog({ type: 'land', dx: d.dx });
+  }
 }
 
 function step() {
@@ -313,8 +336,9 @@ function applyFilter() { canvas.style.filter = 'brightness(' + S.brightness.toFi
 function applyVideoMode() {
   document.body.classList.toggle('video-off', S.videoOff);
   if (S.videoOff) { flames.length = 0; sparks.length = 0; visualQ.length = 0; drift.length = 0; fwQ.length = 0; }
-  else { resize(); }
+  else if (curView === '2d') { resize(); }
   kickRaf();
+  emitActive();
 }
 
 document.getElementById('gear').addEventListener('click', function (e) {
@@ -530,7 +554,7 @@ function playFireworks(t) {
   o.connect(gn); gn.connect(L.fw); o.start(t); o.stop(t + 0.75);
   o.onended = function () { try { this.disconnect(); } catch (e) {} };
   noiseBurst(t + 0.35, 0.4, 'lowpass', 110, 0.7, 0.35, L.fw);
-  if (drawingOn() && fwQ.length < 20) {
+  if (draw2dOn() && fwQ.length < 20) {
     fwQ.push({ t: t, x: rnd(0.15, 0.85) * W, y: rnd(0.08, 0.4) * H, hue: [15, 45, 200, 320, 110][Math.floor(Math.random() * 5)] });
   }
   return rnd(25, 70);
@@ -689,7 +713,7 @@ function resize() {
   SC.cx = W / 2; SC.gy = H * 0.8;
   ensureDrift();
 }
-window.addEventListener('resize', function () { if (drawingOn()) resize(); });
+window.addEventListener('resize', function () { if (draw2dOn()) resize(); });
 
 // 色ごとのグロースプライト（炎の年齢に対応）
 var NB = 14, sprites = [];
@@ -994,14 +1018,14 @@ function render(dt) {
 
 function frame(ts) {
   raf = 0;
-  if (!drawingOn()) return;
+  if (!draw2dOn()) return;
   var dt = lastFrame ? Math.min(0.05, (ts - lastFrame) / 1000) : 0.016;
   lastFrame = ts;
   render(dt);
   raf = requestAnimationFrame(frame);
 }
 function kickRaf() {
-  if (drawingOn() && !raf) { lastFrame = 0; raf = requestAnimationFrame(frame); }
+  if (draw2dOn() && !raf) { lastFrame = 0; raf = requestAnimationFrame(frame); }
 }
 
 document.addEventListener('visibilitychange', function () {
@@ -1009,12 +1033,153 @@ document.addEventListener('visibilitychange', function () {
   if (visible) {
     flames.length = 0; sparks.length = 0; visualQ.length = 0; fwQ.length = 0;
     if (ac && ac.state === 'suspended' && started) { try { ac.resume(); } catch (e) {} }
-    if (!S.videoOff) resize();
+    if (!S.videoOff && curView === '2d') resize();
     kickRaf();
   } else {
     visualQ.length = 0; fwQ.length = 0;
   }
+  emitActive();
 });
+
+/* ---------- 3D表示（scene3d.js）との窓口 ---------- */
+var logCbs = [], crackleCbs = [], activeCbs = [];
+function subscribe(list, cb) {
+  list.push(cb);
+  return function () { var i = list.indexOf(cb); if (i >= 0) list.splice(i, 1); };
+}
+function emitTo(list, ev) {
+  for (var i = 0; i < list.length; i++) { try { list[i](ev); } catch (e) { console.error(e); } }
+}
+function emitLog(ev) { if (logCbs.length) emitTo(logCbs, ev); }
+function emitActive() { if (activeCbs.length) emitTo(activeCbs, drawingOn()); }
+// 音の予約時刻に達した火の粉イベントを取り出して onCrackle の購読者へ渡す
+function pumpCrackle() {
+  if (!crackleCbs.length || !ac) return;
+  var ct = ac.currentTime;
+  while (visualQ.length && visualQ[0].t <= ct) {
+    var ev = visualQ.shift();
+    emitTo(crackleCbs, { n: ev.n > 8 ? ev.n : ev.n + 1, t: ev.t });
+  }
+  if (visualQ.length > 150) visualQ.length = 0;
+}
+window.TAKIBI = {
+  version: 1,
+  maxFuel: MAX_FUEL,
+  getState: function () {
+    return {
+      started: started,
+      flame: started ? flame : 0,     // なめらかな炎の強さ 0..~1.3
+      fuel: fuel,                     // 薪の量（1本 = 1.0）
+      maxFuel: MAX_FUEL,
+      ember: emberLevel(),            // 熾火の強さ 0..1（燃料が尽きると1）
+      boost: boost,                   // くべた直後のパチパチ増 1→0
+      season: S.season,               // 'spring' | 'summer' | 'autumn' | 'winter'
+      seasonFx: S.seasonFx,
+      brightness: S.brightness,       // 0.3..1.6
+      videoOff: S.videoOff,
+      grass: grassLevel(),            // 草の量（3D）: 'many' | 'normal' | 'few' | 'none'（自動軽量化を反映した実効値）
+      active: drawingOn()             // 描画すべきか（タブ表示中かつ映像オンのとき true）
+    };
+  },
+  addLog: addLog,
+  reportSlow: reportSlow,             // 3D側が「5秒平均が20fps未満」を検知したときに呼ぶ
+  pump: pumpCrackle,                  // 3D側が毎フレーム呼んでもよい（onCrackle の遅延を減らす）
+  onLogAdded: function (cb) { return subscribe(logCbs, cb); },       // {type:'drop',t0,landAt,dx,ang} / {type:'land',dx}（performance.now基準ms）
+  onCrackle: function (cb) { return subscribe(crackleCbs, cb); },   // {n, t} 音の予約時刻に同期した火の粉（n=個数）
+  onActiveChange: function (cb) { return subscribe(activeCbs, cb); } // (active:boolean)
+};
+
+/* ---------- 草の量（3D）と自動軽量化 ---------- */
+// 手動の選択は S.grass（次回以降も尊重）。自動で下げた分は S.grassAuto に残し、実効値は重いほう
+function grassLevel() {
+  var a = GRASS.indexOf(S.grass), b = S.grassAuto ? GRASS.indexOf(S.grassAuto) : -1;
+  return GRASS[Math.max(a, b)];
+}
+var autoDrops = 0, toastEl = document.getElementById('toast'), toastTimer = 0;
+function showToast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 4500);
+}
+function reportSlow() {
+  var i = GRASS.indexOf(grassLevel());
+  if (autoDrops >= 2 || i >= GRASS.length - 1) return;   // 自動で下げるのは1セッション2段階まで
+  autoDrops++;
+  S.grassAuto = GRASS[i + 1]; save(); refreshGrassUI();
+  showToast('重いため草を減らしました');
+}
+var grassSegEl = document.getElementById('grassSeg');
+GRASS.forEach(function (g) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.dataset.g = g; b.textContent = GRASS_JA[g];
+  b.addEventListener('click', function () { S.grass = g; S.grassAuto = ''; save(); refreshGrassUI(); });
+  grassSegEl.appendChild(b);
+});
+function refreshGrassUI() {
+  var cur = grassLevel(), on3d = curView === '3d';
+  Array.prototype.forEach.call(grassSegEl.children, function (b) { b.classList.toggle('on', b.dataset.g === cur); b.disabled = !on3d; });
+  document.getElementById('grassRow').classList.toggle('off', !on3d);
+}
+
+/* ---------- 表示モード（2D / 3D） ---------- */
+var WEBGL_OK = (function () {
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl) return false;
+    var x = gl.getExtension('WEBGL_lose_context'); if (x) x.loseContext();
+    return true;
+  } catch (e) { return false; }
+})();
+var view3dMod = null, cv3 = null, viewToken = 0;
+var viewSegEl = document.getElementById('viewSeg');
+['2d', '3d'].forEach(function (v) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.dataset.v = v; b.textContent = v.toUpperCase();
+  if (v === '3d' && !WEBGL_OK) { b.disabled = true; b.title = 'このブラウザでは WebGL が使えません'; }
+  b.addEventListener('click', function () { S.view = v; save(); setView(v); });
+  viewSegEl.appendChild(b);
+});
+function refreshViewUI() {
+  Array.prototype.forEach.call(viewSegEl.children, function (b) { b.classList.toggle('on', b.dataset.v === S.view); });
+}
+function leave3d() {
+  if (view3dMod) { try { view3dMod.stop(); } catch (e) { console.error(e); } }
+  if (cv3) { cv3.remove(); cv3 = null; }
+}
+function enter2d() {
+  curView = '2d';
+  refreshGrassUI();
+  document.body.classList.remove('view-3d');
+  applyFilter();
+  resize();
+  kickRaf();
+}
+function setView(v) {
+  var tok = ++viewToken;
+  if (v === '3d' && !WEBGL_OK) v = '2d';
+  S.view = v; refreshViewUI();
+  if (v === '2d') {
+    if (curView === '3d') { leave3d(); enter2d(); }
+    return;
+  }
+  if (curView === '3d') return;
+  import('./scene3d.js').then(function (m) {
+    if (tok !== viewToken) return;
+    view3dMod = m;
+    cv3 = document.createElement('canvas'); cv3.id = 'cv3';
+    canvas.parentNode.insertBefore(cv3, canvas.nextSibling);
+    curView = '3d';
+    refreshGrassUI();
+    flames.length = 0; sparks.length = 0; fwQ.length = 0; drift.length = 0; visualQ.length = 0;
+    document.body.classList.add('view-3d');
+    m.start({ canvas: cv3, api: window.TAKIBI });
+  }).catch(function (e) {
+    console.error('3D表示を開始できませんでした。2Dに戻します。', e);
+    if (tok !== viewToken) return;
+    leave3d(); S.view = '2d'; save(); refreshViewUI(); enter2d();
+  });
+}
 
 /* ---------- 起動 ---------- */
 document.getElementById('ignite').addEventListener('click', function () {
@@ -1033,8 +1198,11 @@ document.body.classList.toggle('video-off', S.videoOff);
 resize();
 updateFuelUI();
 kickRaf();
+refreshViewUI();
+refreshGrassUI();
+if (S.view === '3d') setView('3d');
 // rAFに依存しないタイマー: シミュレーション更新と音の先読みスケジュール
-setInterval(function () { step(); audioTick(); }, 50);
+setInterval(function () { step(); audioTick(); pumpCrackle(); }, 50);
 
 })();
 </script>

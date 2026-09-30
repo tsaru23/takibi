@@ -1,0 +1,128 @@
+{
+  "_comment": "季節キー(spring/summer/autumn/winter)と all に配列を書く。GLB型: { file, count, radiusMin, radiusMax, scale }（file は assets/plants/ からの相対パス）。フィールド型: { type:'field', dir, placements:'ring', count, levels, radius, clearRadius,  windStrength, windSpeed, gust, tint:{ 季節:{ default|素材キー: '#rrggbb' | {color, emissive, emissiveIntensity} } } }。フィールド型は全季節に共通で、季節切替では色だけ変わる。 levels は設定「草の量」ごとの { slots: 使う複製の番号, density: instance の割合 }。なしは何も置かない。",
+  "spring": [],
+  "summer": [],
+  "autumn": [],
+  "winter": [],
+  "all": [
+    {
+      "type": "field",
+      "dir": "vd-field-edc1d0ebc0e8d56c9361/",
+      "placements": "ring",
+      "count": 5,
+      "levels": {
+        "many": {
+          "slots": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "density": 0.75
+        },
+        "normal": {
+          "slots": [
+            1,
+            2,
+            3
+          ],
+          "density": 0.6
+        },
+        "few": {
+          "slots": [
+            1,
+            2,
+            3
+          ],
+          "density": 0.27
+        }
+      },
+      "radius": 3.6,
+      "clearRadius": 1.4,
+      "windStrength": 0.4,
+      "windSpeed": 1.0,
+      "gust": 0.15,
+      "tint": {
+        "spring": {
+          "leaf": {
+            "color": "#c4f870",
+            "emissive": "#5ea040",
+            "emissiveIntensity": 0.06
+          },
+          "drygrass": {
+            "color": "#8ed85e",
+            "emissive": "#5ea040",
+            "emissiveIntensity": 0.05
+          },
+          "stem": {
+            "color": "#b4e478",
+            "emissive": "#5ea040",
+            "emissiveIntensity": 0.04
+          },
+          "flower": "#ffd0e0",
+          "moss": "#c0f090",
+          "litter": "#d8c8a8",
+          "soil": "#c8b8a8",
+          "default": {
+            "color": "#ffffff",
+            "emissive": "#5ea040",
+            "emissiveIntensity": 0.05
+          }
+        },
+        "summer": {},
+        "autumn": {
+          "leaf": "#d89838",
+          "drygrass": "#ffc850",
+          "stem": "#a87838",
+          "flower": "#ffb070",
+          "moss": "#c09850",
+          "litter": "#e0a060",
+          "soil": "#c8a080"
+        },
+        "winter": {
+          "default": {
+            "color": "#d4d6d0",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.05
+          },
+          "leaf": {
+            "color": "#b4ad8c",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.06
+          },
+          "drygrass": {
+            "color": "#e4dcc4",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.06
+          },
+          "stem": {
+            "color": "#a8a084",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.05
+          },
+          "flower": {
+            "color": "#d8d8d8",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.05
+          },
+          "moss": {
+            "color": "#a8ab98",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.05
+          },
+          "litter": {
+            "color": "#a89c88",
+            "emissive": "#c8d4e2",
+            "emissiveIntensity": 0.05
+          },
+          "soil": {
+            "color": "#b8bcc4",
+            "emissive": "#dfe8f2",
+            "emissiveIntensity": 0.08
+          }
+        }
+      }
+    }
+  ]
+}

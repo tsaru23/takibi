@@ -1,0 +1,177 @@
+{
+  "schema": "verdant-asset",
+  "schemaVersion": "1.0",
+  "assetId": "vd-field-edc1d0ebc0e8d56c9361",
+  "contentSha256": "edc1d0ebc0e8d56c936164bb669499679e1ed3f2c2da2a11242ec5a981bfc880",
+  "displayName": "野草フィールド",
+  "product": {
+    "name": "FABOTANIC",
+    "tagline": "草木・植物3D素材ジェネレーター",
+    "publisher": "AMIX",
+    "nameStatus": "confirmed"
+  },
+  "generator": {
+    "name": "VERDANT",
+    "version": "4.50.0"
+  },
+  "kind": "three",
+  "species": "field",
+  "models": [
+    {
+      "file": "models/asset.glb",
+      "sha256": "822269595bded6757de2e55c4333d81ab07d6de667f45ff5863d413d1e29c022",
+      "bytes": 3501172
+    }
+  ],
+  "runtime": {
+    "apiVersion": "1.0",
+    "implementationVersion": "4.38.0",
+    "file": "src/VerdantVegetation.js",
+    "sha256": "a6b57eafdd72a343f942e6714ebdb141c5a448c3acbb8417dfe7547fbcf60310",
+    "threeRevision": "r185",
+    "compatibility": "Use this runtime or an explicitly tested compatible adapter; do not replace other packages blindly."
+  },
+  "coordinates": {
+    "units": "metres",
+    "metresPerUnit": 1,
+    "upAxis": "+Y",
+    "handedness": "right",
+    "pivot": [
+      0,
+      0,
+      0
+    ],
+    "origin": "field-square-centre; the terrain height is embedded in geometry",
+    "recommendedInitialScale": [
+      1,
+      1,
+      1
+    ]
+  },
+  "treeArchitecture": null,
+  "representation": null,
+  "levels": null,
+  "runtimeHelpers": [],
+  "bounds": {
+    "min": [
+      -1.8940013071003996,
+      -0.03471087530968276,
+      -1.985357559966097
+    ],
+    "max": [
+      1.8074297047842407,
+      1.1540153077704716,
+      1.7914461283149699
+    ],
+    "size": [
+      3.7014310118846403,
+      1.1887261830801543,
+      3.776803688281067
+    ]
+  },
+  "counts": {
+    "triangles": 213468,
+    "vertices": 156200,
+    "sharedTriangles": 12236,
+    "plants": 352,
+    "groundObjects": 77,
+    "meshPrimitives": 40
+  },
+  "materials": [
+    "leaf",
+    "drygrass",
+    "stem",
+    "flower",
+    "stone",
+    "litter",
+    "moss",
+    "soil"
+  ],
+  "capabilities": {
+    "staticGLB": true,
+    "rigged": false,
+    "boneAnimation": false,
+    "morphAnimation": false,
+    "collisionMesh": false,
+    "shaderWind": true,
+    "windScope": "camera bounds distance / asset or field cell; all distances without camera",
+    "distanceGatedWind": true,
+    "backgroundCrosscards": false,
+    "staticBatchHelper": false,
+    "automaticTreeLOD": false,
+    "crossFade": false,
+    "lod": "none",
+    "farDistanceMassPlacementOptimized": false,
+    "gpuInstancing": true
+  },
+  "requiredExtensions": [
+    "EXT_mesh_gpu_instancing"
+  ],
+  "settingsFile": "settings.json",
+  "environmentFile": "environment.json",
+  "guideFile": "AI_README.md",
+  "preview": {
+    "file": "preview.png",
+    "status": "current editor snapshot; may show a wind pose, static GLB remains rest pose",
+    "sha256": "bb5dd7efce3d473da8e3af1a9106e6d3e1bbc26a9cd9c7451fc4c90a1b5855c7"
+  },
+  "usageTerms": {
+    "schema": "botanic-fab-usage",
+    "schemaVersion": "1.0",
+    "termsVersion": "1.0.0",
+    "status": "publisher-approved",
+    "policyDigest": "9c794a4be59c407f597ac0a6ea62dd7214253c2ceb71ba46dcd97a1bcc50d94d",
+    "effectiveDate": "2026-09-28",
+    "creator": {
+      "display": "AMIX｜トミナガハルキ",
+      "publisher": {
+        "name": "AMIX",
+        "url": "https://amix-design.com/"
+      },
+      "author": {
+        "name": "トミナガハルキ",
+        "url": "https://amix-design.com/tominaga/"
+      }
+    },
+    "creatorCreditScope": "generator attribution; not a claim of ownership of the user's entire work",
+    "commercialUse": true,
+    "creditRequiredInWorks": false,
+    "standaloneAssetSale": false,
+    "standaloneAssetRedistribution": false,
+    "sdkLicense": "MIT",
+    "file": "README.txt",
+    "assetTermsFile": null,
+    "sdkTermsFile": "LICENSES.txt",
+    "thirdPartyFile": "LICENSES.txt",
+    "summary": "生成素材は作品への商用組み込み・加工・納品が可能。作品内クレジット任意。素材単体の再配布・販売は対象外。付属SDKは対象ファイルのみMIT。",
+    "proposed": null,
+    "generatorURL": "https://amix-design.com/tl/fab-botanic/",
+    "licenseURL": "https://amix-design.com/tl/fab-botanic/license.html",
+    "termsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html",
+    "assetTermsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html#assets",
+    "presentation": "versioned-online-terms"
+  },
+  "generatorCredit": {
+    "display": "AMIX｜トミナガハルキ",
+    "publisher": {
+      "name": "AMIX",
+      "url": "https://amix-design.com/"
+    },
+    "author": {
+      "name": "トミナガハルキ",
+      "url": "https://amix-design.com/tominaga/"
+    }
+  },
+  "limitations": [
+    "No automatic terrain collision or root snapping.",
+    "Draft/detail refer to tessellation, not a performance guarantee for near/far use.",
+    "Near wind disables frustum culling for displaced meshes; far static mode restores it. Profile large scenes.",
+    "Do not combine files from different asset directories by filename."
+  ],
+  "selection": {
+    "style": "natural",
+    "purpose": "near",
+    "automaticLOD": false
+  },
+  "modelStyle": "natural"
+}
