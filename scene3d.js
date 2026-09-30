@@ -1,370 +1,121 @@
-// 焚火 3D 表示（three.js）。index.html から、設定で 3D を選んだときだけ動的 import される。
-// 状態は index.html の window.TAKIBI（opts.api）から読む。ここからは状態を書き換えない（薪をくべる addLog のみ）。
+// 焚火の3D表示（three.js）。index.html が起動時に import して start() を呼ぶ。
+// 状態は index.html の window.TAKIBI（opts.api）から読む。ここからは状態を書き換えない（薪をくべる addLog と、シーンの音の窓口だけ）。
+// 共通部分（焚火・石囲い・薪・地面・夜空・ホタル・カメラ・性能制御）はここ、シーン固有のものは scenes/*.js。
 import * as THREE from 'three';
+import { createFire } from './fire3d.js';
+import { SCENES } from './scenes/index.js';
+import * as util from './scenes/util.js';
 
-const MAX_FLAME = 420, MAX_SPARK = 200;
+const { mulberry32, clamp, rnd, rgb, radialTexture, disposeTree, makePoints, HILLS, hillH } = util;
+
+export { SCENES };
+
 const FRAME_MS = 1000 / 30;          // 描画は30fpsに制限
-const MAX_DPR = 1.25;             // 3D は内蔵GPUでも回るようピクセル比の上限を低めにする
+const MAX_DPR = 1.25;                // 内蔵GPUでも回るようピクセル比の上限を低めにする
 const SLOW_FPS = 20, SLOW_WINDOW_MS = 5000;   // 5秒間の平均がこれを下回ったら草を減らす
-const FOV = 50;
+const GAP_MS = 250;                  // これを超えるフレーム間隔は「止まっていた」とみなして計測に含めない
+const FOV = 55;
+const SKY_R = 150;                   // 空の物（月・流れ星・星）を置く半径
+const TILE_M = 1.75;                 // 土のテクスチャ1タイルの大きさ(m)
+const SITE = new URL('./', import.meta.url);
 
-/* 季節ごとの環境色（2D の SEAS の考え方に合わせる） */
+/* 季節ごとの環境色と月 */
 const SEASON_ENV = {
-  spring: { bg: 0x180e1e, sky: 0x5a4470, grass: 0x1f3320, exposure: 1.0 },
-  summer: { bg: 0x081334, sky: 0x2a4488, grass: 0x122c14, exposure: 1.0 },
-  autumn: { bg: 0x22100a, sky: 0x6a3c24, grass: 0x33200f, exposure: 1.0 },
-  winter: { bg: 0x15263a, sky: 0x5f86ac, grass: 0x465668, exposure: 1.0 }
+  spring: { bg: 0x180e1e, mid: 0x231529, hemi: 0x5a4470, fog: 0x0f0c16, moon: { el: 0.16, az: 0.5, color: 0xffe6d6, light: 0xbcc8f0, power: 0.22, size: 40 } },
+  summer: { bg: 0x081334, mid: 0x0d1d48, hemi: 0x2a4488, fog: 0x080b16, moon: { el: 0.1, az: 0.55, color: 0xffdf95, light: 0xc8d0f0, power: 0.2, size: 44 } },
+  autumn: { bg: 0x22100a, mid: 0x321a10, hemi: 0x6a3c24, fog: 0x0f0b0c, moon: { el: 0.18, az: 0.45, color: 0xffd9aa, light: 0xc0c8ea, power: 0.22, size: 42 } },
+  winter: { bg: 0x15263a, mid: 0x1f3550, hemi: 0x5f86ac, fog: 0x0a0e17, moon: { el: 0.21, az: 0.5, color: 0xeef4ff, light: 0xb4ccff, power: 0.3, size: 36 } }
 };
 
-/* 仮の草木の色 */
-const PLANT_STYLE = {
-  spring: { trees: [0x9ccf86, 0x88c078, 0xb5d99a], tuft: [0x7fb069, 0x6da85c, 0x92c37a], accent: 0xffa6c1, accentN: 90 },
-  summer: { trees: [0x1f5a2a, 0x276b32, 0x184a22], tuft: [0x2b6b2f, 0x357a38, 0x235a28], accent: null, accentN: 0 },
-  autumn: { trees: [0xc0431b, 0xe07a24, 0xa02a14, 0xd9a12e], tuft: [0x9a5a20, 0xb0702a, 0x80441a], accent: null, accentN: 0 },
-  winter: { trees: [0x1a3324, 0x12281c, 0x203c2b], tuft: [0x6b7a8c, 0x5a6878, 0x7a8898], accent: 0xeef4ff, accentN: 46 }
-};
-
-const LEAF_COLORS = [0xc8471c, 0xe0842a, 0xa02c14, 0xd9a12e];
-const FLAME_STOPS = [[255, 225, 140], [255, 190, 80], [255, 160, 50], [235, 100, 25], [190, 50, 15], [110, 25, 10]];
-
-/* ---------- 小道具 ---------- */
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const rnd = (a, b) => a + Math.random() * (b - a);
-const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
-const rgb = (hex) => [(hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255];
-function flameColor(t, out, o) {
-  const n = FLAME_STOPS.length - 1;
-  const p = clamp(t, 0, 1) * n, a = Math.min(n - 1, Math.floor(p)), fr = p - a;
-  const A = FLAME_STOPS[a], B = FLAME_STOPS[a + 1];
-  out[o] = (A[0] + (B[0] - A[0]) * fr) / 255;
-  out[o + 1] = (A[1] + (B[1] - A[1]) * fr) / 255;
-  out[o + 2] = (A[2] + (B[2] - A[2]) * fr) / 255;
-}
-function radialTexture(size, stops) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  const x = c.getContext('2d'), h = size / 2, g = x.createRadialGradient(h, h, 0, h, h, h);
-  stops.forEach((s) => g.addColorStop(s[0], s[1]));
-  x.fillStyle = g; x.fillRect(0, 0, size, size);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-function mergeGeoms(parts) {
-  const P = [], N = [], I = []; let off = 0;
-  for (const { geo, matrix } of parts) {
-    const g = geo.clone(); g.applyMatrix4(matrix);
-    P.push(...g.attributes.position.array); N.push(...g.attributes.normal.array);
-    const idx = g.index ? g.index.array : null;
-    if (idx) for (let i = 0; i < idx.length; i++) I.push(idx[i] + off);
-    off += g.attributes.position.count; g.dispose();
-  }
-  const m = new THREE.BufferGeometry();
-  m.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  m.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
-  m.setIndex(I);
-  return m;
-}
-function disposeTree(obj) {
-  obj.traverse((o) => {
-    if (o.isInstancedMesh) o.dispose();
-    if (o.geometry) o.geometry.dispose();
-    if (o.material) {
-      const ms = Array.isArray(o.material) ? o.material : [o.material];
-      ms.forEach((m) => {
-        for (const k in m) { const v = m[k]; if (v && v.isTexture) v.dispose(); }
-        m.dispose();
-      });
-    }
-  });
+function skyDir(az, el, r) {
+  return new THREE.Vector3(Math.sin(az) * Math.cos(el) * r, Math.sin(el) * r, -Math.cos(az) * Math.cos(el) * r);
 }
 
-/* ---------- 加算合成のポイントスプライト ---------- */
-const VERT = `
-attribute float aSize; attribute vec3 aColor; attribute float aAlpha;
-uniform float uScale;
-varying vec3 vColor; varying float vAlpha;
-void main() {
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_Position = projectionMatrix * mv;
-  gl_PointSize = min(aSize * uScale / max(0.1, -mv.z), 256.0);
-  vColor = aColor; vAlpha = aAlpha;
-}`;
-const FRAG = `
-uniform float uPow;
-varying vec3 vColor; varying float vAlpha;
-void main() {
-  float d = length(gl_PointCoord - 0.5) * 2.0;
-  if (d > 1.0) discard;
-  gl_FragColor = vec4(vColor, vAlpha * pow(1.0 - d, uPow));
-}`;
-function makePoints(max, blending, pw, uScale) {
-  const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array(max * 3), size = new Float32Array(max), col = new Float32Array(max * 3), alp = new Float32Array(max);
-  const aP = new THREE.BufferAttribute(pos, 3), aS = new THREE.BufferAttribute(size, 1), aC = new THREE.BufferAttribute(col, 3), aA = new THREE.BufferAttribute(alp, 1);
-  [aP, aS, aC, aA].forEach((a) => a.setUsage(THREE.DynamicDrawUsage));
-  geo.setAttribute('position', aP); geo.setAttribute('aSize', aS); geo.setAttribute('aColor', aC); geo.setAttribute('aAlpha', aA);
-  geo.setDrawRange(0, 0);
-  const mat = new THREE.ShaderMaterial({
-    uniforms: { uScale, uPow: { value: pw } }, vertexShader: VERT, fragmentShader: FRAG,
-    transparent: true, depthWrite: false, blending
-  });
-  const points = new THREE.Points(geo, mat); points.frustumCulled = false;
-  return {
-    points, geo, mat, pos, size, col, alp,
-    flush(n) { geo.setDrawRange(0, n); aP.needsUpdate = aS.needsUpdate = aC.needsUpdate = aA.needsUpdate = true; }
-  };
+/* 頂点位置から作るノイズ（共有頂点が同じ値になる） */
+function hash3(x, y, z) {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+function vnoise3(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  const fx = x - ix, fy = y - iy, fz = z - iz;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  const l = (a, b, t) => a + (b - a) * t;
+  return l(
+    l(l(hash3(ix, iy, iz), hash3(ix + 1, iy, iz), u), l(hash3(ix, iy + 1, iz), hash3(ix + 1, iy + 1, iz), u), v),
+    l(l(hash3(ix, iy, iz + 1), hash3(ix + 1, iy, iz + 1), u), l(hash3(ix, iy + 1, iz + 1), hash3(ix + 1, iy + 1, iz + 1), u), v), w);
 }
 
-/* ---------- 仮の草木（プロシージャル） ---------- */
-function inCameraWedge(x, z, r) {
-  return r < 9 && Math.abs(Math.atan2(x, z)) < 1.0;   // カメラ手前は木で塞がない
-}
-function buildProcedural(season) {
-  const st = PLANT_STYLE[season], rng = mulberry32(1000 + SEASON_INDEX[season] * 77);
-  const group = new THREE.Group();
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
+/* 石囲い: 低ポリゴンの球を、頂点ノイズで崩して丸みのある岩にする。焚火側の面は煤で黒くする */
+function buildStones(mergeVertices, mergeGeometries) {
+  const rng = mulberry32(77), N = 13, geos = [];
+  const tones = [0x3c3a38, 0x302e2c, 0x3a332c, 0x2b2a28, 0x35322f];
   const col = new THREE.Color();
-
-  // 木: 幹 + 3段の円錐
-  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.7, 6); trunkGeo.translate(0, 0.35, 0);
-  const cone = (r, h, y) => ({ geo: new THREE.ConeGeometry(r, h, 8), matrix: new THREE.Matrix4().makeTranslation(0, y, 0) });
-  const foliGeo = mergeGeoms([cone(0.85, 1.6, 1.4), cone(0.62, 1.4, 2.15), cone(0.4, 1.1, 2.8)]);
-  const NT = 18;
-  const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x2c1c10 }), NT);
-  const foli = new THREE.InstancedMesh(foliGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), NT);
-  let nt = 0, guard = 0;
-  while (nt < NT && guard++ < 500) {
-    const a = rng() * Math.PI * 2, r = Math.sqrt(4.5 * 4.5 + rng() * (13 * 13 - 4.5 * 4.5));
-    const x = Math.sin(a) * r, z = Math.cos(a) * r;
-    if (inCameraWedge(x, z, r)) continue;
-    const s = 0.75 + rng() * 0.9;
-    q.setFromEuler(e.set(0, rng() * 6.28, 0)); v3.set(x, 0, z); sc.set(s * (0.9 + rng() * 0.2), s, s * (0.9 + rng() * 0.2));
-    m4.compose(v3, q, sc);
-    trunks.setMatrixAt(nt, m4); foli.setMatrixAt(nt, m4);
-    foli.setColorAt(nt, col.setHex(st.trees[Math.floor(rng() * st.trees.length)]).multiplyScalar(0.55));
-    nt++;
-  }
-  trunks.count = foli.count = nt;
-  group.add(trunks, foli);
-
-  // 草の束: 細い円錐5本
-  const blades = [];
-  for (let i = 0; i < 5; i++) {
-    const g = new THREE.ConeGeometry(0.03, 0.42, 4); g.translate(0, 0.21, 0);
-    const mx = new THREE.Matrix4().compose(
-      new THREE.Vector3((rng() - 0.5) * 0.14, 0, (rng() - 0.5) * 0.14),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler((rng() - 0.5) * 0.5, rng() * 6, (rng() - 0.5) * 0.5)),
-      new THREE.Vector3(1, 0.7 + rng() * 0.7, 1));
-    blades.push({ geo: g, matrix: mx });
-  }
-  const tuftGeo = mergeGeoms(blades);
-  const NG = 280;
-  const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), NG);
-  for (let i = 0; i < NG; i++) {
-    const a = rng() * Math.PI * 2, r = Math.sqrt(1.9 * 1.9 + rng() * (15 * 15 - 1.9 * 1.9));
-    const s = 0.7 + rng() * 1.1;
-    q.setFromEuler(e.set(0, rng() * 6.28, 0)); v3.set(Math.sin(a) * r, 0, Math.cos(a) * r); sc.set(s, s, s);
-    m4.compose(v3, q, sc); tufts.setMatrixAt(i, m4);
-    tufts.setColorAt(i, col.setHex(st.tuft[Math.floor(rng() * st.tuft.length)]).multiplyScalar(0.6));
-  }
-  group.add(tufts);
-  group.userData.tufts = tufts;
-
-  // 春=ピンクの花、冬=縁の柔らかい雪だまり（放射状グラデーションの透明テクスチャ。遠いものは出さず、暗くする）
-  if (st.accent !== null) {
-    const isSnow = season === 'winter';
-    let geo, mat;
-    if (isSnow) {
-      geo = new THREE.CircleGeometry(0.5, 20); geo.rotateX(-Math.PI / 2);
-      const tex = radialTexture(128, [[0, 'rgba(255,255,255,0.8)'], [0.45, 'rgba(255,255,255,0.5)'], [1, 'rgba(255,255,255,0)']]);
-      mat = new THREE.MeshLambertMaterial({ color: 0x6f7e93, map: tex, transparent: true, depthWrite: false });
-    } else {
-      geo = new THREE.IcosahedronGeometry(0.055, 0);
-      mat = new THREE.MeshLambertMaterial({ color: st.accent, emissive: 0x401828 });
+  for (let i = 0; i < N; i++) {
+    let g = new THREE.IcosahedronGeometry(1, 1);
+    g.deleteAttribute('uv'); g.deleteAttribute('normal');
+    g = mergeVertices(g, 1e-4);
+    const seed = rng() * 100, p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) {
+      const x = p.getX(k), y = p.getY(k), z = p.getZ(k);
+      const n = vnoise3(x * 1.6 + seed, y * 1.6 + seed, z * 1.6 + seed) - 0.5;
+      const n2 = vnoise3(x * 3.3 + seed, y * 3.3, z * 3.3 - seed) - 0.5;
+      const s = 1 + 0.34 * n + 0.1 * n2;
+      p.setXYZ(k, x * s, y * s, z * s);
     }
-    const acc = new THREE.InstancedMesh(geo, mat, st.accentN);
-    const RMAX = isSnow ? 8.5 : 14;
-    for (let i = 0; i < st.accentN; i++) {
-      let a = rng() * Math.PI * 2;
-      const r = Math.sqrt(2.2 * 2.2 + rng() * (RMAX * RMAX - 2.2 * 2.2));
-      if (isSnow && inCameraWedge(Math.sin(a) * r, Math.cos(a) * r, r)) a += Math.PI;   // カメラ手前には置かない
-      const s = isSnow ? 0.45 + rng() * 0.8 : 0.8 + rng() * 0.6;
-      q.setFromEuler(e.set(0, rng() * 6.28, 0));
-      v3.set(Math.sin(a) * r, isSnow ? 0.02 : 0.25 + rng() * 0.15, Math.cos(a) * r);
-      if (isSnow) sc.set(s, 1, s * (0.7 + rng() * 0.6)); else sc.set(s, s, s);
-      m4.compose(v3, q, sc); acc.setMatrixAt(i, m4);
-      if (isSnow) acc.setColorAt(i, col.setScalar(clamp(1 - 0.75 * (r - 2.2) / (RMAX - 2.2), 0.25, 1)));
+    const a = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.18, r = 1.02 + rng() * 0.1;
+    const sz = 0.2 + rng() * 0.09;
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(Math.cos(a) * r, 0.06 + rng() * 0.03, Math.sin(a) * r),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(rng() * 3, rng() * 6, rng() * 3)),
+      new THREE.Vector3(sz * (1 + rng() * 0.45), sz * (0.62 + rng() * 0.25), sz * (1.05 + rng() * 0.4)));
+    g.applyMatrix4(m);
+    g.computeVertexNormals();
+    const tone = tones[Math.floor(rng() * tones.length)];
+    const pp = g.attributes.position, cols = new Float32Array(pp.count * 3);
+    for (let k = 0; k < pp.count; k++) {
+      const x = pp.getX(k), y = pp.getY(k), z = pp.getZ(k);
+      const d = Math.hypot(x, z);
+      // 焚火に近い面ほど、また低い所ほど煤で黒い
+      const soot = (1 - THREE.MathUtils.smoothstep(d, 0.86, 1.24)) * (1 - 0.45 * THREE.MathUtils.smoothstep(y, 0.12, 0.3));
+      const mottle = 0.8 + 0.4 * vnoise3(x * 9 + seed, y * 9, z * 9);
+      col.setHex(tone).multiplyScalar(mottle * (1 - 0.9 * soot));
+      cols[k * 3] = col.r; cols[k * 3 + 1] = col.g; cols[k * 3 + 2] = col.b;
     }
-    group.add(acc);
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    geos.push(g);
   }
-  return group;
-}
-const SEASON_INDEX = { spring: 0, summer: 1, autumn: 2, winter: 3 };
-
-/* ---------- 本番の草木（FABOTANIC の GLB。assets/plants/manifest.json） ---------- */
-let manifestPromise = null;
-function loadManifest() {
-  if (!manifestPromise) {
-    manifestPromise = fetch(new URL('./assets/plants/manifest.json', import.meta.url), { cache: 'no-cache' })
-      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  }
-  return manifestPromise;
-}
-function manifestEntries(manifest, season) {
-  if (!manifest) return [];
-  if (Array.isArray(manifest)) return manifest;
-  const a = Array.isArray(manifest[season]) ? manifest[season] : [];
-  const b = Array.isArray(manifest.all) ? manifest.all : [];
-  return a.concat(b);
-}
-async function buildFromManifest(season, isStopped) {
-  const entries = manifestEntries(await loadManifest(), season).filter((en) => en && en.type !== 'field' && typeof en.file === 'string');
-  if (!entries.length) return null;
-  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-  if (isStopped()) return null;
-  const loader = new GLTFLoader();
-  const rng = mulberry32(5000 + SEASON_INDEX[season] * 131);
-  const group = new THREE.Group();
-  for (const en of entries) {
-    let gltf;
-    try { gltf = await loader.loadAsync(new URL('./assets/plants/' + en.file, import.meta.url).href); } catch (err) { continue; }
-    if (isStopped()) { disposeTree(gltf.scene); return null; }
-    const count = Math.max(0, en.count | 0), rmin = Number.isFinite(en.radiusMin) ? en.radiusMin : 4, rmax = Number.isFinite(en.radiusMax) ? en.radiusMax : 12;
-    const base = Number.isFinite(en.scale) ? en.scale : 1;
-    for (let i = 0; i < count; i++) {
-      const a = rng() * Math.PI * 2, r = Math.sqrt(rmin * rmin + rng() * Math.max(0, rmax * rmax - rmin * rmin));
-      const x = Math.sin(a) * r, z = Math.cos(a) * r;
-      if (inCameraWedge(x, z, r) && r > 2.5) continue;
-      const o = gltf.scene.clone(true);
-      o.position.set(x, 0, z); o.rotation.y = rng() * Math.PI * 2; o.scale.setScalar(base * (0.85 + rng() * 0.3));
-      group.add(o);
-    }
-  }
-  return group.children.length ? group : null;
+  const merged = mergeGeometries(geos);
+  geos.forEach((g) => g.dispose());
+  return merged;
 }
 
-
-/* ---------- フィールド型素材（FABOTANIC の草地ブロックを焚火の周りにリング状に複製） ---------- */
-// manifest 内の { type:'field', dir, placements:'ring', count, radius, clearRadius, tint:{season:{...}} }
-async function collectFieldEntries() {
-  const m = await loadManifest();
-  if (!m) return [];
-  const all = Array.isArray(m) ? m : ['all', 'spring', 'summer', 'autumn', 'winter'].flatMap((k) => (Array.isArray(m[k]) ? m[k] : []));
-  const seen = new Set();
-  return all.filter((en) => en && en.type === 'field' && typeof en.dir === 'string' && !seen.has(en.dir) && seen.add(en.dir));
+/* 土の材質: 3枚の PBR テクスチャに、ワールド座標の低周波ノイズで色と明るさのむらを掛ける */
+function patchSoil(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = 'varying vec2 vTkP;\n' + shader.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n  vTkP = (modelMatrix * vec4(position, 1.0)).xz;');
+    shader.fragmentShader = `varying vec2 vTkP;
+float tkH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float tkN(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(tkH(i), tkH(i + vec2(1.0, 0.0)), f.x), mix(tkH(i + vec2(0.0, 1.0)), tkH(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-// 焚火の周りを空け（ディザで縁をぼかす）、カメラ手前の扇形は草を間引く
-function patchFieldMaterial(mat, key, opt) {
-  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
-  const thin = key !== 'soil' && key !== 'stone';
-  mat.onBeforeCompile = function (shader, renderer) {
-    if (prev) prev.call(this, shader, renderer);
-    shader.vertexShader = 'varying vec3 vTkWp;\n' + shader.vertexShader.replace('#include <project_vertex>',
-      `#include <project_vertex>
-#ifdef USE_INSTANCING
-  vTkWp = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
-#else
-  vTkWp = (modelMatrix * vec4(transformed, 1.0)).xyz;
-#endif`);
-    const r0 = opt.clear.toFixed(3), r1 = (opt.clear + opt.fade).toFixed(3);
-    shader.fragmentShader = 'varying vec3 vTkWp;\n' + shader.fragmentShader.replace('void main() {',
-      `void main() {
+` + shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
-    float tkR = length(vTkWp.xz);
-    float tkH = fract(sin(dot(floor(vTkWp.xz * 90.0 + vTkWp.y * 37.0), vec2(12.9898, 78.233))) * 43758.5453);
-    if (tkR < ${r0}) discard;
-    if (tkR < ${r1} && tkH > (tkR - ${r0}) / (${r1} - ${r0})) discard;
-    ${thin ? `float tkA = abs(atan(vTkWp.x, vTkWp.z));
-    if (tkA < 0.9 && tkR < 7.0 && tkH > 0.25 + 0.75 * smoothstep(0.35, 0.9, tkA)) discard;` : ''}
+    float n1 = tkN(vTkP * 0.16), n2 = tkN(vTkP * 0.47 + 7.3), n3 = tkN(vTkP * 1.3 + 3.1);
+    float k = 0.74 + 0.5 * (0.55 * n1 + 0.3 * n2 + 0.15 * n3);
+    vec3 tint = mix(vec3(1.06, 0.97, 0.88), vec3(0.9, 0.97, 1.06), n2);
+    diffuseColor.rgb *= k * tint;
   }`);
   };
-  mat.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|tkfield' + (thin ? 'T' : 'S'); };
-  mat.needsUpdate = true;
-}
-async function loadField(entry, isStopped) {
-  const dirURL = new URL('./assets/plants/' + entry.dir.replace(/\/*$/, '/'), import.meta.url);
-  // VerdantVegetation.js は 'three' を import map 経由で読む（ページと同じ1組。二重読み込みにならない）
-  const V = await import(new URL('src/VerdantVegetation.js', dirURL).href);
-  if (isStopped()) return null;
-  const asset = await V.loadVerdantAsset(dirURL.href, {
-    windStrength: Number.isFinite(entry.windStrength) ? entry.windStrength : 0.4,
-    windSpeed: Number.isFinite(entry.windSpeed) ? entry.windSpeed : 1.0,
-    gust: Number.isFinite(entry.gust) ? entry.gust : 0.15
-  });
-  if (isStopped()) { asset.dispose(); return null; }
-  const opt = { clear: Number.isFinite(entry.clearRadius) ? entry.clearRadius : 1.4, fade: 0.4 };
-  const mats = new Map();     // material -> {key, base, baseEm}
-  asset.root.traverse((o) => {
-    if (!o.isMesh) return;
-    // 風の揺れは数cmなので視錐台カリングを戻して、画面外の複製を描かない
-    o.frustumCulled = true;
-    const list = Array.isArray(o.material) ? o.material : [o.material];
-    for (const m of list) {
-      if (mats.has(m)) continue;
-      const key = (m.userData && m.userData.verdantMaterial) || o.userData.verdantMaterial || m.name || 'default';
-      mats.set(m, { key, base: m.color.clone(), baseEm: m.emissive ? m.emissive.clone() : null, baseEi: m.emissiveIntensity });
-      patchFieldMaterial(m, key, opt);
-    }
-    const k0 = (list[0].userData && list[0].userData.verdantMaterial) || o.userData.verdantMaterial || list[0].name;
-    if (k0 === 'soil') o.visible = false;          // 四角い土は縁が見えるので描かず、地面の色を見せる
-    if (o.isInstancedMesh) o.userData.tkFull = o.count;   // 草の量の切替で instance 数を増減する（読み込み直さない）
-  });
-  const group = new THREE.Group();
-  const count = Math.max(1, (entry.count | 0) || 5), radius = Number.isFinite(entry.radius) ? entry.radius : 3.6;
-  const gap = 0.75, arc = Math.PI * 2 - gap * 2;      // カメラ手前(+Z)の扇形には複製を置かない
-  const rng = mulberry32(31337);
-  for (let i = 0; i < count; i++) {
-    const phi = gap + (i + 0.5) * (arc / count) + (rng() - 0.5) * 0.12;
-    const c = asset.root.clone(true);           // ジオメトリと材質は共有
-    c.position.set(Math.sin(phi) * radius, i * 0.006, Math.cos(phi) * radius);
-    c.rotation.y = (i * 2.399963 + rng() * 0.8) % (Math.PI * 2);   // 黄金角ずらしで同じ見た目を並べない
-    group.add(c);
-  }
-  return { asset, group, mats, entry };
-}
-// 草の量: 使う複製(slot)と instance の密度。ring の両端(手前側)から先に減らす
-const DEFAULT_LEVELS = {
-  many: { slots: [0, 1, 2, 3, 4], density: 0.75 },
-  normal: { slots: [1, 2, 3], density: 0.6 },
-  few: { slots: [1, 2, 3], density: 0.27 }
-};
-function applyFieldLevel(field, level) {
-  if (!field) return;
-  const cfg = (field.entry.levels && field.entry.levels[level]) || DEFAULT_LEVELS[level];
-  field.group.visible = !!cfg;
-  if (!cfg) return;
-  const dens = clamp(cfg.density, 0.05, 1);
-  field.group.children.forEach((c, i) => {
-    c.visible = cfg.slots.indexOf(i) >= 0;
-    if (!c.visible) return;
-    c.traverse((o) => { if (o.isInstancedMesh && o.userData.tkFull) o.count = Math.max(1, Math.floor(o.userData.tkFull * dens)); });
-  });
-}
-function applyFieldTint(field, season) {
-  if (!field) return;
-  const spec = (field.entry.tint && field.entry.tint[season]) || {};
-  for (const [m, info] of field.mats) {
-    let t = spec[info.key] !== undefined ? spec[info.key] : spec.default;
-    m.color.copy(info.base);
-    if (m.emissive && info.baseEm) { m.emissive.copy(info.baseEm); m.emissiveIntensity = info.baseEi; }
-    if (t === undefined) continue;
-    if (typeof t === 'string') t = { color: t };
-    if (t.color) m.color.multiply(new THREE.Color(t.color));
-    if (t.emissive && m.emissive) { m.emissive.set(t.emissive); m.emissiveIntensity = Number.isFinite(t.emissiveIntensity) ? t.emissiveIntensity : 0.05; }
-  }
+  mat.customProgramCacheKey = () => 'tksoil';
 }
 
-/* ---------- 本体 ---------- */
+/* 本体 */
 let ctx = null;
 
-export function start(opts) {
+export async function start(opts) {
   if (ctx) stop();
   const canvas = opts.canvas, api = opts.api;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
@@ -372,56 +123,144 @@ export function start(opts) {
   renderer.setPixelRatio(dpr);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = false;
+  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x180e1e, 0.036);
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 120);
+  scene.fog = new THREE.FogExp2(0x0f0c16, 0.036);
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 300);
   const uScale = { value: 900 };
   const owned = [];   // dispose 対象
+  let stopped = false;
+  const isStopped = () => stopped;
+
+  /* 素材ローダー（シーンにも渡す） */
+  const texLoader = new THREE.TextureLoader();
+  const assets = {
+    url: (p) => new URL(p, SITE).href,
+    loadTexture(p, o = {}) {
+      const t = texLoader.load(new URL(p, SITE).href);
+      if (o.srgb) t.colorSpace = THREE.SRGBColorSpace;
+      if (o.repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+      t.anisotropy = aniso;
+      return t;
+    },
+    async loadGLTF(p) {
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      return new GLTFLoader().loadAsync(new URL(p, SITE).href);
+    }
+  };
+  const BU = await import('three/addons/utils/BufferGeometryUtils.js');
+  if (stopped) return;
 
   /* 照明 */
   const hemi = new THREE.HemisphereLight(0x5a4470, 0x0a0806, 0.5);
-  const fire = new THREE.PointLight(0xff8a3c, 0, 16, 2);
-  fire.position.set(0, 0.95, 0);
-  scene.add(hemi, fire);
+  scene.add(hemi);
+  const moonLight = new THREE.DirectionalLight(0xbcc8f0, 0.22);
+  scene.add(moonLight, moonLight.target);
 
-  /* 地面 */
-  const grassMat = new THREE.MeshLambertMaterial({ color: 0x1f3320 });
-  const grass = new THREE.Mesh(new THREE.CircleGeometry(60, 48), grassMat);
-  grass.rotation.x = -Math.PI / 2; scene.add(grass);
-  const dirtTex = radialTexture(256, [[0, 'rgba(58,38,24,1)'], [0.55, 'rgba(46,30,19,0.95)'], [0.85, 'rgba(34,24,15,0.5)'], [1, 'rgba(30,20,12,0)']]);
-  const dirt = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshLambertMaterial({ map: dirtTex, transparent: true, depthWrite: false }));
-  dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.01; scene.add(dirt);
-  const ashTex = radialTexture(128, [[0, 'rgba(8,5,4,1)'], [0.7, 'rgba(12,8,6,0.85)'], [1, 'rgba(12,8,6,0)']]);
-  const ash = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.0), new THREE.MeshBasicMaterial({ map: ashTex, transparent: true, depthWrite: false }));
-  ash.rotation.x = -Math.PI / 2; ash.position.y = 0.02; scene.add(ash);
+  /* 地面（土の PBR） */
+  const soilBase = assets.loadTexture('assets/textures/soil_basecolor.png', { srgb: true, repeat: true });
+  const soilNorm = assets.loadTexture('assets/textures/soil_normal.png', { repeat: true });
+  const soilRough = assets.loadTexture('assets/textures/soil_roughness.png', { repeat: true });
+  const GROUND_R = 140;
+  for (const t of [soilBase, soilNorm, soilRough]) t.repeat.set(GROUND_R * 2 / TILE_M, GROUND_R * 2 / TILE_M);
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: soilBase, normalMap: soilNorm, roughnessMap: soilRough, roughness: 1.0, metalness: 0,
+    normalScale: new THREE.Vector2(0.8, 0.8)
+  });
+  patchSoil(groundMat);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(GROUND_R, 64), groundMat);
+  ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-  /* 石囲い */
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x36322d, roughness: 0.95, flatShading: true });
-  const stoneGeo = new THREE.IcosahedronGeometry(0.24, 0);
-  const srng = mulberry32(77);
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2 + srng() * 0.1, r = 1.0 + srng() * 0.08;
-    const s = new THREE.Mesh(stoneGeo, stoneMat);
-    s.position.set(Math.cos(a) * r, 0.1, Math.sin(a) * r);
-    s.scale.set(1 + srng() * 0.4, 0.62 + srng() * 0.2, 1.1 + srng() * 0.4);
-    s.rotation.set(srng() * 3, srng() * 6, srng() * 3);
-    scene.add(s);
+  /* 遠景の丘: 地面の端（世界の果て）を隠す。霧で夜空の色になじませる */
+  for (const l of HILLS) {
+    const N = 128, P = [], I = [];
+    for (let i = 0; i <= N; i++) {
+      const th = (i / N) * Math.PI * 2, h = hillH(l, th), c = Math.cos(th), sn = Math.sin(th);
+      for (const [r, y] of [[l.R - 16, 0], [l.R, h], [l.R + 12, 0]]) P.push(c * r, y, sn * r);
+    }
+    for (let i = 0; i < N; i++) for (let k = 0; k < 2; k++) {
+      const a = i * 3 + k, b = a + 3;
+      I.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I);
+    scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: l.color, side: THREE.DoubleSide })));
   }
 
-  /* 薪: 燃料の量に応じて本数が変わる（2Dと同じ考え方）。円錐状に立てかける */
+  /* 手前の小物: 予備の薪の束、切り株の腰掛け、小石（視界はふさがない位置） */
+  {
+    const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
+    const cutMat = new THREE.MeshStandardMaterial({ color: 0x7d5f40, roughness: 0.95 });
+    const stumpGeo = new THREE.CylinderGeometry(0.27, 0.33, 0.42, 14);
+    const stump = new THREE.Mesh(stumpGeo, [barkMat, cutMat, cutMat]);
+    stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump);
+    const bundleGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.85, 8); bundleGeo.rotateZ(Math.PI / 2);
+    const bundle = new THREE.Group();
+    [[-0.07, 0.065], [0.07, 0.065], [0.21, 0.065], [0, 0.175], [0.14, 0.175]].forEach(([z, y], i) => {
+      const m = new THREE.Mesh(bundleGeo, i % 2 ? barkMat : new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 }));
+      m.position.set((i % 3 - 1) * 0.04, y, z); m.rotation.y = (i - 2) * 0.05; bundle.add(m);
+    });
+    bundle.position.set(-2.0, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle);
+    const pebGeo = new THREE.IcosahedronGeometry(1, 0);
+    const pebbles = new THREE.InstancedMesh(pebGeo, new THREE.MeshStandardMaterial({ color: 0x3a3836, roughness: 0.95, flatShading: true }), 16);
+    const pr = mulberry32(5), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler();
+    for (let i = 0; i < 16; i++) {
+      const a = pr() * Math.PI * 2, r = 1.7 + pr() * 1.5, s2 = 0.03 + pr() * 0.05;
+      q.setFromEuler(e3.set(pr() * 3, pr() * 3, pr() * 3));
+      m4.compose(new THREE.Vector3(Math.sin(a) * r, s2 * 0.4, Math.cos(a) * r), q, new THREE.Vector3(s2 * 1.3, s2 * 0.7, s2));
+      pebbles.setMatrixAt(i, m4);
+    }
+    scene.add(pebbles);
+  }
+
+  /* 焚火の周りの灰 */
+  const ashMat = new THREE.MeshStandardMaterial({
+    map: assets.loadTexture('assets/textures/ash_decal.png', { srgb: true }),
+    normalMap: assets.loadTexture('assets/textures/ash_normal.png'),
+    roughness: 1, metalness: 0, transparent: true, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  });
+  const ash = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), ashMat);
+  ash.rotation.x = -Math.PI / 2; ash.position.y = 0.012; scene.add(ash);
+
+  /* 石囲い */
+  const stoneGeo = buildStones(BU.mergeVertices, BU.mergeGeometries);
+  const stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  const stones = new THREE.Mesh(stoneGeo, stoneMat);
+  scene.add(stones);
+
+  /* 薪: 燃料の量に応じて本数が変わる。手前（カメラ側）の薪は低く寝かせて、炎を隠さない */
   const logGeo = new THREE.CylinderGeometry(0.085, 0.075, 1, 8);
   const LOG_ORDER = [0, 4, 2, 6, 1, 5, 3, 7];
+  // 手前(+Z)の3本は、断面がカメラを向かないよう横向きに寝かせる。base=根元、h=水平方向の向き
+  const FRONT = {
+    1: { base: [0.45, 0.15, 0.75], h: [-0.9, -0.45] },
+    2: { base: [-0.55, 0.09, 0.55], h: [0.9, -0.4] },
+    3: { base: [0.8, 0.09, 0.15], h: [-0.85, -0.5] }
+  };
   const logs = [];
   for (let i = 0; i < 8; i++) {
-    const slot = LOG_ORDER[i];
-    const a = slot * (Math.PI / 4) + (slot % 2) * 0.12;
-    const R0 = 0.5 + (slot % 2) * 0.12, th = 0.52 + (slot % 2) * 0.14, len = 1.0 - (slot % 2) * 0.16;
-    const dir = new THREE.Vector3(-Math.cos(a) * Math.sin(th), Math.cos(th), -Math.sin(a) * Math.sin(th));
+    const slot = LOG_ORDER[i], fr = FRONT[slot];
+    let base, dir, len;
+    if (fr) {
+      const hl = Math.hypot(fr.h[0], fr.h[1]), th = 1.2;
+      dir = new THREE.Vector3(fr.h[0] / hl * Math.sin(th), Math.cos(th), fr.h[1] / hl * Math.sin(th));
+      base = new THREE.Vector3(...fr.base); len = 0.78;
+    } else {
+      const a = slot * (Math.PI / 4) + (slot % 2) * 0.12;
+      const R0 = 0.5 + (slot % 2) * 0.12, th = 0.52 + (slot % 2) * 0.14;
+      len = 1.0 - (slot % 2) * 0.16;
+      dir = new THREE.Vector3(-Math.cos(a) * Math.sin(th), Math.cos(th), -Math.sin(a) * Math.sin(th));
+      base = new THREE.Vector3(Math.cos(a) * R0, 0.1, Math.sin(a) * R0);
+      // 奥側の薪も、上の断面がカメラを向きすぎないよう水平方向にひねる（視点を回したときの偏りも減らす）
+      const twist = { 5: 0.6, 6: 1.0, 7: -0.6 }[slot];
+      if (twist) dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), twist);
+    }
     const mat = new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92, emissive: 0x000000 });
     const m = new THREE.Mesh(logGeo, mat);
     m.scale.y = len;
-    m.position.set(Math.cos(a) * R0, 0.1, Math.sin(a) * R0).addScaledVector(dir, len / 2);
+    m.position.copy(base).addScaledVector(dir, len / 2);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     m.userData.seed = i;
     scene.add(m); logs.push(m);
@@ -429,119 +268,135 @@ export function start(opts) {
   const dropMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92 });
   const falling = [];    // 落下中の薪 {mesh, t0, landAt, dx, ang}
 
-  /* 炎・火の粉・熾火 */
-  const flamePts = makePoints(MAX_FLAME, THREE.AdditiveBlending, 1.6, uScale);
-  const sparkPts = makePoints(MAX_SPARK, THREE.AdditiveBlending, 0.8, uScale);
-  const emberPts = makePoints(9, THREE.AdditiveBlending, 1.4, uScale);
-  scene.add(flamePts.points, sparkPts.points, emberPts.points);
-  const flames = [], sparks = [];
-  const EMBER_POS = [];
-  for (let m = 0; m < 9; m++) EMBER_POS.push([Math.sin(m * 2.3 + 1) * 0.75, 0.08 + 0.05 * ((m * 5) % 4), Math.cos(m * 2.3 + 1) * 0.75]);
-  const glowTex = radialTexture(128, [[0, 'rgba(255,190,110,1)'], [0.35, 'rgba(255,130,50,0.45)'], [1, 'rgba(255,90,20,0)']]);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0 }));
-  glow.position.set(0, 0.85, 0); scene.add(glow);
+  /* 炎・火の粉・煙・熾火・火の光（fire3d.js） */
+  const fire = createFire({ scene, renderer, camera, api, logs });
 
-  /* 星 */
+  /* ---------- 夜空 ---------- */
+  let skyTex = null;
+  const skyLoader = new THREE.TextureLoader();
+  skyLoader.load(new URL('assets/textures/night_sky.png', SITE).href, (t) => {
+    if (stopped) { t.dispose(); return; }
+    t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+    skyTex = t; envKey = '';   // 背景を選び直させる
+  });
+  const gradTex = {};   // 夜空オフ時の暗いグラデーション（季節ごと）
+  function gradientBg(season) {
+    if (gradTex[season]) return gradTex[season];
+    const e = SEASON_ENV[season], c = document.createElement('canvas'); c.width = 4; c.height = 256;
+    const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 256);
+    const hex = (h) => '#' + h.toString(16).padStart(6, '0');
+    g.addColorStop(0, hex(e.bg)); g.addColorStop(0.7, hex(e.mid)); g.addColorStop(1, hex(e.bg));
+    x.fillStyle = g; x.fillRect(0, 0, 4, 256);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return (gradTex[season] = t);
+  }
+
+  // 月: やわらかいにじみと円盤。季節で高さと色味を変える
+  const moonTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const x = c.getContext('2d'), g = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(0.16, 'rgba(255,255,255,0.28)');
+    g.addColorStop(0.4, 'rgba(255,255,255,0.08)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+    const d = x.createRadialGradient(122, 122, 2, 128, 128, 21);
+    d.addColorStop(0, 'rgba(255,255,255,1)'); d.addColorStop(0.85, 'rgba(238,238,238,1)'); d.addColorStop(1, 'rgba(255,255,255,0.0)');
+    x.fillStyle = d; x.beginPath(); x.arc(128, 128, 21, 0, Math.PI * 2); x.fill();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+  const moonMat = new THREE.SpriteMaterial({ map: moonTex, transparent: true, depthWrite: false, fog: false, toneMapped: false, color: 0xffffff });
+  const moon = new THREE.Sprite(moonMat);
+  scene.add(moon);
+
+  // 星のまたたき: 背景画像の上に少数の点を重ねて、明るさだけ揺らす
+  const NSTAR = 90;
+  const starGeo = new THREE.BufferGeometry();
+  const starPos = new Float32Array(NSTAR * 3), starCol = new Float32Array(NSTAR * 3);
+  const starPh = new Float32Array(NSTAR * 2), starBase = new Float32Array(NSTAR);
   {
-    const n = 160, p = new Float32Array(n * 3), r = mulberry32(9);
-    for (let i = 0; i < n; i++) {
-      const a = r() * Math.PI * 2, el = 0.15 + r() * 1.2, R = 90;
-      p[i * 3] = Math.cos(a) * Math.cos(el) * R; p[i * 3 + 1] = Math.sin(el) * R; p[i * 3 + 2] = Math.sin(a) * Math.cos(el) * R;
+    const r = mulberry32(9);
+    for (let i = 0; i < NSTAR; i++) {
+      const p = skyDir(r() * Math.PI * 2, 0.06 + r() * 1.1, SKY_R * 0.98);
+      starPos.set([p.x, p.y, p.z], i * 3);
+      starPh[i * 2] = r() * 20; starPh[i * 2 + 1] = 0.6 + r() * 1.8; starBase[i] = 0.35 + r() * 0.65;
     }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcfd8ff, size: 1.6 * dpr, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.55, depthWrite: false }));
-    stars.frustumCulled = false; scene.add(stars);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  const starAttr = new THREE.BufferAttribute(starCol, 3); starAttr.setUsage(THREE.DynamicDrawUsage);
+  starGeo.setAttribute('color', starAttr);
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+    size: 2.2 * dpr, sizeAttenuation: false, vertexColors: true, fog: false, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+  }));
+  stars.frustumCulled = false; scene.add(stars);
+
+  // 流れ星: 数十秒〜数分に1回、細い光の筋がすっと流れる
+  const NS = 10;
+  const ssGeo = new THREE.BufferGeometry();
+  const ssPos = new Float32Array(NS * 3), ssCol = new Float32Array(NS * 3);
+  const ssPosA = new THREE.BufferAttribute(ssPos, 3), ssColA = new THREE.BufferAttribute(ssCol, 3);
+  ssPosA.setUsage(THREE.DynamicDrawUsage); ssColA.setUsage(THREE.DynamicDrawUsage);
+  ssGeo.setAttribute('position', ssPosA); ssGeo.setAttribute('color', ssColA);
+  const shooting = new THREE.Line(ssGeo, new THREE.LineBasicMaterial({
+    vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false
+  }));
+  shooting.frustumCulled = false; shooting.visible = false; scene.add(shooting);
+  let ss = null, ssNext = rnd(25, 80);
+  function startShooting(t) {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    ss = { t0: t, dur: rnd(0.7, 1.1), az: rnd(-0.7, 0.7), el: rnd(0.2, 0.42), daz: dir * rnd(0.22, 0.4), del: -rnd(0.1, 0.22) };
+    shooting.visible = true;
+  }
+  function updateShooting(t) {
+    const p = (t - ss.t0) / ss.dur;
+    if (p >= 1) { ss = null; shooting.visible = false; ssNext = t + rnd(40, 160); return; }
+    const env = Math.sin(Math.PI * p);
+    for (let i = 0; i < NS; i++) {
+      const back = (i / (NS - 1)) * 0.3, q = p - back * 0.6;   // 尾は少し遅れて追う
+      const v = skyDir(ss.az + ss.daz * q, ss.el + ss.del * q, SKY_R);
+      ssPos[i * 3] = v.x; ssPos[i * 3 + 1] = v.y; ssPos[i * 3 + 2] = v.z;
+      const f = Math.pow(1 - i / (NS - 1), 1.6) * env;
+      ssCol[i * 3] = 0.85 * f; ssCol[i * 3 + 1] = 0.92 * f; ssCol[i * 3 + 2] = f;
+    }
+    ssPosA.needsUpdate = ssColA.needsUpdate = true;
   }
 
-  /* 季節の舞うもの */
-  const driftPts = makePoints(340, THREE.NormalBlending, 1.0, uScale);
-  driftPts.points.visible = false; scene.add(driftPts.points);
-  let drift = [], driftKey = '';
-  function initDrift(season, on) {
-    drift = []; driftKey = season + (on ? '1' : '0');
-    driftPts.points.visible = on;
-    if (!on) { driftPts.flush(0); return; }
-    driftPts.mat.blending = season === 'summer' ? THREE.AdditiveBlending : THREE.NormalBlending;
-    driftPts.mat.uniforms.uPow.value = season === 'summer' ? 1.4 : 0.6;
-    driftPts.mat.needsUpdate = true;
-    const N = { spring: 170, summer: 60, autumn: 130, winter: 330 }[season];
-    for (let i = 0; i < N; i++) {
-      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 9;
-      drift.push({
-        x: Math.cos(a) * r, z: Math.sin(a) * r,
-        y: season === 'summer' ? rnd(0.4, 3.2) : rnd(0, 6.5),
-        vy: rnd(0.35, 0.8), ph: rnd(0, 20), a: rnd(0, 6.28), f: rnd(0.6, 1.6), sz: rnd(0.7, 1.3),
-        c: Math.floor(Math.random() * 4)
-      });
-    }
+  /* ---------- ホタル（季節の演出とは独立） ---------- */
+  const NFF = 22;
+  const ffPts = makePoints(NFF, THREE.AdditiveBlending, 1.2, uScale);
+  ffPts.points.visible = false; scene.add(ffPts.points);
+  const ff = [];
+  for (let i = 0; i < NFF; i++) {
+    const a = Math.random() * Math.PI * 2, r = 1.8 + Math.sqrt(Math.random()) * 6;
+    ff.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, y: rnd(0.25, 1.9), a: rnd(0, 6.28), sp: rnd(0.12, 0.28), per: rnd(2.2, 3.2), ph: Math.random(), sz: rnd(0.75, 1.25) });
   }
-  function updateDrift(season, dt, t) {
-    const P = driftPts, n = drift.length;
-    for (let i = 0; i < n; i++) {
-      const d = drift[i], o = i * 3;
-      let size = 0.06, alpha = 0.85, c;
-      if (season === 'summer') {
-        d.a += (Math.random() - 0.5) * 2 * dt;
-        const sp = 0.25 + 0.2 * d.sz;
-        d.x += Math.cos(d.a) * sp * dt; d.z += Math.sin(d.a) * sp * dt; d.y += (Math.sin(d.a * 1.3) * sp * 0.5) * dt;
-        if (d.x * d.x + d.z * d.z > 100) d.a += Math.PI;
-        if (d.y < 0.4 || d.y > 3.4) d.a = -d.a, d.y = clamp(d.y, 0.4, 3.4);
-        let b = Math.max(0, Math.sin(t * d.f + d.ph)); b *= b;
-        alpha = b * 0.95; size = 0.16 * d.sz; c = rgb(0xd2ff8a);
-      } else {
-        d.y -= d.vy * dt * (season === 'winter' ? 0.55 : season === 'autumn' ? 1.0 : 0.75);
-        const sway = season === 'autumn' ? 0.7 : season === 'winter' ? 0.25 : 0.5;
-        d.x += Math.sin(t * 1.1 + d.ph) * sway * dt; d.z += Math.cos(t * 0.9 + d.ph) * sway * dt;
-        if (d.y < 0) { d.y = 6.5; const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 9; d.x = Math.cos(a) * r; d.z = Math.sin(a) * r; }
-        if (season === 'spring') { size = 0.1 * d.sz; c = rgb(0xffbad0); alpha = 0.85; }
-        else if (season === 'autumn') { size = 0.13 * d.sz; c = rgb(LEAF_COLORS[d.c]); alpha = 0.9; }
-        else { size = 0.055 * d.sz; c = rgb(0xe8f2ff); alpha = 0.8; }
-      }
+  let ffAmt = 0;
+  const ffCol = rgb(0xc4ff6a);
+  function updateFireflies(dt, t, on) {
+    ffAmt += ((on ? 1 : 0) - ffAmt) * (1 - Math.exp(-dt * 1.5));
+    if (ffAmt < 0.01 && !on) { ffPts.points.visible = false; return; }
+    ffPts.points.visible = true;
+    const P = ffPts;
+    for (let i = 0; i < NFF; i++) {
+      const d = ff[i], o = i * 3;
+      d.a += (Math.random() - 0.5) * 2.2 * dt;
+      d.x += Math.cos(d.a) * d.sp * dt; d.z += Math.sin(d.a) * d.sp * dt; d.y += Math.sin(d.a * 1.3 + d.ph * 6) * d.sp * 0.4 * dt;
+      const rr = d.x * d.x + d.z * d.z;
+      if (rr > 64 || rr < 2.5) d.a += Math.PI;
+      d.y = clamp(d.y, 0.2, 2.0);
+      const u = (t / d.per + d.ph) % 1;                       // 2〜3秒周期で ふわっと光って消える
+      const b = u < 0.72 ? Math.pow(Math.sin(Math.PI * u / 0.72), 2) : 0;
       P.pos[o] = d.x; P.pos[o + 1] = d.y; P.pos[o + 2] = d.z;
-      P.size[i] = size; P.alp[i] = alpha; P.col[o] = c[0]; P.col[o + 1] = c[1]; P.col[o + 2] = c[2];
+      P.size[i] = 0.26 * d.sz; P.alp[i] = b * 0.95 * ffAmt;
+      P.col[o] = ffCol[0]; P.col[o + 1] = ffCol[1]; P.col[o + 2] = ffCol[2];
     }
-    P.flush(n);
+    P.flush(NFF);
   }
 
-  /* 草木 */
-  const plants = {};         // season -> {group, real}
-  let stopped = false, fieldObj = null, fieldLoading = false, grassLevel = '';
-  const isStopped = () => stopped;
-  function ensurePlants(season) {
-    if (plants[season]) return;
-    const proc = buildProcedural(season);
-    plants[season] = { group: proc, real: false };
-    scene.add(proc);
-    buildFromManifest(season, isStopped).then((real) => {
-      if (!real || stopped) { if (real) disposeTree(real); return; }
-      const cur = plants[season];
-      scene.remove(cur.group); disposeTree(cur.group);
-      cur.group = real; cur.real = true; real.visible = (curSeason === season);
-      scene.add(real);
-    }).catch((err) => console.warn('[takibi] plants manifest:', err));
-  }
-
-  // フィールド型素材: 草の量が「なし」以外になったとき1回だけ読み込む（以後は instance 数と表示だけ切り替える）
-  function ensureField(level) {
-    if (level === 'none') { if (fieldObj) fieldObj.group.visible = false; return; }
-    if (fieldObj) { applyFieldLevel(fieldObj, level); return; }
-    if (fieldLoading) return;
-    fieldLoading = true;
-    collectFieldEntries().then((list) => (list.length ? loadField(list[0], isStopped) : null)).then((f) => {
-      if (!f) return;
-      if (stopped) { f.asset.dispose(); return; }
-      fieldObj = f;
-      scene.add(f.group);
-      applyFieldLevel(f, grassLevel === 'none' ? 'many' : grassLevel);
-      f.group.visible = grassLevel !== 'none';
-      applyFieldTint(f, curSeason);
-    }).catch((err) => console.warn('[takibi] field asset:', err));
-  }
-
-  /* カメラ */
-  const target = new THREE.Vector3(0, 0.85, 0);
+  /* ---------- カメラ ---------- */
+  const target = new THREE.Vector3(0, 0.9, 0);
   let azT = 0, az = 0, elT = 0, el = 0;
-  const CAM_R = 7.2, CAM_EL = 0.46;
+  const CAM_R = 3.6, CAM_EL = 0.155;   // 焚火の前に座って、火と空を一緒に見る目線
 
   /* 入力: ドラッグで視点、ドラッグでないクリックで薪をくべる */
   let down = null, dragged = false;
@@ -563,7 +418,6 @@ export function start(opts) {
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
 
-  /* リサイズ */
   function resize() {
     const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
     renderer.setSize(w, h, false);
@@ -572,76 +426,88 @@ export function start(opts) {
     camera.fov = w / h < 1 ? Math.min(75, FOV / Math.max(0.55, w / h)) : FOV;
     camera.updateProjectionMatrix();
     uScale.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+    fire.setSize(w, h);
   }
   window.addEventListener('resize', resize);
   resize();
 
-  /* 購読 */
-  let sparkAcc = 0, flameAcc = 0, curSeason = '', envKey = '';
-  const emitSparks = (n) => {
-    const f = Math.min(1.2, api.getState().flame);
-    for (let i = 0; i < n && sparks.length < MAX_SPARK; i++) {
-      sparks.push({ x: gauss() * 0.18, y: 0.45, z: gauss() * 0.18, vx: gauss() * 0.3, vz: gauss() * 0.3, vy: rnd(0.45, 1.6) * (0.6 + 0.6 * f), life: rnd(0.8, 2.0), age: 0, size: rnd(0.035, 0.075) });
-    }
+  /* ---------- シーンの切り替え ---------- */
+  let curScene = null, curSceneId = '', curSeason = '', envKey = '';
+  const sceneCtx = {
+    THREE, scene, renderer, camera, api, util, assets, uScale, isStopped,
+    fireCenter: { x: 0, z: 0 }, root: null
   };
+  function switchScene(id) {
+    const def = SCENES.find((s) => s.id === id) || SCENES[0];
+    curSceneId = id;
+    if (curScene && curScene.def === def) return;
+    if (curScene) {
+      try { curScene.inst.dispose(); } catch (err) { console.error(err); }
+      scene.remove(curScene.root); disposeTree(curScene.root);
+      curScene = null;
+    }
+    const root = new THREE.Group();
+    scene.add(root);
+    sceneCtx.root = root;
+    let inst;
+    try { inst = def.build(sceneCtx); } catch (err) { console.error('[takibi] scene build:', err); scene.remove(root); return; }
+    curScene = { def, inst, root };
+    if (curSeason) inst.setSeason(curSeason);
+    if (api.applySceneAudio) api.applySceneAudio(def.audio || {});
+  }
+
+  /* 購読 */
   const unsubs = [
-    api.onCrackle((ev) => emitSparks(ev.n)),
     api.onLogAdded((ev) => {
       if (ev.type === 'drop') {
         const mesh = new THREE.Mesh(logGeo, dropMat); mesh.scale.y = 0.95; scene.add(mesh);
         falling.push({ mesh, t0: ev.t0, landAt: ev.landAt, dx: ev.dx * 1.6, ang: ev.ang });
-      } else if (ev.type === 'land') {
-        for (let i = 0; i < 26 && sparks.length < MAX_SPARK; i++) {
-          sparks.push({ x: ev.dx * 1.6 + gauss() * 0.2, y: 0.4, z: gauss() * 0.2, vx: gauss() * 0.6, vz: gauss() * 0.6, vy: rnd(0.7, 2.3), life: rnd(0.9, 2.2), age: 0, size: rnd(0.04, 0.09) });
-        }
       }
     }),
     api.onActiveChange((on) => setActive(on))
   ];
 
   /* 毎フレームの更新 */
-  const tmpC = new THREE.Color();
   let elapsed = 0;
   function update(dt) {
     const st = api.getState(), now = performance.now();
     elapsed += dt;
     const t = elapsed;
-    const f = Math.min(1.25, st.flame), em = st.ember;
-    const flick = 0.92 + 0.08 * Math.sin(t * 9) * Math.sin(t * 3.1 + 1) + 0.03 * Math.sin(t * 23) + 0.02 * (Math.random() - 0.5);
 
-    // 草の量
-    const gl = st.grass || 'normal';
-    if (gl !== grassLevel) { grassLevel = gl; ensureField(gl); }
-    // 仮の草の束は、フィールドが無い（未読込・読込失敗）ときだけ、かつ草の量が「なし」以外のときだけ出す
-    const tuftsOn = gl !== 'none' && !fieldObj;
-    for (const k in plants) { const tf = plants[k].group.userData && plants[k].group.userData.tufts; if (tf) tf.visible = tuftsOn; }
-
-    // 季節
-    if (st.season !== curSeason) {
-      curSeason = st.season; ensurePlants(curSeason);
-      for (const k in plants) plants[k].group.visible = (k === curSeason);
-      applyFieldTint(fieldObj, curSeason);
-    }
+    // 季節・シーン・空
+    const seasonChanged = st.season !== curSeason;
+    if (seasonChanged) curSeason = st.season;
+    if (st.scene !== curSceneId || !curScene) switchScene(st.scene);
+    else if (seasonChanged && curScene) curScene.inst.setSeason(curSeason);
     const env = SEASON_ENV[curSeason];
-    const ek = curSeason;
+    const ek = curSeason + (st.nightSky ? 'S' : 'G');
     if (ek !== envKey) {
       envKey = ek;
-      scene.background = new THREE.Color(env.bg); scene.fog.color.setHex(env.bg);
-      hemi.color.setHex(env.sky); grassMat.color.setHex(env.grass);
+      if (st.nightSky && skyTex) { scene.background = skyTex; scene.backgroundIntensity = 0.75; scene.fog.color.setHex(env.fog); }
+      else { scene.background = gradientBg(curSeason); scene.backgroundIntensity = 1; scene.fog.color.setHex(st.nightSky ? env.fog : env.bg); }
+      hemi.color.setHex(env.hemi);
+      const m = env.moon;
+      moon.position.copy(skyDir(m.az, m.el, SKY_R)); moon.scale.setScalar(m.size);
+      moonMat.color.setHex(m.color);
+      moonLight.color.setHex(m.light); moonLight.intensity = m.power;
+      moonLight.position.copy(skyDir(m.az, m.el, 40));
     }
-    if (driftKey !== curSeason + (st.seasonFx ? '1' : '0')) initDrift(curSeason, st.seasonFx);
+    moon.visible = stars.visible = !!st.nightSky;
     renderer.toneMappingExposure = 1.05 * st.brightness;
+
+    // 星のまたたき・流れ星
+    if (st.nightSky) {
+      for (let i = 0; i < NSTAR; i++) {
+        const b = starBase[i] * (0.55 + 0.45 * Math.sin(t * starPh[i * 2 + 1] + starPh[i * 2])) * 0.8;
+        starCol[i * 3] = 0.8 * b; starCol[i * 3 + 1] = 0.86 * b; starCol[i * 3 + 2] = b;
+      }
+      starAttr.needsUpdate = true;
+      if (ss) updateShooting(t); else if (t > ssNext) startShooting(t);
+    } else if (ss) { ss = null; shooting.visible = false; }
 
     // 薪
     const shown = st.started ? Math.min(st.maxFuel, Math.max(1, Math.ceil(st.fuel - 0.02))) : 1;
-    const heat = st.started ? Math.min(1, f * 0.9 + em * (0.5 + 0.3 * Math.sin(t * 1.5))) : 0;
-    for (let i = 0; i < logs.length; i++) {
-      const m = logs[i];
-      m.visible = i < shown;
-      const h = heat * (0.6 + 0.4 * ((i * 37) % 10) / 10);
-      m.material.emissive.setRGB(1.0 * h, 0.32 * h, 0.06 * h);
-      m.material.emissiveIntensity = 0.55;
-    }
+    for (let i = 0; i < logs.length; i++) logs[i].visible = i < shown;
     for (let i = falling.length - 1; i >= 0; i--) {
       const d = falling[i], p = clamp((now - d.t0) / (d.landAt - d.t0), 0, 1), e2 = p * p;
       d.mesh.position.set(d.dx * (1 - e2 * 0.6), 3.4 + (0.6 - 3.4) * e2, 0);
@@ -649,77 +515,12 @@ export function start(opts) {
       if (now >= d.landAt + 40) { scene.remove(d.mesh); falling.splice(i, 1); }
     }
 
-    // 光
-    fire.intensity = (38 * f + 4 * em) * flick;
-    fire.position.set(0.04 * Math.sin(t * 5.3), 0.95 + 0.06 * f + 0.03 * Math.sin(t * 7.1), 0.04 * Math.cos(t * 4.1));
-    tmpC.setRGB(1, 0.5 + 0.12 * Math.min(1, f) * (0.5 + 0.5 * Math.sin(t * 3)), 0.2);
-    fire.color.copy(tmpC);
-    glow.material.opacity = (0.33 * Math.min(1, f) + 0.05 * em) * flick;
-    glow.scale.setScalar(1.6 + 1.6 * Math.min(1.2, f));
-    glow.position.y = 0.75 + 0.35 * f;
-
-    // 炎パーティクル
-    if (st.started && f > 0.03) { flameAcc += 280 * f * dt; const nn = Math.floor(flameAcc); flameAcc -= nn; spawnFlame(nn, f); }
-    let n = 0, o;
-    const F = flamePts;
-    for (let i = flames.length - 1; i >= 0; i--) {
-      const q = flames[i]; q.age += dt;
-      const tt = q.age / q.life;
-      if (tt >= 1) { flames[i] = flames[flames.length - 1]; flames.pop(); continue; }
-      q.x += (q.vx + Math.sin(q.age * 7 + q.seed) * 0.1 - q.x * 1.0) * dt;
-      q.z += (q.vz + Math.cos(q.age * 6 + q.seed) * 0.1 - q.z * 1.0) * dt;
-      q.y += q.vy * dt; q.vy *= (1 - 0.5 * dt);
-    }
-    for (let i = 0; i < flames.length; i++) {
-      const q = flames[i], tt = q.age / q.life; o = n * 3;
-      F.pos[o] = q.x; F.pos[o + 1] = q.y; F.pos[o + 2] = q.z;
-      F.size[n] = q.size * (1 - tt * 0.75) * 2;
-      F.alp[n] = Math.min(1, (1 - tt) * 0.4 * Math.min(1, tt * 8 + 0.2));
-      flameColor(tt, F.col, o);
-      n++;
-    }
-    F.flush(n);
-
-    // 火の粉
+    // 炎・火の粉・煙・熾火・光
     api.pump();
-    if (st.started && f > 0.05) { sparkAcc += (2 + 8 * f) * dt; const sn = Math.floor(sparkAcc); sparkAcc -= sn; emitSparks(sn); }
-    n = 0;
-    const S = sparkPts;
-    for (let j = sparks.length - 1; j >= 0; j--) {
-      const sp = sparks[j]; sp.age += dt;
-      const s = sp.age / sp.life;
-      if (s >= 1) { sparks[j] = sparks[sparks.length - 1]; sparks.pop(); continue; }
-      sp.vx += Math.sin(sp.age * 5 + j) * 0.25 * dt; sp.vz += Math.cos(sp.age * 4 + j) * 0.25 * dt;
-      sp.vx *= (1 - 0.6 * dt); sp.vz *= (1 - 0.6 * dt);
-      sp.vy = sp.vy * (1 - 0.7 * dt) + 0.09 * dt;
-      sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.z += sp.vz * dt;
-    }
-    for (let j = 0; j < sparks.length; j++) {
-      const sp = sparks[j], s = sp.age / sp.life; o = n * 3;
-      S.pos[o] = sp.x; S.pos[o + 1] = sp.y; S.pos[o + 2] = sp.z;
-      S.size[n] = sp.size * 2 * (1 - s * 0.6);
-      S.alp[n] = (1 - s) * (0.6 + 0.4 * Math.sin(sp.age * 30 + j * 3));
-      flameColor(0.05 + 0.4 * s, S.col, o);
-      n++;
-    }
-    S.flush(n);
+    fire.update(dt, t, st);
 
-    // 熾火
-    const E = emberPts;
-    if (em > 0.02) {
-      for (let m = 0; m < 9; m++) {
-        const ep = EMBER_POS[m], pulse = 0.55 + 0.45 * Math.sin(t * (0.8 + m * 0.17) + m);
-        E.pos[m * 3] = ep[0]; E.pos[m * 3 + 1] = ep[1]; E.pos[m * 3 + 2] = ep[2];
-        E.size[m] = 0.2 + 0.07 * (m % 3); E.alp[m] = em * pulse * 0.8;
-        flameColor(0.7, E.col, m * 3);
-      }
-      E.flush(9);
-    } else E.flush(0);
-
-    // 季節の舞うもの
-    if (st.seasonFx) updateDrift(curSeason, dt, t);
-
-    if (fieldObj) fieldObj.asset.update(dt, t, camera);
+    updateFireflies(dt, t, !!st.fireflies);
+    if (curScene) curScene.inst.update(dt, t, st);
 
     // カメラ（ドラッグで少し回せる。何もしなければごくゆっくり揺れる）
     az += (azT - az) * (1 - Math.exp(-dt * 6)); el += (elT - el) * (1 - Math.exp(-dt * 6));
@@ -727,42 +528,35 @@ export function start(opts) {
     camera.position.set(Math.sin(a) * CAM_R * Math.cos(e), target.y + CAM_R * Math.sin(e), Math.cos(a) * CAM_R * Math.cos(e));
     camera.lookAt(target);
   }
-  function spawnFlame(n, f) {
-    for (let i = 0; i < n && flames.length < MAX_FLAME; i++) {
-      flames.push({
-        x: gauss() * (0.16 + 0.24 * f), z: gauss() * (0.16 + 0.24 * f), y: 0.3 + rnd(0, 0.15),
-        vx: gauss() * 0.06, vz: gauss() * 0.06, vy: (1.25 + 1.3 * f) * rnd(0.7, 1.3),
-        size: (0.3 + 0.17 * f) * rnd(0.6, 1.3), life: rnd(0.55, 1.25) * (0.7 + 0.5 * f), age: 0, seed: Math.random() * 10
-      });
-    }
-  }
 
   /* 描画ループ（30fps。タブ非表示 / 映像オフの間は止める） */
   let raf = 0, last = 0, active = false, winStart = 0, winFrames = 0, winWarm = true;   // 表示開始直後の最初の5秒は読み込み・シェーダー生成で遅くなるので判定しない
+  function resetPerf() { winStart = 0; winFrames = 0; }
   function loop(ts) {
     raf = requestAnimationFrame(loop);
     if (ts - last < FRAME_MS - 2) return;
-    const dt = last ? Math.min(0.05, (ts - last) / 1000) : 1 / 30;
+    const gap = ts - last;
+    const dt = last ? Math.min(0.05, gap / 1000) : 1 / 30;
+    const hadLast = last > 0;
     last = ts;
     update(dt);
-    renderer.render(scene, camera);
-    // 映像が見えている間の実フレーム間隔を計り、遅ければ草を減らしてもらう
-    if (!winStart) { winStart = ts; winFrames = 0; }
-    else {
-      winFrames++;
-      if (ts - winStart >= SLOW_WINDOW_MS) {
-        const fps = winFrames * 1000 / (ts - winStart);
-        winStart = 0;
-        if (winWarm) winWarm = false;
-        else if (fps < SLOW_FPS && api.reportSlow) api.reportSlow(fps);
-      }
+    fire.render();
+    // 計測: 止まっていた・間引かれたフレーム（間隔が GAP_MS 超）は除外し、非表示中はリセット
+    if (document.hidden || (hadLast && gap > GAP_MS)) { resetPerf(); return; }
+    if (!winStart) { winStart = ts; winFrames = 0; return; }
+    winFrames++;
+    if (ts - winStart >= SLOW_WINDOW_MS) {
+      const fps = winFrames * 1000 / (ts - winStart);
+      resetPerf();
+      if (winWarm) winWarm = false;
+      else if (fps < SLOW_FPS && api.reportSlow) api.reportSlow(fps);
     }
   }
   function setActive(on) {
     on = !!on;
     if (on === active) return;
     active = on;
-    winStart = 0; winWarm = true;
+    resetPerf(); winWarm = true;
     if (on) { last = 0; if (!raf) raf = requestAnimationFrame(loop); }
     else if (raf) { cancelAnimationFrame(raf); raf = 0; }
   }
@@ -777,9 +571,12 @@ export function start(opts) {
       canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp); canvas.removeEventListener('pointercancel', onUp);
       falling.forEach((d) => scene.remove(d.mesh));
-      if (fieldObj) { scene.remove(fieldObj.group); fieldObj.asset.dispose(); fieldObj = null; }
+      if (curScene) { try { curScene.inst.dispose(); } catch (err) {} scene.remove(curScene.root); curScene = null; }
+      fire.dispose();
       disposeTree(scene);
-      dirtTex.dispose(); ashTex.dispose(); glowTex.dispose(); logGeo.dispose();
+      Object.values(gradTex).forEach((x) => x.dispose());
+      if (skyTex) skyTex.dispose();
+      moonTex.dispose(); logGeo.dispose(); stoneGeo.dispose();
       owned.forEach((x) => x.dispose && x.dispose());
       renderer.dispose();
       renderer.forceContextLoss();

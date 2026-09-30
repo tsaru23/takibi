@@ -19,8 +19,11 @@
     font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif; }
   canvas { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:pointer; }
   body.video-off canvas { display:none; }
-  body.view-3d #cv { display:none; }
   #cv3 { touch-action:none; }
+  #noVideo { position:fixed; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:24px; color:var(--dim); font-size:15px; line-height:1.8; pointer-events:none; }
+  body.no-webgl #noVideo { display:flex; }
+  body.no-webgl.video-off #noVideo { display:none; }
+  select { width:100%; padding:7px 8px; border-radius:8px; border:1px solid var(--line); background:rgba(40,24,14,.9); color:var(--fg); font:inherit; }
   #toast { position:fixed; top:14px; left:50%; transform:translateX(-50%); padding:6px 14px; border-radius:999px; border:1px solid var(--line);
     background:var(--panel); color:var(--dim); font-size:12px; opacity:0; transition:opacity .5s; pointer-events:none; z-index:5; }
   #toast.on { opacity:1; }
@@ -75,7 +78,7 @@
 </style>
 </head>
 <body>
-<canvas id="cv"></canvas>
+<div id="noVideo" role="status">このブラウザでは映像を表示できません。音だけで使えます</div>
 
 <div id="start">
   <button id="ignite">火をつける</button>
@@ -87,11 +90,13 @@
 <button id="feed" class="ui" type="button"><span class="ic" data-icon="flame"></span>薪をくべる</button>
 <button id="gear" class="ui" type="button" aria-label="設定"><span class="ic" data-icon="settings"></span></button>
 <div id="panel" class="ui">
+  <div class="row" id="sceneRow" style="display:none"><label><span>シーン</span></label><select id="sceneSel"></select></div>
   <div class="seg" id="seasonSeg"></div>
   <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
+  <label class="chk"><input type="checkbox" id="fireflies"> ホタル</label>
+  <label class="chk"><input type="checkbox" id="nightSky"> 夜空（星・月・流れ星）</label>
   <h2>焚火</h2>
-  <div class="row"><label><span>表示</span></label><div class="seg" id="viewSeg"></div></div>
-  <div class="row" id="grassRow"><label><span>草の量（3D）</span></label><div class="seg" id="grassSeg"></div></div>
+  <div class="row" id="grassRow"><label><span>草の量</span></label><div class="seg" id="grassSeg"></div></div>
   <div id="sliders"></div>
   <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
   <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
@@ -99,7 +104,7 @@
   <div id="envAll"></div>
   <h2 id="seasonH">季節の音</h2>
   <div id="envSeason"></div>
-  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。3D表示ではドラッグで視点を少し回せます。</div>
+  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。ドラッグで視点を少し回せます。</div>
 </div>
 
 <script>
@@ -124,7 +129,7 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function 
 var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
 
 /* ---------- 設定 ---------- */
-var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, view:'2d', grass:'normal', grassAuto:'' };
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'' };
 var SLIDERS = [
   ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
   ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
@@ -163,14 +168,24 @@ var S = {};
         if (typeof DEFAULTS[k] === 'number' && typeof o[k] === 'number' && isFinite(o[k])) S[k] = o[k];
         else if (typeof DEFAULTS[k] === 'boolean' && typeof o[k] === 'boolean') S[k] = o[k];
         else if (k === 'season' && SEASONS.indexOf(o[k]) >= 0) S[k] = o[k];
-        else if (k === 'view' && (o[k] === '2d' || o[k] === '3d')) S[k] = o[k];
+        else if (k === 'scene' && typeof o[k] === 'string' && /^[a-z0-9_-]{1,32}$/.test(o[k])) S[k] = o[k];
         else if (k === 'grass' && GRASS.indexOf(o[k]) >= 0) S[k] = o[k];
         else if (k === 'grassAuto' && (o[k] === '' || GRASS.indexOf(o[k]) >= 0)) S[k] = o[k];
       }
     }
   } catch (e) {}
 })();
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} }
+// シーンの音の連動で自動オンにした環境音は、保存しない（次回起動時に「元の状態」が分からなくなるため）
+var autoApplied = [];
+function save() {
+  try {
+    var c = {}, k; for (k in S) c[k] = S[k];
+    autoApplied.forEach(function (id) { c['on_' + id] = false; });
+    localStorage.setItem(STORE_KEY, JSON.stringify(c));
+  } catch (e) {}
+}
+// ホタルは季節の初期値（夏だけオン）に従う。ユーザーが手で変えたら、その値を優先する
+function firefliesOn() { return S.firefliesManual ? S.fireflies : S.season === 'summer'; }
 
 /* ---------- 状態（燃料モデル） ---------- */
 var MAX_FUEL = 8;
@@ -186,9 +201,8 @@ var visible = !document.hidden;
 function smooth(a, b, x) { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); }
 function rnd(a, b) { return a + Math.random() * (b - a); }
 function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; }
-function drawingOn() { return !S.videoOff && visible; }
-var curView = '2d';   // 実際に表示中のモード（'2d' | '3d'）
-function draw2dOn() { return drawingOn() && curView === '2d'; }
+var videoOK = false;   // 3D の映像が使える（WebGL が使え、scene3d.js の起動に成功した）
+function drawingOn() { return !S.videoOff && visible && videoOK; }
 
 function flameTarget() {
   var t = 1.2 * (1 - Math.exp(-fuel / 3));
@@ -216,7 +230,6 @@ function land(d) {
   boost = 1;          // その後 大きくなる＋パチパチ増
   if (ac) playThud();
   if (drawingOn()) {
-    if (curView === '2d') burstSparks(d.dx * SC.S, 26);
     emitLog({ type: 'land', dx: d.dx });
   }
 }
@@ -271,7 +284,7 @@ SLIDERS.forEach(function (d) {
   inp.type = 'range'; inp.min = d[2]; inp.max = d[3]; inp.step = d[4];
   inp.value = S[key]; out.textContent = d[5](S[key]);
   inp.addEventListener('input', function () {
-    S[key] = parseFloat(inp.value); out.textContent = d[5](S[key]); save(); applyFilter();
+    S[key] = parseFloat(inp.value); out.textContent = d[5](S[key]); save();
   });
   row.appendChild(lab); row.appendChild(inp); slidersEl.appendChild(row);
 });
@@ -280,16 +293,19 @@ autoEl.checked = S.autoFeed; vidEl.checked = S.videoOff;
 autoEl.addEventListener('change', function () { S.autoFeed = autoEl.checked; save(); });
 vidEl.addEventListener('change', function () { S.videoOff = vidEl.checked; save(); applyVideoMode(); });
 
-var canvas = document.getElementById('cv');
 var segEl = document.getElementById('seasonSeg'), fxEl = document.getElementById('seasonFx');
 SEASONS.forEach(function (sn) {
   var b = document.createElement('button');
   b.type = 'button'; b.innerHTML = '<span class="ic">' + iconSvg(SEAS_ICON[sn]) + '</span>' + SEAS_JA[sn]; b.dataset.s = sn;
-  b.addEventListener('click', function () { S.season = sn; save(); refreshSeasonUI(); ensureDrift(); });
+  b.addEventListener('click', function () { S.season = sn; save(); refreshSeasonUI(); });
   segEl.appendChild(b);
 });
 fxEl.checked = S.seasonFx;
-fxEl.addEventListener('change', function () { S.seasonFx = fxEl.checked; save(); ensureDrift(); });
+fxEl.addEventListener('change', function () { S.seasonFx = fxEl.checked; save(); });
+var ffEl = document.getElementById('fireflies'), skyEl = document.getElementById('nightSky');
+ffEl.addEventListener('change', function () { S.fireflies = ffEl.checked; S.firefliesManual = true; save(); });
+skyEl.checked = S.nightSky;
+skyEl.addEventListener('change', function () { S.nightSky = skyEl.checked; save(); });
 var envRows = {};
 ENV.forEach(function (e) {
   var row = document.createElement('div'); row.className = 'row';
@@ -299,7 +315,10 @@ ENV.forEach(function (e) {
   var out = document.createElement('output');
   head.appendChild(chk); head.appendChild(nm); head.appendChild(out);
   row.appendChild(head);
-  chk.addEventListener('change', function () { S['on_' + e.id] = chk.checked; save(); });
+  chk.addEventListener('change', function () {
+    var ai = autoApplied.indexOf(e.id); if (ai >= 0) autoApplied.splice(ai, 1);   // 手で変えたら、シーンを離れても戻さない
+    S['on_' + e.id] = chk.checked; save();
+  });
   var rng = null;
   if (!e.noVol) {
     rng = document.createElement('input'); rng.type = 'range'; rng.min = 0; rng.max = 1; rng.step = 0.01;
@@ -323,21 +342,19 @@ function refreshSeasonUI() {
   document.getElementById('seasonH').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
   ENV.forEach(function (e) {
     var r = envRows[e.id];
-    r.row.style.display = (r.scope === 'all' || r.scope === S.season) ? '' : 'none';
+    r.row.style.display = (r.scope === 'all' || r.scope === S.season || autoApplied.indexOf(e.id) >= 0) ? '' : 'none';
     if (e.id === 'insect') {
       r.row.classList.toggle('off', winter); r.chk.disabled = winter;
       if (r.rng) r.rng.disabled = winter;
       r.note.style.display = winter ? '' : 'none';
     }
   });
+  ffEl.checked = firefliesOn();
 }
 refreshSeasonUI();
-function applyFilter() { canvas.style.filter = 'brightness(' + S.brightness.toFixed(2) + ')'; }
 function applyVideoMode() {
   document.body.classList.toggle('video-off', S.videoOff);
-  if (S.videoOff) { flames.length = 0; sparks.length = 0; visualQ.length = 0; drift.length = 0; fwQ.length = 0; }
-  else if (curView === '2d') { resize(); }
-  kickRaf();
+  if (S.videoOff) visualQ.length = 0;
   emitActive();
 }
 
@@ -346,7 +363,8 @@ document.getElementById('gear').addEventListener('click', function (e) {
 });
 document.getElementById('panel').addEventListener('click', function (e) { e.stopPropagation(); });
 document.getElementById('feed').addEventListener('click', function (e) { e.stopPropagation(); addLog(); });
-canvas.addEventListener('click', function () { addLog(); });
+document.getElementById('noVideo').addEventListener('click', function () { addLog(); });
+document.addEventListener('click', function (e) { if (!videoOK && !e.target.closest('#panel, #gear, #feed, #start')) addLog(); });
 document.body.addEventListener('click', function (e) {
   if (document.body.classList.contains('panel-open') && !e.target.closest('#panel') && !e.target.closest('#gear')) {
     document.body.classList.remove('panel-open');
@@ -372,13 +390,34 @@ window.addEventListener('keydown', function (e) {
 wakeUI();
 
 /* ---------- 音 (Web Audio 手続き合成) ---------- */
-var ac = null, master, comp, bus, whiteBuf, brownBuf;
+var ac = null, audioReady = false, master, comp, bus, whiteBuf, brownBuf, revConv, revWet, revDry;
 var roarA, roarB, roarC;      // {f, g}
 var snowLP, L = {}, waveN, gSp, gSu, gAu, suzuGate;
-var nextCrackle = 0;
+var nextCrackle = 0, nextAccent = 0;
 var LOOK = 1.5;               // 先読み秒数（背景タブでタイマーが1秒に間引かれても途切れない）
-var visualQ = [], fwQ = [];
+var visualQ = [];
 
+/* ---- 残響: インパルス応答をコードで作る（減衰するステレオのノイズ） ---- */
+var curReverb = null;
+function makeImpulse(seconds, decay) {
+  var sr = ac.sampleRate, n = Math.max(1, Math.floor(sr * seconds)), buf = ac.createBuffer(2, n, sr);
+  for (var c = 0; c < 2; c++) {
+    var d = buf.getChannelData(c);
+    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay);
+  }
+  return buf;
+}
+function applyReverb() {
+  if (!ac || !revConv) return;
+  var r = curReverb, t = ac.currentTime;
+  if (r) {
+    revConv.buffer = makeImpulse(r.seconds || 2.2, r.decay || 3);
+    var wet = Math.min(1, Math.max(0, r.wet == null ? 0.3 : r.wet));
+    revWet.gain.setTargetAtTime(wet, t, 0.3); revDry.gain.setTargetAtTime(1 - 0.4 * wet, t, 0.3);
+  } else {
+    revWet.gain.setTargetAtTime(0, t, 0.3); revDry.gain.setTargetAtTime(1, t, 0.3);
+  }
+}
 function makeBuffers() {
   var sr = ac.sampleRate, i, last = 0;
   whiteBuf = ac.createBuffer(1, sr * 2, sr);
@@ -415,7 +454,12 @@ function initAudio() {
   comp.attack.value = 0.004; comp.release.value = 0.2;
   bus = ac.createGain(); bus.gain.value = 0.9;
   snowLP = ac.createBiquadFilter(); snowLP.type = 'lowpass'; snowLP.frequency.value = 20000; snowLP.Q.value = 0.5;
-  bus.connect(snowLP); snowLP.connect(master); master.connect(comp); comp.connect(ac.destination);
+  // 残響（ConvolverNode）: 乾いた音と残響を並べてから master へ。残響の量は setReverb で決める
+  revDry = ac.createGain(); revWet = ac.createGain(); revWet.gain.value = 0;
+  revConv = ac.createConvolver();
+  bus.connect(snowLP); snowLP.connect(revDry); revDry.connect(master);
+  snowLP.connect(revConv); revConv.connect(revWet); revWet.connect(master);
+  master.connect(comp); comp.connect(ac.destination);
   makeBuffers();
 
   function chain(src, type, freq, q, gainVal) {
@@ -430,6 +474,8 @@ function initAudio() {
 
   initEnv();
   nextCrackle = ac.currentTime + 0.3;
+  audioReady = true;      // すべてのノードが揃ってから audioTick を動かす
+  applyReverb();
 }
 
 /* ---- 環境音レイヤー（ノードは1度だけ作りゲインで出し入れ） ---- */
@@ -437,6 +483,7 @@ var ENV_BASE = { wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, chime
 function avail(id) {
   var e = ENV.filter(function (x) { return x.id === id; })[0];
   if (!e) return false;
+  if (autoApplied.indexOf(id) >= 0) return true;   // シーンが指定した音は季節に関係なく鳴らす
   if (id === 'insect' && S.season === 'winter') return false;
   return e.scope === 'all' || e.scope === S.season;
 }
@@ -470,7 +517,7 @@ function initEnv() {
   var amAu = mkG(0.5, suzuGate);
   mkOsc('sine', 4500, amAu); mkOsc('sine', 16, mkG(0.5, amAu.gain));
   // 雨: 細かい帯域ノイズ（雫は個別にスケジュール）
-  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 3800, 0.35, mkG(0.55, L.rain)));
+  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 3800, 0.35, mkG(0.06, L.rain)));   // 連続ノイズはごく小さな背景。主役は一粒ずつの雫
   // 風: ブラウンノイズ→BP。中心周波数と音量を非同期の低速LFOで揺らす
   var wbp = mkF('bandpass', 500, 1.4), wg = mkG(1.2, L.wind);
   src = loopSrc(brownBuf, 1); src.connect(wbp); wbp.connect(wg);
@@ -495,9 +542,41 @@ function playWave(t) {
   waveN.lp.frequency.linearRampToValueAtTime(400, t + a + b);
   return a + b + rnd(0, 1.2);
 }
+/* 雨: 一粒ずつの雫をポアソン過程で鳴らす（毎秒40〜80粒。音量スライダーで密度も少し変わる）。雨足には数十秒周期の強弱を付ける */
+function rainIntensity(t) {
+  return 0.85 + 0.25 * Math.sin(t * 6.2832 / 47) + 0.15 * Math.sin(t * 6.2832 / 23 + 1);
+}
+function rainRate(t) { return (40 + 40 * S.vol_rain) * rainIntensity(t); }
+function dropBurst(t, decay, type, freq, q, peak, pan) {
+  var src = ac.createBufferSource();
+  src.buffer = whiteBuf;
+  var f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  var gn = ac.createGain();
+  gn.gain.setValueAtTime(peak, t);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+  src.connect(f); f.connect(gn);
+  var pn = null;
+  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); pn.connect(L.rain); }
+  else gn.connect(L.rain);
+  src.start(t, Math.random() * 1.5, decay * 1.3 + 0.01);
+  src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+}
 function playRain(t) {
-  noiseBurst(t, 0.03, 'bandpass', rnd(2500, 7000), 2, rnd(0.08, 0.3), L.rain);
-  return expSample(18);
+  var pan = rnd(-0.8, 0.8), r = Math.random();
+  if (r < 0.58) dropBurst(t, rnd(0.002, 0.006), 'bandpass', rnd(3000, 8000), 1.5, rnd(0.05, 0.24), pan);          // 葉に当たる高く軽い音
+  else if (r < 0.9) dropBurst(t, rnd(0.008, 0.026), 'bandpass', rnd(400, 1200), 1.4, rnd(0.07, 0.22), pan);       // 地面に当たる低めで鈍い音
+  else if (r < 0.985) {                                                                                           // 水たまりの「ポツッ」
+    var o = ac.createOscillator(), gn = ac.createGain(), f0 = rnd(500, 1400);
+    o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.7, t + 0.04);
+    gn.gain.setValueAtTime(rnd(0.05, 0.12), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(gn);
+    if (ac.createStereoPanner) { var pn = ac.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); pn.connect(L.rain); o.onended = function () { try { o.disconnect(); gn.disconnect(); pn.disconnect(); } catch (e) {} }; }
+    else { gn.connect(L.rain); o.onended = function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} }; }
+    o.start(t); o.stop(t + 0.08);
+  } else if (flame > 0.6 && Math.random() < 0.5) {                                                                // 焚火に落ちる「ジュッ」: 炎が強いときだけ、まれに
+    dropBurst(t, rnd(0.09, 0.16), 'bandpass', rnd(4000, 9000), 0.9, rnd(0.1, 0.18), rnd(-0.15, 0.15));
+  }
+  return expSample(rainRate(t));
 }
 function playSuzu(t) {
   var d = rnd(0.8, 1.6);
@@ -554,9 +633,6 @@ function playFireworks(t) {
   o.connect(gn); gn.connect(L.fw); o.start(t); o.stop(t + 0.75);
   o.onended = function () { try { this.disconnect(); } catch (e) {} };
   noiseBurst(t + 0.35, 0.4, 'lowpass', 110, 0.7, 0.35, L.fw);
-  if (draw2dOn() && fwQ.length < 20) {
-    fwQ.push({ t: t, x: rnd(0.15, 0.85) * W, y: rnd(0.08, 0.4) * H, hue: [15, 45, 200, 320, 110][Math.floor(Math.random() * 5)] });
-  }
   return rnd(25, 70);
 }
 function playLeaves(t) {
@@ -597,7 +673,7 @@ function schedEnv(t) {
     if (!c.on()) { c.next = 0; continue; }
     if (!c.next || c.next < t) c.next = t + c.init();
     var guard = 0;
-    while (c.next < t + LOOK && guard++ < 40) c.next += Math.max(0.05, c.fn(c.next));
+    while (c.next < t + LOOK && guard++ < 200) c.next += Math.max(0.004, c.fn(c.next));
   }
 }
 
@@ -619,6 +695,47 @@ function playCrackle(t, lv) {
   var peak = (0.12 + 0.55 * Math.pow(Math.random(), 2)) * amp * 2;
   noiseBurst(t, rnd(0.004, 0.03), 'bandpass', f, rnd(1.2, 3), peak);
   return peak / (amp * 2);
+}
+/* アクセントの「バチッ」: ときどき鳴る、はっきり目立つ一発。鋭い広帯域のアタック + ごく短い低い「ドン」、30%で小さな2発目 */
+function accentGap(fl) {
+  var f = Math.min(2, Math.max(0.15, (0.25 + 1.5 * S.crackFreq) * Math.min(1.2, fl)));   // 頻度の設定と炎の強さに比例
+  return rnd(20, 90) * 0.73 / f;                                                          // 基準は平均およそ40秒
+}
+function accentHit(t, scale) {
+  var mult = 0.25 + 1.75 * S.crackSize;
+  var pk = 1.6 * mult * scale;    // 普段のパチの2〜3倍。最終段のコンプレッサーで抑える
+  var src = ac.createBufferSource(); src.buffer = whiteBuf;
+  var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700; hp.Q.value = 0.7;
+  var bp = ac.createBiquadFilter(); bp.type = 'peaking'; bp.frequency.value = rnd(1800, 4500); bp.Q.value = 0.8; bp.gain.value = 9;
+  var gn = ac.createGain(), dec = rnd(0.02, 0.06);
+  gn.gain.setValueAtTime(0.0001, t);
+  gn.gain.linearRampToValueAtTime(pk, t + rnd(0.001, 0.003));
+  gn.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+  src.connect(hp); hp.connect(bp); bp.connect(gn); gn.connect(bus);
+  src.start(t, Math.random() * 1.5, dec + 0.02);
+  src.onended = function () { try { src.disconnect(); hp.disconnect(); bp.disconnect(); gn.disconnect(); } catch (e) {} };
+  var o = ac.createOscillator(), og = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(rnd(80, 150), t);
+  og.gain.setValueAtTime(0.0001, t);
+  og.gain.linearRampToValueAtTime(0.5 * mult * scale, t + 0.002);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+  o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.04);
+  o.onended = function () { try { o.disconnect(); og.disconnect(); } catch (e) {} };
+}
+function playAccent(t) {
+  accentHit(t, 1);
+  if (Math.random() < 0.3) accentHit(t + rnd(0.03, 0.08), 0.4);
+}
+function accentTick(t, fl) {
+  if (S.crackFreq <= 0.001 || fl < 0.15) { nextAccent = 0; return; }   // 熾火・消えかけのときは鳴らさない
+  if (!nextAccent) nextAccent = t + accentGap(fl);
+  if (nextAccent < t - 2) nextAccent = t + accentGap(fl);              // 長く止まっていた後は取り戻さない
+  if (nextAccent < t + LOOK) {
+    var ta = Math.max(t + 0.01, nextAccent);
+    playAccent(ta);
+    queueVisual(ta, 24, true);
+    nextAccent = ta + accentGap(fl);
+  }
 }
 function playPop(t, lv) {
   var mult = 0.25 + 1.75 * S.crackSize;
@@ -644,7 +761,7 @@ function expSample(rate) { return -Math.log(1 - Math.random()) / rate; }
 function crackleLevel(fl, em) { return Math.pow(Math.max(0, fl), 1.2) * (1 + 2.5 * boost) + 0.05 * em; }
 
 function audioTick() {
-  if (!ac) return;
+  if (!ac || !audioReady) return;
   var t = ac.currentTime;
   var tt = performance.now() / 1000;
   var lfo = 0.5 * Math.sin(tt * 0.7) + 0.3 * Math.sin(tt * 1.9 + 1) + 0.2 * Math.sin(tt * 4.3 + 2);
@@ -663,7 +780,8 @@ function audioTick() {
 
   envTick(t);
   if (started && ac.state === 'running') schedEnv(t);
-  if (!started || ac.state !== 'running') { nextCrackle = t + 0.1; return; }
+  if (!started || ac.state !== 'running') { nextCrackle = t + 0.1; nextAccent = 0; return; }
+  accentTick(t, fl);
   if (nextCrackle < t) nextCrackle = t + 0.02;
 
   var guard = 0;
@@ -692,356 +810,28 @@ function audioTick() {
     nextCrackle = t + expSample(Math.max(0.05, r2));
   }
 }
-function queueVisual(t, count) {
+function queueVisual(t, count, accent) {
   if (!drawingOn()) return;
-  if (visualQ.length < 200) visualQ.push({ t: t, n: count });
-}
-
-/* ---------- 映像 ---------- */
-var g = canvas.getContext('2d');
-var W = 0, H = 0, DPR = 1;
-var SC = { S: 300, cx: 0, gy: 0 };
-var flames = [], sparks = [];
-var MAX_FLAME = 520, MAX_SPARK = 220;
-var raf = 0, lastFrame = 0;
-
-function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 1.5);
-  W = window.innerWidth; H = window.innerHeight;
-  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
-  SC.S = Math.min(W * 0.46, H * 0.42);
-  SC.cx = W / 2; SC.gy = H * 0.8;
-  ensureDrift();
-}
-window.addEventListener('resize', function () { if (draw2dOn()) resize(); });
-
-// 色ごとのグロースプライト（炎の年齢に対応）
-var NB = 14, sprites = [];
-(function () {
-  var stops = [[255,225,140],[255,190,80],[255,160,50],[235,100,25],[190,50,15],[110,25,10]];
-  for (var i = 0; i < NB; i++) {
-    var p = i / (NB - 1) * (stops.length - 1), a = Math.floor(p), b = Math.min(stops.length - 1, a + 1), fr = p - a;
-    var c = [0, 1, 2].map(function (k) { return Math.round(stops[a][k] + (stops[b][k] - stops[a][k]) * fr); });
-    var cv = document.createElement('canvas'); cv.width = cv.height = 64;
-    var x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(' + c + ',1)'); gr.addColorStop(0.35, 'rgba(' + c + ',0.45)'); gr.addColorStop(1, 'rgba(' + c + ',0)');
-    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
-    sprites.push(cv);
-  }
-})();
-
-var LOGS = [
-  [-0.07, 0.09, 0.3], [0.07, 0.09, -0.3], [0, 0.13, 0.03], [-0.10, 0.22, -0.5],
-  [0.10, 0.22, 0.5], [0, 0.30, 0.1], [-0.22, 0.20, 0.55], [0.22, 0.20, -0.55]
-];
-
-function rrect(x, y, w, h, r) {
-  g.beginPath();
-  g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.arcTo(x + w, y, x + w, y + r, r);
-  g.lineTo(x + w, y + h - r); g.arcTo(x + w, y + h, x + w - r, y + h, r);
-  g.lineTo(x + r, y + h); g.arcTo(x, y + h, x, y + h - r, r);
-  g.lineTo(x, y + r); g.arcTo(x, y, x + r, y, r); g.closePath();
-}
-function drawLog(x, y, ang, heat, seed) {
-  var s = SC.S, len = 0.56 * s, rad = 0.055 * s;
-  g.save(); g.translate(x, y); g.rotate(ang);
-  var gr = g.createLinearGradient(0, -rad, 0, rad);
-  gr.addColorStop(0, '#513320'); gr.addColorStop(0.5, '#33200f'); gr.addColorStop(1, '#150b06');
-  g.fillStyle = gr; rrect(-len / 2, -rad, len, rad * 2, rad * 0.6); g.fill();
-  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1;
-  for (var i = 0; i < 4; i++) {
-    var yy = -rad * 0.6 + i * rad * 0.42, o = ((seed * 7 + i * 13) % 10) / 10;
-    g.beginPath(); g.moveTo(-len * 0.42 + o * len * 0.1, yy); g.lineTo(len * (0.1 + o * 0.3), yy + 1); g.stroke();
-  }
-  g.fillStyle = '#7a5537'; g.beginPath(); g.ellipse(len / 2 - rad * 0.3, 0, rad * 0.55, rad * 0.92, 0, 0, 6.29); g.fill();
-  g.strokeStyle = 'rgba(40,20,8,.6)'; g.beginPath(); g.ellipse(len / 2 - rad * 0.3, 0, rad * 0.25, rad * 0.5, 0, 0, 6.29); g.stroke();
-  if (heat > 0.01) {
-    var hg = g.createLinearGradient(0, -rad, 0, rad);
-    hg.addColorStop(0, 'rgba(255,120,30,' + (0.55 * heat).toFixed(3) + ')');
-    hg.addColorStop(1, 'rgba(160,30,10,' + (0.15 * heat).toFixed(3) + ')');
-    g.fillStyle = hg; rrect(-len / 2, -rad, len, rad * 2, rad * 0.6); g.fill();
-  }
-  g.restore();
-}
-
-function spawnFlame(n) {
-  var s = SC.S, f = Math.min(1.2, flame);
-  for (var i = 0; i < n && flames.length < MAX_FLAME; i++) {
-    flames.push({
-      x: SC.cx + gauss() * (0.09 + 0.14 * f) * s,
-      y: SC.gy - (0.16 + rnd(0, 0.08)) * s,
-      vy: -(0.55 + 0.6 * f) * s * rnd(0.7, 1.3),
-      vx: gauss() * 0.05 * s,
-      size: (0.11 + 0.06 * f) * s * rnd(0.6, 1.3),
-      life: rnd(0.55, 1.25) * (0.7 + 0.5 * f), age: 0, seed: Math.random() * 10
-    });
-  }
-}
-function burstSparks(dx, n) {
-  var s = SC.S;
-  for (var i = 0; i < n && sparks.length < MAX_SPARK; i++) {
-    sparks.push({
-      x: SC.cx + dx + gauss() * 0.12 * s, y: SC.gy - 0.22 * s,
-      vx: gauss() * 0.35 * s, vy: -rnd(0.4, 1.3) * s,
-      life: rnd(0.9, 2.2), age: 0, size: rnd(3, 6.5)
-    });
-  }
-}
-function sparkBurstSmall(n) {
-  var s = SC.S, f = Math.min(1.2, flame);
-  for (var i = 0; i < n && sparks.length < MAX_SPARK; i++) {
-    sparks.push({
-      x: SC.cx + gauss() * 0.10 * s, y: SC.gy - 0.25 * s,
-      vx: gauss() * 0.16 * s, vy: -rnd(0.25, 0.9) * s * (0.6 + 0.6 * f),
-      life: rnd(0.8, 2.0), age: 0, size: rnd(2.5, 5.5)
-    });
-  }
-}
-
-var SEAS = {
-  spring: ['#0e0814', '#180e1e', '#100913'],
-  summer: ['#030718', '#081334', '#050d22'],
-  autumn: ['#120604', '#22100a', '#160905'],
-  winter: ['#07101a', '#15263a', '#0e1b2b']
-};
-var drift = [], fwGlows = [];
-var ffSprite = document.createElement('canvas');
-ffSprite.width = ffSprite.height = 32;
-(function () {
-  var x = ffSprite.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
-  gr.addColorStop(0, 'rgba(230,255,150,1)'); gr.addColorStop(0.3, 'rgba(180,255,90,0.5)'); gr.addColorStop(1, 'rgba(120,220,60,0)');
-  x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
-})();
-function ensureDrift() {
-  drift.length = 0;
-  if (!S.seasonFx || S.videoOff || !W) return;
-  var N = { spring: 34, summer: 18, autumn: 30, winter: 70 }[S.season];
-  N = Math.max(8, Math.round(N * Math.min(1, W * H / 900000)));
-  for (var i = 0; i < N; i++) {
-    drift.push({
-      x: rnd(0, W), y: S.season === 'summer' ? rnd(H * 0.35, H * 0.95) : rnd(0, H),
-      vx: rnd(-30, -6), vy: rnd(22, 55), rot: rnd(0, 6.28), vr: rnd(-2, 2),
-      size: rnd(0.6, 1.2), ph: rnd(0, 20), a: rnd(0, 6.28), f: rnd(0.6, 1.6), c: Math.floor(Math.random() * 4)
-    });
-  }
-}
-var LEAFC = ['#c8471c', '#e0842a', '#a02c14', '#d9a12e'];
-function drawSeason(dt, now) {
-  var se = S.season, i, p;
-  // 遠くの花火の光（音と同時）
-  if (ac) {
-    var ct = ac.currentTime;
-    while (fwQ.length && fwQ[0].t <= ct) { var e = fwQ.shift(); fwGlows.push({ x: e.x, y: e.y, a: 1, hue: e.hue }); }
-  }
-  if (fwGlows.length) {
-    g.globalCompositeOperation = 'lighter';
-    for (i = fwGlows.length - 1; i >= 0; i--) {
-      var w = fwGlows[i]; w.a *= Math.exp(-dt / 0.9);
-      if (w.a < 0.02) { fwGlows.splice(i, 1); continue; }
-      var R = Math.min(W, H) * 0.45;
-      var gr = g.createRadialGradient(w.x, w.y, 0, w.x, w.y, R);
-      gr.addColorStop(0, 'hsla(' + w.hue + ',90%,65%,' + (0.30 * w.a).toFixed(3) + ')');
-      gr.addColorStop(1, 'hsla(' + w.hue + ',90%,50%,0)');
-      g.fillStyle = gr; g.fillRect(w.x - R, w.y - R, R * 2, R * 2);
-    }
-  }
-  if (!drift.length) { g.globalCompositeOperation = 'source-over'; return; }
-  if (se === 'summer') {
-    g.globalCompositeOperation = 'lighter';
-    for (i = 0; i < drift.length; i++) {
-      p = drift[i];
-      p.a += (Math.random() - 0.5) * 2 * dt;
-      var sp = 10 + 12 * p.size;
-      p.x += Math.cos(p.a) * sp * dt; p.y += (Math.sin(p.a) * sp - 2) * dt;
-      if (p.x < 0 || p.x > W) p.a = Math.PI - p.a;
-      if (p.y < H * 0.3 || p.y > H * 0.97) p.a = -p.a;
-      var b = Math.max(0, Math.sin(now * p.f + p.ph)); b = b * b;
-      if (b < 0.02) continue;
-      g.globalAlpha = b * 0.9;
-      var r = 8 + 6 * p.size;
-      g.drawImage(ffSprite, p.x - r, p.y - r, r * 2, r * 2);
-    }
-    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-    return;
-  }
-  g.globalCompositeOperation = 'source-over';
-  if (se === 'winter') {
-    g.fillStyle = 'rgba(232,242,255,0.75)'; g.beginPath();
-    for (i = 0; i < drift.length; i++) {
-      p = drift[i];
-      p.y += p.vy * 0.6 * p.size * dt; p.x += (p.vx * 0.3 + Math.sin(now * 0.8 + p.ph) * 12) * dt;
-      if (p.y > H + 5) { p.y = -5; p.x = rnd(0, W); }
-      if (p.x < -5) p.x = W + 5; else if (p.x > W + 5) p.x = -5;
-      var rr = 1 + 1.6 * p.size;
-      g.moveTo(p.x + rr, p.y); g.arc(p.x, p.y, rr, 0, 6.29);
-    }
-    g.fill();
-    return;
-  }
-  for (i = 0; i < drift.length; i++) {
-    p = drift[i];
-    var sway = se === 'autumn' ? 30 : 20;
-    p.y += p.vy * dt * (se === 'autumn' ? 1.1 : 0.8);
-    p.x += (p.vx + Math.sin(now * 1.3 + p.ph) * sway) * dt;
-    p.rot += p.vr * dt;
-    if (p.y > H + 20) { p.y = -20; p.x = rnd(0, W); }
-    if (p.x < -30) p.x = W + 30; else if (p.x > W + 30) p.x = -30;
-    g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
-    var z = 5 + 5 * p.size;
-    if (se === 'spring') {
-      g.fillStyle = 'rgba(255,186,208,0.8)';
-      g.beginPath(); g.ellipse(0, 0, z, z * 0.55, 0, 0, 6.29); g.fill();
-      g.fillStyle = 'rgba(255,225,235,0.5)';
-      g.beginPath(); g.ellipse(-z * 0.2, 0, z * 0.5, z * 0.25, 0, 0, 6.29); g.fill();
-    } else {
-      g.fillStyle = LEAFC[p.c]; g.globalAlpha = 0.85;
-      g.beginPath(); g.moveTo(0, -z * 1.1); g.quadraticCurveTo(z * 1.1, -z * 0.2, 0, z * 1.1);
-      g.quadraticCurveTo(-z * 1.1, -z * 0.2, 0, -z * 1.1); g.fill(); g.globalAlpha = 1;
-    }
-    g.restore();
-  }
-}
-
-var sparkAcc = 0, flameAcc = 0;
-function render(dt) {
-  var s = SC.S, f = started ? flame : 0, em = emberLevel(), now = performance.now() / 1000;
-  var flick = 0.92 + 0.08 * Math.sin(now * 9) * Math.sin(now * 3.1 + 1) + 0.03 * Math.sin(now * 23);
-
-  g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-  var bg = g.createLinearGradient(0, 0, 0, H);
-  var sc = SEAS[S.season];
-  bg.addColorStop(0, sc[0]); bg.addColorStop(0.7, sc[1]); bg.addColorStop(1, sc[2]);
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-
-  // 地面
-  var gg = g.createRadialGradient(SC.cx, SC.gy, 0, SC.cx, SC.gy, s * 1.6);
-  gg.addColorStop(0, '#1a100a'); gg.addColorStop(1, 'rgba(10,6,4,0)');
-  g.fillStyle = gg; g.save(); g.translate(0, SC.gy); g.scale(1, 0.22); g.translate(0, -SC.gy);
-  g.fillRect(0, SC.gy - s * 2, W, s * 4); g.restore();
-
-  // 地面と周囲のグロー
-  g.globalCompositeOperation = 'lighter';
-  var ga = (0.34 * Math.min(1.2, f) + 0.10 * em) * flick;
-  if (ga > 0.005) {
-    var R = s * (1.1 + 1.0 * Math.min(1.2, f));
-    var gl = g.createRadialGradient(SC.cx, SC.gy - 0.3 * s, 0, SC.cx, SC.gy - 0.3 * s, R);
-    gl.addColorStop(0, 'rgba(255,130,40,' + ga.toFixed(3) + ')');
-    gl.addColorStop(0.5, 'rgba(200,70,20,' + (ga * 0.35).toFixed(3) + ')');
-    gl.addColorStop(1, 'rgba(120,30,10,0)');
-    g.fillStyle = gl; g.fillRect(0, 0, W, H);
-    g.save(); g.translate(0, SC.gy); g.scale(1, 0.28); g.translate(0, -SC.gy);
-    var fg = g.createRadialGradient(SC.cx, SC.gy, 0, SC.cx, SC.gy, s * 1.5);
-    fg.addColorStop(0, 'rgba(255,140,50,' + (ga * 0.8).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(255,100,30,0)');
-    g.fillStyle = fg; g.fillRect(SC.cx - s * 1.6, SC.gy - s * 1.6, s * 3.2, s * 3.2); g.restore();
-  }
-  g.globalCompositeOperation = 'source-over';
-
-  // 薪（燃料量に応じて本数が変わる）
-  var shown = started ? Math.min(MAX_FUEL, Math.max(1, Math.ceil(fuel - 0.02))) : 1;
-  var heat = started ? Math.min(1, f * 0.9 + em * (0.5 + 0.3 * Math.sin(now * 1.5))) : 0;
-  for (var i = 0; i < shown; i++) {
-    var L = LOGS[i];
-    drawLog(SC.cx + L[0] * s * 2, SC.gy - L[1] * s + 0.02 * s, L[2], heat * (0.6 + 0.4 * ((i * 37) % 10) / 10), i);
-  }
-  // 落下中の薪
-  var pn = performance.now();
-  for (var k = 0; k < drops.length; k++) {
-    var d = drops[k], p = Math.min(1, (pn - d.t0) / (d.landAt - d.t0)), e = p * p;
-    var ty = SC.gy - 0.22 * s, sy = ty - s * 1.1;
-    drawLog(SC.cx + d.dx * s, sy + (ty - sy) * e, d.ang * (1 - 0.6 * e), 0, k);
-  }
-
-  // 熾火の点
-  if (em > 0.02) {
-    g.globalCompositeOperation = 'lighter';
-    for (var m = 0; m < 9; m++) {
-      var ex = SC.cx + Math.sin(m * 2.3 + 1) * 0.44 * s, ey = SC.gy - (0.06 + 0.05 * ((m * 5) % 4)) * s;
-      var pulse = 0.55 + 0.45 * Math.sin(now * (0.8 + m * 0.17) + m);
-      g.globalAlpha = em * pulse * 0.9;
-      var sr = (0.05 + 0.02 * (m % 3)) * s;
-      g.drawImage(sprites[NB - 3], ex - sr, ey - sr, sr * 2, sr * 2);
-    }
-    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-  }
-
-  // 炎パーティクル
-  if (started && f > 0.03) {
-    flameAcc += 280 * f * dt;
-    var nn = Math.floor(flameAcc); flameAcc -= nn; spawnFlame(nn);
-  }
-  g.globalCompositeOperation = 'lighter';
-  for (var a = flames.length - 1; a >= 0; a--) {
-    var q = flames[a];
-    q.age += dt;
-    var t = q.age / q.life;
-    if (t >= 1) { flames[a] = flames[flames.length - 1]; flames.pop(); continue; }
-    q.x += (q.vx + Math.sin(q.age * 7 + q.seed) * 0.05 * s - (q.x - SC.cx) * 1.0) * dt;
-    q.y += q.vy * dt;
-    q.vy *= (1 - 0.5 * dt);
-    var sz = q.size * (1 - t * 0.75);
-    g.globalAlpha = Math.min(1, (1 - t) * 0.27 * Math.min(1, t * 8 + 0.2));
-    g.drawImage(sprites[Math.min(NB - 1, (t * NB) | 0)], q.x - sz, q.y - sz, sz * 2, sz * 2);
-  }
-
-  // 音と同期した火の粉（AudioContext の時刻で発火）
-  if (ac) {
-    var ct = ac.currentTime;
-    while (visualQ.length && visualQ[0].t <= ct) {
-      var ev = visualQ.shift();
-      sparkBurstSmall(ev.n > 8 ? ev.n : ev.n + 1);
-    }
-    if (visualQ.length > 150) visualQ.length = 0;
-  }
-  if (started && f > 0.05) {
-    sparkAcc += (2 + 8 * f) * dt;
-    var sn = Math.floor(sparkAcc); sparkAcc -= sn; sparkBurstSmall(sn);
-  }
-  for (var j = sparks.length - 1; j >= 0; j--) {
-    var sp = sparks[j];
-    sp.age += dt;
-    var st = sp.age / sp.life;
-    if (st >= 1) { sparks[j] = sparks[sparks.length - 1]; sparks.pop(); continue; }
-    sp.vx += (Math.sin(sp.age * 5 + j) * 0.25 * s) * dt;
-    sp.vx *= (1 - 0.6 * dt);
-    sp.vy = sp.vy * (1 - 0.7 * dt) - 0.05 * s * dt;
-    sp.x += sp.vx * dt; sp.y += sp.vy * dt;
-    var tw = 0.6 + 0.4 * Math.sin(sp.age * 30 + j * 3);
-    var r = sp.size * (1 - st * 0.6);
-    g.globalAlpha = (1 - st) * tw;
-    g.drawImage(sprites[Math.min(NB - 1, 1 + (st * 4) | 0)], sp.x - r, sp.y - r, r * 2, r * 2);
-  }
-  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-  drawSeason(dt, now);
-  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-}
-
-function frame(ts) {
-  raf = 0;
-  if (!draw2dOn()) return;
-  var dt = lastFrame ? Math.min(0.05, (ts - lastFrame) / 1000) : 0.016;
-  lastFrame = ts;
-  render(dt);
-  raf = requestAnimationFrame(frame);
-}
-function kickRaf() {
-  if (draw2dOn() && !raf) { lastFrame = 0; raf = requestAnimationFrame(frame); }
+  if (visualQ.length >= 200) return;
+  var ev = { t: t, n: count };
+  if (accent) ev.accent = true;
+  var k = visualQ.length;
+  while (k > 0 && visualQ[k - 1].t > t) k--;      // 時刻順を保つ（アクセントは先の予約になるため）
+  visualQ.splice(k, 0, ev);
 }
 
 document.addEventListener('visibilitychange', function () {
   visible = !document.hidden;
   if (visible) {
-    flames.length = 0; sparks.length = 0; visualQ.length = 0; fwQ.length = 0;
+    visualQ.length = 0;
     if (ac && ac.state === 'suspended' && started) { try { ac.resume(); } catch (e) {} }
-    if (!S.videoOff && curView === '2d') resize();
-    kickRaf();
   } else {
-    visualQ.length = 0; fwQ.length = 0;
+    visualQ.length = 0;
   }
   emitActive();
 });
 
-/* ---------- 3D表示（scene3d.js）との窓口 ---------- */
+/* ---------- 映像（scene3d.js）との窓口 ---------- */
 var logCbs = [], crackleCbs = [], activeCbs = [];
 function subscribe(list, cb) {
   list.push(cb);
@@ -1058,7 +848,9 @@ function pumpCrackle() {
   var ct = ac.currentTime;
   while (visualQ.length && visualQ[0].t <= ct) {
     var ev = visualQ.shift();
-    emitTo(crackleCbs, { n: ev.n > 8 ? ev.n : ev.n + 1, t: ev.t });
+    var out = { n: ev.n > 8 ? ev.n : ev.n + 1, t: ev.t };
+    if (ev.accent) out.accent = true;
+    emitTo(crackleCbs, out);
   }
   if (visualQ.length > 150) visualQ.length = 0;
 }
@@ -1074,22 +866,40 @@ window.TAKIBI = {
       ember: emberLevel(),            // 熾火の強さ 0..1（燃料が尽きると1）
       boost: boost,                   // くべた直後のパチパチ増 1→0
       season: S.season,               // 'spring' | 'summer' | 'autumn' | 'winter'
+      scene: S.scene,                 // シーンの id（scenes/*.js）
+      nightSky: S.nightSky,           // 夜空（星・月・流れ星）
+      fireflies: firefliesOn(),       // ホタル（季節の初期値か、手で変えた値）
       seasonFx: S.seasonFx,
       brightness: S.brightness,       // 0.3..1.6
       videoOff: S.videoOff,
-      grass: grassLevel(),            // 草の量（3D）: 'many' | 'normal' | 'few' | 'none'（自動軽量化を反映した実効値）
+      grass: grassLevel(),            // 草の量: 'many' | 'normal' | 'few' | 'none'（自動軽量化を反映した実効値）
       active: drawingOn()             // 描画すべきか（タブ表示中かつ映像オンのとき true）
     };
   },
   addLog: addLog,
+  applySceneAudio: applySceneAudio,   // シーンが切り替わったとき、audio 指定（autoOn / reverb）を渡す
   reportSlow: reportSlow,             // 3D側が「5秒平均が20fps未満」を検知したときに呼ぶ
   pump: pumpCrackle,                  // 3D側が毎フレーム呼んでもよい（onCrackle の遅延を減らす）
   onLogAdded: function (cb) { return subscribe(logCbs, cb); },       // {type:'drop',t0,landAt,dx,ang} / {type:'land',dx}（performance.now基準ms）
-  onCrackle: function (cb) { return subscribe(crackleCbs, cb); },   // {n, t} 音の予約時刻に同期した火の粉（n=個数）
+  onCrackle: function (cb) { return subscribe(crackleCbs, cb); },   // {n, t, accent?} 音の予約時刻に同期した火の粉（n=個数）。accent:true は目立つ「バチッ」（n=24）
   onActiveChange: function (cb) { return subscribe(activeCbs, cb); } // (active:boolean)
 };
 
-/* ---------- 草の量（3D）と自動軽量化 ---------- */
+/* シーンの音の連動: audio.autoOn の環境音を自動でオンにし、シーンを離れたら自動でオンにした分だけ戻す。audio.reverb があれば残響をかける */
+function applySceneAudio(a) {
+  a = a || {};
+  autoApplied.forEach(function (id) { S['on_' + id] = false; if (envRows[id]) envRows[id].chk.checked = false; });
+  autoApplied = [];
+  (a.autoOn || []).forEach(function (id) {
+    if (!envRows[id] || S['on_' + id]) return;
+    S['on_' + id] = true; autoApplied.push(id); envRows[id].chk.checked = true;
+  });
+  curReverb = a.reverb || null;
+  applyReverb();
+  refreshSeasonUI();
+}
+
+/* ---------- 草の量と自動軽量化 ---------- */
 // 手動の選択は S.grass（次回以降も尊重）。自動で下げた分は S.grassAuto に残し、実効値は重いほう
 function grassLevel() {
   var a = GRASS.indexOf(S.grass), b = S.grassAuto ? GRASS.indexOf(S.grassAuto) : -1;
@@ -1116,12 +926,12 @@ GRASS.forEach(function (g) {
   grassSegEl.appendChild(b);
 });
 function refreshGrassUI() {
-  var cur = grassLevel(), on3d = curView === '3d';
-  Array.prototype.forEach.call(grassSegEl.children, function (b) { b.classList.toggle('on', b.dataset.g === cur); b.disabled = !on3d; });
-  document.getElementById('grassRow').classList.toggle('off', !on3d);
+  var cur = grassLevel();
+  Array.prototype.forEach.call(grassSegEl.children, function (b) { b.classList.toggle('on', b.dataset.g === cur); b.disabled = !videoOK; });
+  document.getElementById('grassRow').classList.toggle('off', !videoOK);
 }
 
-/* ---------- 表示モード（2D / 3D） ---------- */
+/* ---------- 映像の起動（3D のみ） ---------- */
 var WEBGL_OK = (function () {
   try {
     var c = document.createElement('canvas');
@@ -1131,60 +941,40 @@ var WEBGL_OK = (function () {
     return true;
   } catch (e) { return false; }
 })();
-var view3dMod = null, cv3 = null, viewToken = 0;
-var viewSegEl = document.getElementById('viewSeg');
-['2d', '3d'].forEach(function (v) {
-  var b = document.createElement('button');
-  b.type = 'button'; b.dataset.v = v; b.textContent = v.toUpperCase();
-  if (v === '3d' && !WEBGL_OK) { b.disabled = true; b.title = 'このブラウザでは WebGL が使えません'; }
-  b.addEventListener('click', function () { S.view = v; save(); setView(v); });
-  viewSegEl.appendChild(b);
-});
-function refreshViewUI() {
-  Array.prototype.forEach.call(viewSegEl.children, function (b) { b.classList.toggle('on', b.dataset.v === S.view); });
-}
-function leave3d() {
-  if (view3dMod) { try { view3dMod.stop(); } catch (e) { console.error(e); } }
+var cv3 = null;
+function showNoVideo() {
+  videoOK = false;
   if (cv3) { cv3.remove(); cv3 = null; }
+  document.body.classList.add('no-webgl');
+  refreshGrassUI(); emitActive();
 }
-function enter2d() {
-  curView = '2d';
-  refreshGrassUI();
-  document.body.classList.remove('view-3d');
-  applyFilter();
-  resize();
-  kickRaf();
-}
-function setView(v) {
-  var tok = ++viewToken;
-  if (v === '3d' && !WEBGL_OK) v = '2d';
-  S.view = v; refreshViewUI();
-  if (v === '2d') {
-    if (curView === '3d') { leave3d(); enter2d(); }
-    return;
-  }
-  if (curView === '3d') return;
+function boot3d() {
+  if (!WEBGL_OK) { showNoVideo(); return; }
   import('./scene3d.js').then(function (m) {
-    if (tok !== viewToken) return;
-    view3dMod = m;
     cv3 = document.createElement('canvas'); cv3.id = 'cv3';
-    canvas.parentNode.insertBefore(cv3, canvas.nextSibling);
-    curView = '3d';
+    document.body.insertBefore(cv3, document.body.firstChild);
+    videoOK = true;
+    var list = m.SCENES || [];
+    if (!list.some(function (s) { return s.id === S.scene; }) && list.length) S.scene = list[0].id;
+    var sel = document.getElementById('sceneSel');
+    list.forEach(function (s) {
+      var o = document.createElement('option'); o.value = s.id; o.textContent = s.label; sel.appendChild(o);
+    });
+    sel.value = S.scene;
+    sel.addEventListener('change', function () { S.scene = sel.value; save(); });
+    document.getElementById('sceneRow').style.display = '';
     refreshGrassUI();
-    flames.length = 0; sparks.length = 0; fwQ.length = 0; drift.length = 0; visualQ.length = 0;
-    document.body.classList.add('view-3d');
-    m.start({ canvas: cv3, api: window.TAKIBI });
+    return m.start({ canvas: cv3, api: window.TAKIBI });
   }).catch(function (e) {
-    console.error('3D表示を開始できませんでした。2Dに戻します。', e);
-    if (tok !== viewToken) return;
-    leave3d(); S.view = '2d'; save(); refreshViewUI(); enter2d();
+    console.error('映像を開始できませんでした。', e);
+    showNoVideo();
   });
 }
 
 /* ---------- 起動 ---------- */
 document.getElementById('ignite').addEventListener('click', function () {
   if (started) return;
-  try { initAudio(); if (ac && ac.state === 'suspended') ac.resume(); } catch (e) { ac = null; }
+  try { initAudio(); if (ac && ac.state === 'suspended') ac.resume(); } catch (e) { console.error(e); ac = null; audioReady = false; }
   started = true;
   document.body.classList.add('started');
   fuel = 2.5; flame = 0; boost = 0.6;
@@ -1193,14 +983,10 @@ document.getElementById('ignite').addEventListener('click', function () {
   wakeUI();
 });
 
-applyFilter();
 document.body.classList.toggle('video-off', S.videoOff);
-resize();
 updateFuelUI();
-kickRaf();
-refreshViewUI();
 refreshGrassUI();
-if (S.view === '3d') setView('3d');
+boot3d();
 // rAFに依存しないタイマー: シミュレーション更新と音の先読みスケジュール
 setInterval(function () { step(); audioTick(); pumpCrackle(); }, 50);
 
