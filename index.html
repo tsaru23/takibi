@@ -143,7 +143,10 @@ var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
 var SEAS_JA = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
 var ENV = [
   { id: 'wave', label: 'さざ波', scope: 'all' }, { id: 'insect', label: '虫の声', scope: 'all' },
+  { id: 'frog', label: '蛙の声', scope: 'all' },
   { id: 'rain', label: '雨', scope: 'all' }, { id: 'wind', label: '風', scope: 'all' },
+  { id: 'bamboo', label: '竹のささやき', scope: 'all' },
+  { id: 'scenesfx', label: 'シーンの効果音（水音・鹿威し）', scope: 'all' },
   { id: 'brook', label: 'せせらぎ', scope: 'spring' },
   { id: 'chime', label: '風鈴', scope: 'summer' }, { id: 'fw', label: '遠くの花火', scope: 'summer' },
   { id: 'leaves', label: '落ち葉のカサカサ', scope: 'autumn' },
@@ -329,8 +332,8 @@ ENV.forEach(function (e) {
     row.appendChild(rng);
   }
   var note = null;
-  if (e.id === 'insect') {
-    note = document.createElement('div'); note.className = 'note'; note.textContent = '冬は虫が鳴きません'; note.style.display = 'none';
+  if (e.id === 'insect' || e.id === 'frog') {
+    note = document.createElement('div'); note.className = 'note'; note.textContent = e.id === 'frog' ? '冬は蛙が鳴きません' : '冬は虫が鳴きません'; note.style.display = 'none';
     row.appendChild(note);
   }
   document.getElementById(e.scope === 'all' ? 'envAll' : 'envSeason').appendChild(row);
@@ -343,7 +346,7 @@ function refreshSeasonUI() {
   ENV.forEach(function (e) {
     var r = envRows[e.id];
     r.row.style.display = (r.scope === 'all' || r.scope === S.season || autoApplied.indexOf(e.id) >= 0) ? '' : 'none';
-    if (e.id === 'insect') {
+    if (e.id === 'insect' || e.id === 'frog') {
       r.row.classList.toggle('off', winter); r.chk.disabled = winter;
       if (r.rng) r.rng.disabled = winter;
       r.note.style.display = winter ? '' : 'none';
@@ -479,12 +482,12 @@ function initAudio() {
 }
 
 /* ---- 環境音レイヤー（ノードは1度だけ作りゲインで出し入れ） ---- */
-var ENV_BASE = { wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, chime: 1.5, fw: 1.4, leaves: 1.4, kettle: 0.8 };
+var ENV_BASE = { frog: 0.9, bamboo: 1.4, scenesfx: 1.3, wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, chime: 1.5, fw: 1.4, leaves: 1.4, kettle: 0.8 };
 function avail(id) {
   var e = ENV.filter(function (x) { return x.id === id; })[0];
   if (!e) return false;
+  if ((id === 'insect' || id === 'frog') && S.season === 'winter') return false;   // 冬は虫も蛙も鳴かない（シーン指定でも鳴らさない）
   if (autoApplied.indexOf(id) >= 0) return true;   // シーンが指定した音は季節に関係なく鳴らす
-  if (id === 'insect' && S.season === 'winter') return false;
   return e.scope === 'all' || e.scope === S.season;
 }
 function lvl(id) {
@@ -527,6 +530,11 @@ function initEnv() {
   var bg1 = mkG(0.45, L.brook), bf1 = mkF('bandpass', 2400, 0.9, bg1), bf2 = mkF('bandpass', 1200, 1.5, bg1);
   src = loopSrc(whiteBuf, 1); src.connect(bf1); src.connect(bf2);
   mkOsc('sine', 0.6, mkG(500, bf1.frequency)); mkOsc('sine', 0.9, mkG(250, bf2.frequency));
+  // 竹のささやき: 高域の帯域ノイズ。風に合わせた数秒の強弱と、細かいサラサラのゆらぎ
+  var bbp = mkF('bandpass', 4200, 0.8), bgn = mkG(0.17, L.bamboo);
+  src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 2400, 0.7, bbp)); bbp.connect(bgn);
+  mkOsc('sine', 0.11, mkG(0.09, bgn.gain)); mkOsc('sine', 0.29, mkG(0.05, bgn.gain)); mkOsc('sine', 5.3, mkG(0.03, bgn.gain));
+  mkOsc('sine', 0.17, mkG(900, bbp.frequency));
   // やかん: 高域の細いシュー音を緩く揺らす
   var kg = mkG(0.35, L.kettle);
   src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 4500, 0.7, mkF('bandpass', 7000, 1.5, kg)));
@@ -648,7 +656,160 @@ function playKnock(t) {
   for (var i = 0; i < n; i++, tc += rnd(0.12, 0.22)) noiseBurst(tc, 0.07, 'bandpass', rnd(300, 600), 3, 0.5, L.kettle);
   return rnd(1.5, 4);
 }
+/* ---- 蛙の声: 個体ごとに高さ・リズム・場所が違い、互いに鳴き交わす。
+   こぎり波を 500Hz〜1.5kHz のバンドパスに通し、15〜30Hz のパルス列で振幅変調する（「ケロケロ」「グワッ」）。
+   鳴く時刻は音の予約時刻で、同じ時刻に映像側へ {voice, t, dur, syl} を渡す（喉の動きを声に合わせる） ---- */
+var FROG_V = [
+  { f0: 210, bp: 900, rate: 20, q: 3, pan: -0.3 },
+  { f0: 262, bp: 1150, rate: 26, q: 3.5, pan: 0.35 },
+  { f0: 172, bp: 720, rate: 16, q: 2.5, pan: 0.05 }
+];
+var frogBusy = [0, 0, 0], frogLastVoice = -1;
+var envEvents = [], envCbs = [];
+function frogVoices() { return S.season === 'autumn' ? 1 : S.season === 'winter' ? 0 : 3; }
+function queueEnvEvent(ev) {
+  if (!envCbs.length || !drawingOn() || envEvents.length >= 80) return;
+  var k = envEvents.length;
+  while (k > 0 && envEvents[k - 1].t > ev.t) k--;
+  envEvents.splice(k, 0, ev);
+}
+function frogSyl(t, v, dur, f0m, bpm, sweep, pk) {
+  var o = ac.createOscillator(); o.type = 'sawtooth';
+  o.frequency.setValueAtTime(v.f0 * f0m * (1 + sweep), t); o.frequency.exponentialRampToValueAtTime(v.f0 * f0m, t + dur);
+  var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = v.q;
+  bp.frequency.setValueAtTime(v.bp * bpm * (1 + sweep * 0.6), t); bp.frequency.exponentialRampToValueAtTime(v.bp * bpm, t + dur);
+  var am = mkG(0.5);
+  var lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = v.rate * rnd(0.93, 1.07);
+  var ld = mkG(0.5, am.gain); lfo.connect(ld);
+  var env = ac.createGain();
+  env.gain.setValueAtTime(0.0001, t); env.gain.linearRampToValueAtTime(pk, t + 0.012);
+  env.gain.setValueAtTime(pk, t + dur * 0.55); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  var pn = null, dest = L.frog;
+  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = v.pan; pn.connect(L.frog); dest = pn; }
+  o.connect(bp); bp.connect(am); am.connect(env); env.connect(dest);
+  o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
+  o.onended = function () { try { o.disconnect(); bp.disconnect(); am.disconnect(); lfo.disconnect(); ld.disconnect(); env.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+}
+function playFrog(t) {
+  var nv = frogVoices(), cand = [], i;
+  for (i = 0; i < nv; i++) if (frogBusy[i] < t) cand.push(i);
+  if (!cand.length) return 0.25;
+  var pick = cand[Math.floor(Math.random() * cand.length)];
+  if (cand.length > 1 && pick === frogLastVoice) pick = cand[(cand.indexOf(pick) + 1) % cand.length];   // 続けて同じ個体が鳴きにくいように
+  frogLastVoice = pick;
+  var v = FROG_V[pick], syl = [], off = 0, call, pk = rnd(0.28, 0.42);
+  if (Math.random() < 0.72) {
+    call = 'kero';
+    var n = 2 + Math.floor(Math.random() * 3);
+    for (i = 0; i < n; i++) {
+      var d = rnd(0.09, 0.14);
+      frogSyl(t + off, v, d, i % 2 ? 0.88 : 1.12, i % 2 ? 0.9 : 1.1, 0.06, pk);
+      syl.push([off, d]); off += d + rnd(0.03, 0.07);
+    }
+  } else {
+    call = 'gwa';
+    frogSyl(t, v, 0.3, 0.8, 0.85, 0.5, pk * 1.1);
+    syl.push([0, 0.3]); off = 0.3;
+  }
+  frogBusy[pick] = t + off + 0.6;
+  queueEnvEvent({ kind: 'frog', voice: pick, t: t, dur: off, call: call, syl: syl });
+  var quiet = S.season === 'autumn' ? 2.6 : 1;
+  return Math.random() < 0.25 ? rnd(4, 10) * quiet : rnd(0.35, 1.6) * quiet;   // 鳴き交わし、ときどき静かになる
+}
+
+/* ---- シーンから鳴らす効果音（水音・鹿威しなど）: TAKIBI.playSfx(name, opts) ----
+   opts: { delay 秒, vol, pan -1..1, dur（trickle）}。戻り値は {stop()} か null（音が無効・未開始のとき）。
+   「シーンの効果音」レイヤー(scenesfx)を通るので、パネルで音量を変えたりオフにできる */
+function noiseEnv(t, atk, dec, type, f, q, pk, dest) {
+  var src = ac.createBufferSource(); src.buffer = whiteBuf;
+  var fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+  var g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(pk, t + atk); g.gain.exponentialRampToValueAtTime(0.0001, t + atk + dec);
+  src.connect(fl); fl.connect(g); g.connect(dest);
+  src.start(t, Math.random() * 1.5, atk + dec + 0.05);
+  src.onended = function () { try { src.disconnect(); fl.disconnect(); g.disconnect(); } catch (e) {} };
+}
+function toneEnv(t, f0, f1, dur, pk, dest, atk) {
+  var o = ac.createOscillator(), g = ac.createGain(); atk = atk || 0.003;
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(pk, t + atk); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.02);
+  o.onended = function () { try { o.disconnect(); g.disconnect(); } catch (e) {} };
+}
+var SFX = {
+  plop: function (t, v, d) {                 // 鯉が顔を出す「ちゃぽん」
+    var r = rnd(0.9, 1.1);
+    noiseEnv(t, 0.004, 0.07, 'bandpass', 1800 * r, 1.2, 0.3 * v, d);
+    toneEnv(t + 0.012, 360 * r, 760 * r, 0.17, 0.3 * v, d);
+    toneEnv(t + 0.06, 620 * r, 1100 * r, 0.1, 0.12 * v, d);
+  },
+  splash: function (t, v, d) {               // カエルの跳び込み
+    noiseEnv(t, 0.004, 0.28, 'bandpass', 1300, 0.8, 0.6 * v, d);
+    noiseEnv(t, 0.006, 0.14, 'highpass', 3500, 0.7, 0.25 * v, d);
+    for (var i = 0; i < 3; i++) toneEnv(t + 0.05 + i * rnd(0.04, 0.09), rnd(500, 900), rnd(1000, 1500), 0.08, 0.14 * v, d);
+  },
+  plip: function (t, v, d) {                 // 小さな水音（カエルが水から上がる・水面の揺らぎ）
+    toneEnv(t, rnd(650, 900), rnd(1100, 1400), 0.07, 0.14 * v, d);
+    noiseEnv(t, 0.003, 0.05, 'bandpass', 2200, 1, 0.1 * v, d);
+  },
+  lap: function (t, v, d) {                  // かすかな水のゆらぎ
+    noiseEnv(t, 0.3, 0.6, 'bandpass', rnd(500, 950), 1.3, 0.05 * v, d);
+    if (Math.random() < 0.3) toneEnv(t + 0.2, rnd(800, 1200), rnd(1300, 1800), 0.05, 0.04 * v, d);
+  },
+  kakon: function (t, v, d) {                // 鹿威し: 竹が石を打つ短いアタック + 倍音の共鳴。毎回すこし音色を変える
+    noiseEnv(t, 0.001, 0.014, 'bandpass', rnd(2500, 4500), 1, 0.85 * v, d);
+    noiseEnv(t, 0.001, 0.055, 'bandpass', rnd(700, 1000), 2, 0.6 * v, d);
+    toneEnv(t, 150, 92, 0.07, 0.4 * v, d, 0.001);
+    var f0 = rnd(430, 540), ratios = [1, 2.76 * rnd(0.98, 1.02), 5.4 * rnd(0.98, 1.02), 8.9 * rnd(0.97, 1.03)];
+    var amps = [0.55, 0.3, 0.16, 0.08], decs = [rnd(0.5, 0.75), 0.32, 0.17, 0.08];
+    for (var i = 0; i < 4; i++) {
+      var o = ac.createOscillator(), g = ac.createGain(), f = f0 * ratios[i];
+      o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.985, t + decs[i]);
+      g.gain.setValueAtTime(amps[i] * v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + decs[i]);
+      o.connect(g); g.connect(d); o.start(t); o.stop(t + decs[i] + 0.03);
+      o.onended = (function (oo, gg) { return function () { try { oo.disconnect(); gg.disconnect(); } catch (e) {} }; })(o, g);
+    }
+  },
+  pour: function (t, v, d) {                 // 筒から水がこぼれる
+    noiseEnv(t, 0.06, 0.75, 'bandpass', 850, 0.8, 0.26 * v, d);
+    noiseEnv(t, 0.05, 0.55, 'bandpass', 2600, 1, 0.12 * v, d);
+    for (var i = 0; i < 4; i++) toneEnv(t + 0.1 + i * 0.12, rnd(300, 600), rnd(600, 1000), 0.09, 0.08 * v, d);
+  },
+  drip: function (t, v, d) {                 // 石鉢に落ちる一滴
+    toneEnv(t, rnd(1000, 1300), rnd(1500, 1900), 0.06, 0.18 * v, d);
+    toneEnv(t, rnd(2100, 2400), rnd(2100, 2400), 0.14, 0.04 * v, d);
+  },
+  trickle: function (t, v, d, o) {           // 筒に落ちる細い水音（dur 秒のあいだ続く。stop() で止める）
+    var dur = Math.max(0.5, o.dur || 10), src = ac.createBufferSource(); src.buffer = whiteBuf; src.loop = true;
+    var f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 3400; f1.Q.value = 0.9;
+    var f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1600; f2.Q.value = 1.4;
+    var g = ac.createGain(), lf = ac.createOscillator(), lg = ac.createGain();
+    lf.frequency.value = 6.5; lg.gain.value = 0.02; lf.connect(lg); lg.connect(g.gain);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.07 * v, t + 0.3);
+    g.gain.setValueAtTime(0.07 * v, t + dur - 0.25); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    src.connect(f1); src.connect(f2); f1.connect(g); f2.connect(g); g.connect(d);
+    src.start(t, Math.random() * 1.2); lf.start(t); src.stop(t + dur + 0.05); lf.stop(t + dur + 0.05);
+    var ended = false;
+    src.onended = function () { ended = true; try { src.disconnect(); f1.disconnect(); f2.disconnect(); g.disconnect(); lf.disconnect(); lg.disconnect(); } catch (e) {} };
+    return { stop: function () {
+      if (ended) return; var n = ac.currentTime;
+      try { g.gain.cancelScheduledValues(n); g.gain.setTargetAtTime(0, n, 0.05); src.stop(n + 0.3); lf.stop(n + 0.3); } catch (e) {}
+    } };
+  }
+};
+function playSfx(name, o) {
+  o = o || {};
+  var fn = SFX[name];
+  if (!fn || !ac || !audioReady || !started || ac.state !== 'running' || !L.scenesfx || lvl('scenesfx') <= 0) return null;
+  var delay = Math.max(0, o.delay || 0), t = ac.currentTime + 0.005 + Math.max(0, delay - outLatency()), dest = L.scenesfx;   // delay は「映像でその瞬間が来るまで」の秒数。出力遅延ぶん早めに予約して、耳に届く時刻を映像に合わせる
+  if (o.pan && ac.createStereoPanner) {
+    var pn = ac.createStereoPanner(); pn.pan.value = Math.max(-1, Math.min(1, o.pan)); pn.connect(L.scenesfx); dest = pn;
+    setTimeout(function () { try { pn.disconnect(); } catch (e) {} }, (delay + (o.dur || 0) + 4) * 1000);
+  }
+  try { return fn(t, o.vol == null ? 1 : o.vol, dest, o) || { stop: function () {} }; } catch (e) { console.error(e); return null; }
+}
 var SCH = {
+  frog:    { on: function () { return lvl('frog') > 0 && frogVoices() > 0; }, init: function () { return rnd(0.3, 1.5); }, fn: playFrog, next: 0 },
   wave:    { on: function () { return lvl('wave') > 0; }, init: function () { return 0.1; }, fn: playWave, next: 0 },
   rain:    { on: function () { return lvl('rain') > 0; }, init: function () { return 0.1; }, fn: playRain, next: 0 },
   suzu:    { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playSuzu, next: 0 },
@@ -823,10 +984,10 @@ function queueVisual(t, count, accent) {
 document.addEventListener('visibilitychange', function () {
   visible = !document.hidden;
   if (visible) {
-    visualQ.length = 0;
+    visualQ.length = 0; envEvents.length = 0;
     if (ac && ac.state === 'suspended' && started) { try { ac.resume(); } catch (e) {} }
   } else {
-    visualQ.length = 0;
+    visualQ.length = 0; envEvents.length = 0;
   }
   emitActive();
 });
@@ -843,7 +1004,14 @@ function emitTo(list, ev) {
 function emitLog(ev) { if (logCbs.length) emitTo(logCbs, ev); }
 function emitActive() { if (activeCbs.length) emitTo(activeCbs, drawingOn()); }
 // 音の予約時刻に達した火の粉イベントを取り出して onCrackle の購読者へ渡す
+function outLatency() { return Math.min(0.12, (ac.outputLatency || 0) + (ac.baseLatency || 0)); }
+function pumpEnvEvents() {
+  if (!envCbs.length || !ac) return;
+  var ct = ac.currentTime - outLatency();   // 音が耳に届く時刻（出力遅延ぶん遅らせて）に映像を合わせる
+  while (envEvents.length && envEvents[0].t <= ct) emitTo(envCbs, envEvents.shift());
+}
 function pumpCrackle() {
+  pumpEnvEvents();
   if (!crackleCbs.length || !ac) return;
   var ct = ac.currentTime;
   while (visualQ.length && visualQ[0].t <= ct) {
@@ -877,6 +1045,8 @@ window.TAKIBI = {
     };
   },
   addLog: addLog,
+  playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle
+  onEnvEvent: function (cb) { return subscribe(envCbs, cb); },       // {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]} 蛙の声の予約時刻に同期（喉の動き用）
   applySceneAudio: applySceneAudio,   // シーンが切り替わったとき、audio 指定（autoOn / reverb）を渡す
   reportSlow: reportSlow,             // 3D側が「5秒平均が20fps未満」を検知したときに呼ぶ
   pump: pumpCrackle,                  // 3D側が毎フレーム呼んでもよい（onCrackle の遅延を減らす）

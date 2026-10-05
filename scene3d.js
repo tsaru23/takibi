@@ -362,7 +362,8 @@ export async function start(opts) {
   }
 
   /* ---------- ホタル（季節の演出とは独立） ---------- */
-  const NFF = 22;
+  const NFF_BASE = 22, NFF = 44;        // 通常は22匹。シーンが ctx.fireflies.value（倍率）で最大44匹まで増やせる
+  const ffScale = { value: 1 };
   const ffPts = makePoints(NFF, THREE.AdditiveBlending, 1.2, uScale);
   ffPts.points.visible = false; scene.add(ffPts.points);
   const ff = [];
@@ -376,8 +377,8 @@ export async function start(opts) {
     ffAmt += ((on ? 1 : 0) - ffAmt) * (1 - Math.exp(-dt * 1.5));
     if (ffAmt < 0.01 && !on) { ffPts.points.visible = false; return; }
     ffPts.points.visible = true;
-    const P = ffPts;
-    for (let i = 0; i < NFF; i++) {
+    const P = ffPts, n = Math.min(NFF, Math.max(0, Math.round(NFF_BASE * ffScale.value)));
+    for (let i = 0; i < n; i++) {
       const d = ff[i], o = i * 3;
       d.a += (Math.random() - 0.5) * 2.2 * dt;
       d.x += Math.cos(d.a) * d.sp * dt; d.z += Math.sin(d.a) * d.sp * dt; d.y += Math.sin(d.a * 1.3 + d.ph * 6) * d.sp * 0.4 * dt;
@@ -390,7 +391,7 @@ export async function start(opts) {
       P.size[i] = 0.26 * d.sz; P.alp[i] = b * 0.95 * ffAmt;
       P.col[o] = ffCol[0]; P.col[o + 1] = ffCol[1]; P.col[o + 2] = ffCol[2];
     }
-    P.flush(NFF);
+    P.flush(n);
   }
 
   /* ---------- カメラ ---------- */
@@ -435,7 +436,8 @@ export async function start(opts) {
   let curScene = null, curSceneId = '', curSeason = '', envKey = '';
   const sceneCtx = {
     THREE, scene, renderer, camera, api, util, assets, uScale, isStopped,
-    fireCenter: { x: 0, z: 0 }, root: null
+    fireCenter: { x: 0, z: 0 }, root: null,
+    ground, fireflies: ffScale   // ground: 地面のメッシュ（シーンが穴や色を変えたら dispose で戻す）。fireflies.value: ホタルの数の倍率（1=22匹、最大2）
   };
   function switchScene(id) {
     const def = SCENES.find((s) => s.id === id) || SCENES[0];
@@ -446,6 +448,7 @@ export async function start(opts) {
       scene.remove(curScene.root); disposeTree(curScene.root);
       curScene = null;
     }
+    ffScale.value = 1;
     const root = new THREE.Group();
     scene.add(root);
     sceneCtx.root = root;

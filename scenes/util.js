@@ -106,3 +106,75 @@ export function hillH(l, th) {
 export function hillGround(l, r, th) {
   return r >= l.R - 16 ? hillH(l, th) * Math.min(1, (r - (l.R - 16)) / 16) : 0;
 }
+
+/* ---------- 法線マップをコードで作る小道具（池の水面・枯山水の砂紋など） ---------- */
+/* 周期つきの値ノイズ（端がつながる）。size×size の Float32Array（0..1） */
+export function tileNoise(size, cells, octaves, seed) {
+  const rng = mulberry32(seed | 0), out = new Float32Array(size * size);
+  let amp = 1, total = 0;
+  for (let o = 0; o < octaves; o++) {
+    const f = cells * (1 << o), lat = new Float32Array(f * f);
+    for (let i = 0; i < lat.length; i++) lat[i] = rng();
+    for (let y = 0; y < size; y++) {
+      const fy = y / size * f, y0 = Math.floor(fy), ty = fy - y0, sy = ty * ty * (3 - 2 * ty);
+      for (let x = 0; x < size; x++) {
+        const fx = x / size * f, x0 = Math.floor(fx), tx = fx - x0, sx = tx * tx * (3 - 2 * tx);
+        const a = lat[(y0 % f) * f + (x0 % f)], b = lat[(y0 % f) * f + ((x0 + 1) % f)];
+        const c = lat[((y0 + 1) % f) * f + (x0 % f)], d = lat[((y0 + 1) % f) * f + ((x0 + 1) % f)];
+        out[y * size + x] += amp * (a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy);
+      }
+    }
+    total += amp; amp *= 0.5;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+/* 高さマップ(w×h, 0..1) → 法線マップ(DataTexture)。wrap=true で端をつなぐ */
+export function heightToNormalTexture(hgt, w, h, strength, wrap = true) {
+  const data = new Uint8Array(w * h * 4);
+  const at = (x, y) => {
+    if (wrap) { x = (x + w) % w; y = (y + h) % h; } else { x = Math.min(w - 1, Math.max(0, x)); y = Math.min(h - 1, Math.max(0, y)); }
+    return hgt[y * w + x];
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (at(x + 1, y) - at(x - 1, y)) * strength, dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+    const l = Math.hypot(dx, dy, 1), o = (y * w + x) * 4;
+    data[o] = Math.round((-dx / l * 0.5 + 0.5) * 255); data[o + 1] = Math.round((-dy / l * 0.5 + 0.5) * 255);
+    data[o + 2] = Math.round((1 / l * 0.5 + 0.5) * 255); data[o + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = wrap ? THREE.RepeatWrapping : THREE.ClampToEdgeWrapping;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+
+/* 取りこぼしても困らない GLB の読み込み（assets/models/ の koi.glb など）。
+   置いただけでは読まない: assets/plants/manifest.json の "models" 配列に、使うファイル名（例 "koi.glb"）を書いたときだけ読む
+   （無いファイルを探して 404 をコンソールに出さないため）。最初の Mesh の geometry と material を返し、
+   geometry は原点中心・最大寸法が 1 になるよう正規化する */
+let modelListPromise = null;
+function modelList(assets) {
+  if (!modelListPromise) {
+    modelListPromise = fetch(assets.url('assets/plants/manifest.json'), { cache: 'no-cache' })
+      .then((r) => (r.ok ? r.json() : null)).then((m) => (m && Array.isArray(m.models) ? m.models : [])).catch(() => []);
+  }
+  return modelListPromise;
+}
+export async function loadOptionalModel(assets, file, isStopped) {
+  try {
+    if (!(await modelList(assets)).includes(file) || isStopped()) return null;
+    const gltf = await assets.loadGLTF('assets/models/' + file);
+    if (isStopped()) return null;
+    let mesh = null;
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.traverse((o) => { if (!mesh && o.isMesh) mesh = o; });
+    if (!mesh) return null;
+    const geo = mesh.geometry.clone(); geo.applyMatrix4(mesh.matrixWorld);
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, c = bb.getCenter(new THREE.Vector3()), s = 1 / Math.max(1e-6, ...bb.getSize(new THREE.Vector3()).toArray());
+    geo.translate(-c.x, -c.y, -c.z); geo.scale(s, s, s);
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    return { geometry: geo, material: mesh.material };
+  } catch (e) { return null; }
+}
