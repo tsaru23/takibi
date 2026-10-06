@@ -146,7 +146,9 @@ var ENV = [
   { id: 'frog', label: '蛙の声', scope: 'all' },
   { id: 'rain', label: '雨', scope: 'all' }, { id: 'wind', label: '風', scope: 'all' },
   { id: 'bamboo', label: '竹のささやき', scope: 'all' },
+  { id: 'owl', label: 'フクロウ', scope: 'all' },
   { id: 'scenesfx', label: 'シーンの効果音（水音・鹿威し）', scope: 'all' },
+  { id: 'river', label: '川の流れ', scope: 'all' }, { id: 'cavewind', label: '洞窟の風（入口から）', scope: 'all' },
   { id: 'brook', label: 'せせらぎ', scope: 'spring' },
   { id: 'chime', label: '風鈴', scope: 'summer' }, { id: 'fw', label: '遠くの花火', scope: 'summer' },
   { id: 'leaves', label: '落ち葉のカサカサ', scope: 'autumn' },
@@ -482,7 +484,7 @@ function initAudio() {
 }
 
 /* ---- 環境音レイヤー（ノードは1度だけ作りゲインで出し入れ） ---- */
-var ENV_BASE = { frog: 0.9, bamboo: 1.4, scenesfx: 1.3, wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, chime: 1.5, fw: 1.4, leaves: 1.4, kettle: 0.8 };
+var ENV_BASE = { frog: 0.9, owl: 1.3, bamboo: 1.4, scenesfx: 1.3, wave: 1.2, insect: 0.6, rain: 1.0, wind: 1.6, brook: 1.0, river: 1.3, cavewind: 1.2, chime: 1.5, fw: 1.4, leaves: 1.4, kettle: 0.8 };
 function avail(id) {
   var e = ENV.filter(function (x) { return x.id === id; })[0];
   if (!e) return false;
@@ -535,6 +537,22 @@ function initEnv() {
   src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 2400, 0.7, bbp)); bbp.connect(bgn);
   mkOsc('sine', 0.11, mkG(0.09, bgn.gain)); mkOsc('sine', 0.29, mkG(0.05, bgn.gain)); mkOsc('sine', 5.3, mkG(0.03, bgn.gain));
   mkOsc('sine', 0.17, mkG(900, bbp.frequency));
+  // 川の流れ（せせらぎより太く低い水音）: 帯域を分けたノイズを、ゆっくりした揺らぎで重ねる
+  var rvLow = mkG(0.55, L.river), rvMid = mkG(0.34, L.river), rvHi = mkG(0.12, L.river);
+  src = loopSrc(brownBuf, 0.8); src.connect(mkF('lowpass', 260, 0.7, rvLow));
+  mkOsc('sine', 0.07, mkG(0.2, rvLow.gain)); mkOsc('sine', 0.16, mkG(0.1, rvLow.gain));
+  var rm1 = mkF('bandpass', 420, 0.8, rvMid), rm2 = mkF('bandpass', 900, 1.1, rvMid);
+  src = loopSrc(whiteBuf, 1); src.connect(rm1); src.connect(rm2);
+  mkOsc('sine', 0.19, mkG(140, rm1.frequency)); mkOsc('sine', 0.31, mkG(300, rm2.frequency));
+  mkOsc('sine', 0.11, mkG(0.12, rvMid.gain)); mkOsc('sine', 0.27, mkG(0.07, rvMid.gain));
+  var rvh = mkF('bandpass', 2600, 0.6, rvHi);
+  src = loopSrc(whiteBuf, 1.3); src.connect(rvh);
+  mkOsc('sine', 0.23, mkG(900, rvh.frequency)); mkOsc('sine', 0.13, mkG(0.05, rvHi.gain));
+  // 洞窟の風: 入口から入る低い風。ブラウンノイズを狭い帯域で通し、数秒かけて音程と強さが揺れる
+  var cwG = mkG(0.5, L.cavewind), cwF = mkF('bandpass', 360, 3.2, cwG), cwF2 = mkF('bandpass', 140, 1.2, cwG);
+  src = loopSrc(brownBuf, 1); src.connect(cwF); src.connect(cwF2);
+  mkOsc('sine', 0.06, mkG(110, cwF.frequency)); mkOsc('sine', 0.17, mkG(60, cwF.frequency));
+  mkOsc('sine', 0.09, mkG(0.28, cwG.gain)); mkOsc('sine', 0.21, mkG(0.12, cwG.gain));
   // やかん: 高域の細いシュー音を緩く揺らす
   var kg = mkG(0.35, L.kettle);
   src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 4500, 0.7, mkF('bandpass', 7000, 1.5, kg)));
@@ -548,7 +566,31 @@ function playWave(t) {
   waveN.lp.frequency.setValueAtTime(450, t);
   waveN.lp.frequency.linearRampToValueAtTime(1500, t + a);
   waveN.lp.frequency.linearRampToValueAtTime(400, t + a + b);
+  queueEnvEvent({ kind: 'wave', t: t, rise: a, fall: b, peak: pk });   // 映像（海シーン）の波が、寄せる・砕ける・引く時刻を合わせる
   return a + b + rnd(0, 1.2);
+}
+/* フクロウ（遠くで「ホーホー」）: 低いサイン波2音に、わずかな息のノイズ。ときどき遠くの別の個体が小さく応える。数十秒〜数分に1回 */
+function owlNote(t, f0, f1, dur, pk, pan) {
+  var o = ac.createOscillator(), g = ac.createGain(), vb = ac.createOscillator(), vg = mkG(f0 * 0.012);
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f1, t + dur);
+  vb.frequency.value = 5.5; vb.connect(vg); vg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(pk, t + 0.07);
+  g.gain.setValueAtTime(pk, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  var pn = null, dest = L.owl;
+  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = pan; pn.connect(L.owl); dest = pn; }
+  o.connect(g); g.connect(dest); o.start(t); vb.start(t); o.stop(t + dur + 0.05); vb.stop(t + dur + 0.05);
+  o.onended = function () { try { o.disconnect(); g.disconnect(); vb.disconnect(); vg.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+  noiseEnv(t, 0.06, dur * 0.6, 'bandpass', f0 * 1.6, 1.2, pk * 0.12, dest);   // 息
+}
+function owlCall(t, f, pk, pan) {
+  owlNote(t, f * 1.05, f, 0.42, pk, pan);
+  owlNote(t + 0.62, f * 0.97, f * 0.9, 0.7, pk * 0.9, pan);
+}
+function playOwl(t) {
+  var pan = rnd(-0.7, 0.7), f = rnd(330, 400);
+  owlCall(t, f, 0.28, pan);
+  if (Math.random() < 0.4) owlCall(t + rnd(3.5, 6), f * rnd(1.12, 1.25), 0.1, -pan);   // 遠くで別の個体が応える
+  return rnd(40, 160);
 }
 /* 雨: 一粒ずつの雫をポアソン過程で鳴らす（毎秒40〜80粒。音量スライダーで密度も少し変わる）。雨足には数十秒周期の強弱を付ける */
 function rainIntensity(t) {
@@ -615,6 +657,19 @@ function playBubble(t) {
   o.onended = function () { try { this.disconnect(); } catch (e) {} };
   return expSample(14);
 }
+/* 川: 石に当たる水の「ちょろっ」。短く上がる水音を1〜3回 */
+function playChoro(t) {
+  var n = 1 + Math.floor(Math.random() * 3), tc = t, f0 = rnd(380, 760);
+  for (var i = 0; i < n; i++, tc += rnd(0.05, 0.11)) {
+    var o = ac.createOscillator(), gn = ac.createGain(), f = f0 * rnd(0.85, 1.4);
+    o.type = 'sine'; o.frequency.setValueAtTime(f, tc); o.frequency.exponentialRampToValueAtTime(f * 1.9, tc + 0.05);
+    gn.gain.setValueAtTime(rnd(0.03, 0.07), tc); gn.gain.exponentialRampToValueAtTime(0.0001, tc + 0.09);
+    o.connect(gn); gn.connect(L.river); o.start(tc); o.stop(tc + 0.1);
+    o.onended = function () { try { this.disconnect(); } catch (e) {} };
+  }
+  noiseBurst(t, 0.12, 'bandpass', rnd(900, 1800), 1.2, 0.05, L.river);
+  return rnd(0.5, 3.2);
+}
 function bell(t, base, pk) {
   var ratios = [1, 2.32, 4.25, 6.63], amps = [1, 0.5, 0.25, 0.12], dec = [3, 2, 1.2, 0.7];
   for (var i = 0; i < 4; i++) {
@@ -633,6 +688,7 @@ function playChime(t) {
   return rnd(4, 25);
 }
 function playFireworks(t) {
+  queueEnvEvent({ kind: 'fw', t: t - 1.0 });   // 映像（海シーン）は、音の1秒前に打ち上げる
   noiseBurst(t, 0.5, 'lowpass', 150, 0.7, 1.0, L.fw);
   noiseBurst(t, 1.5, 'lowpass', 90, 0.7, 0.4, L.fw);
   var o = ac.createOscillator(), gn = ac.createGain();
@@ -779,7 +835,15 @@ var SFX = {
     toneEnv(t, rnd(1000, 1300), rnd(1500, 1900), 0.06, 0.18 * v, d);
     toneEnv(t, rnd(2100, 2400), rnd(2100, 2400), 0.14, 0.04 * v, d);
   },
-  trickle: function (t, v, d, o) {           // 筒に落ちる細い水音（dur 秒のあいだ続く。stop() で止める）
+  creak: function (t, v, d) {                // 家の木が小さくきしむ「ギシッ」
+    var o = ac.createOscillator(), bp = ac.createBiquadFilter(), g = ac.createGain(), dur = rnd(0.22, 0.4), f0 = rnd(85, 130);
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * rnd(1.2, 1.6), t + dur * 0.6); o.frequency.linearRampToValueAtTime(f0 * 0.95, t + dur);
+    bp.type = 'bandpass'; bp.Q.value = 7; bp.frequency.setValueAtTime(rnd(350, 520), t); bp.frequency.linearRampToValueAtTime(rnd(600, 900), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.1 * v, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(bp); bp.connect(g); g.connect(d); o.start(t); o.stop(t + dur + 0.03);
+    o.onended = function () { try { o.disconnect(); bp.disconnect(); g.disconnect(); } catch (e) {} };
+  },
+  trickle: function (t, v, d, o) {         // 筒に落ちる細い水音（dur 秒のあいだ続く。stop() で止める）
     var dur = Math.max(0.5, o.dur || 10), src = ac.createBufferSource(); src.buffer = whiteBuf; src.loop = true;
     var f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 3400; f1.Q.value = 0.9;
     var f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1600; f2.Q.value = 1.4;
@@ -815,9 +879,11 @@ var SCH = {
   suzu:    { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playSuzu, next: 0 },
   cricket: { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playCricket, next: 0 },
   brook:   { on: function () { return lvl('brook') > 0; }, init: function () { return 0.1; }, fn: playBubble, next: 0 },
+  river:   { on: function () { return lvl('river') > 0; }, init: function () { return rnd(0.2, 1.5); }, fn: playChoro, next: 0 },
   chime:   { on: function () { return lvl('chime') > 0; }, init: function () { return rnd(1, 4); }, fn: playChime, next: 0 },
   fw:      { on: function () { return lvl('fw') > 0; }, init: function () { return rnd(6, 20); }, fn: playFireworks, next: 0 },
   leaves:  { on: function () { return lvl('leaves') > 0; }, init: function () { return rnd(0.1, 1); }, fn: playLeaves, next: 0 },
+  owl:     { on: function () { return lvl('owl') > 0; }, init: function () { return rnd(5, 18); }, fn: playOwl, next: 0 },
   kettle:  { on: function () { return lvl('kettle') > 0; }, init: function () { return rnd(0.5, 2); }, fn: playKnock, next: 0 }
 };
 function envTick(t) {
@@ -1045,7 +1111,7 @@ window.TAKIBI = {
     };
   },
   addLog: addLog,
-  playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle
+  playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle creak
   onEnvEvent: function (cb) { return subscribe(envCbs, cb); },       // {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]} 蛙の声の予約時刻に同期（喉の動き用）
   applySceneAudio: applySceneAudio,   // シーンが切り替わったとき、audio 指定（autoOn / reverb）を渡す
   reportSlow: reportSlow,             // 3D側が「5秒平均が20fps未満」を検知したときに呼ぶ

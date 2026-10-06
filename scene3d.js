@@ -6,6 +6,7 @@ import { createFire } from './fire3d.js';
 import { SCENES } from './scenes/index.js';
 import * as util from './scenes/util.js';
 import { loadProps, buildRockRing } from './scenes/props.js';
+import { makeFireflyPoints } from './scenes/firefly.js';
 
 const { mulberry32, clamp, rnd, rgb, radialTexture, disposeTree, makePoints, HILLS, hillH } = util;
 
@@ -422,7 +423,7 @@ export async function start(opts) {
   /* ---------- ホタル（季節の演出とは独立） ---------- */
   const NFF_BASE = 22, NFF = 44;        // 通常は22匹。シーンが ctx.fireflies.value（倍率）で最大44匹まで増やせる
   const ffScale = { value: 1 };
-  const ffPts = makePoints(NFF, THREE.AdditiveBlending, 1.2, uScale);
+  const ffPts = makeFireflyPoints(NFF, uScale);   // 小さく鋭い芯（2〜4px）と弱いにじみ。画面上の大きさに上限あり（scenes/firefly.js）
   ffPts.points.visible = false; scene.add(ffPts.points);
   const ff = [];
   for (let i = 0; i < NFF; i++) {
@@ -492,10 +493,15 @@ export async function start(opts) {
 
   /* ---------- シーンの切り替え ---------- */
   let curScene = null, curSceneId = '', curSeason = '', envKey = '';
+  // シーン向けの窓口: fireLights = 焚火の2つの点光源（distance を変えて届く範囲を調整してよい。dispose で戻す）、
+  // lights = {hemi, moon}（環境光と月の光の強さを変えてよい。シーンを離れると元に戻る）、
+  // sky.setMoon(az, el) = 月の位置の上書き（洞窟の入口から月が見えるように。シーンを離れると元に戻る）
+  const fireLights = []; scene.traverse((o) => { if (o.isPointLight) fireLights.push(o); });
+  const sky = { moon: null, dirty: false, setMoon(az, el) { sky.moon = { az, el }; sky.dirty = true; } };
   const sceneCtx = {
     THREE, scene, renderer, camera, api, util, assets, uScale, isStopped,
-    fireCenter: { x: 0, z: 0 }, root: null,
-    ground, fireflies: ffScale   // ground: 地面のメッシュ（シーンが穴や色を変えたら dispose で戻す）。fireflies.value: ホタルの数の倍率（1=22匹、最大2）
+    fireCenter: { x: 0, z: 0 }, root: null, fireLights, lights: { hemi, moon: moonLight }, sky,
+    ground, fireflies: ffScale,   // ground: 地面のメッシュ（シーンが穴や色を変えたら dispose で戻す）。fireflies.value: ホタルの数の倍率（1=22匹、最大2）
   };
   function switchScene(id) {
     const def = SCENES.find((s) => s.id === id) || SCENES[0];
@@ -507,6 +513,7 @@ export async function start(opts) {
       curScene = null;
     }
     ffScale.value = 1;
+    hemi.intensity = 0.5; sky.moon = null; sky.dirty = false; envKey = '';   // シーンが変えた光・月を元に戻す（次の更新で季節の値を入れ直す）
     const root = new THREE.Group();
     scene.add(root);
     sceneCtx.root = root;
@@ -543,13 +550,14 @@ export async function start(opts) {
     if (st.scene !== curSceneId || !curScene) switchScene(st.scene);
     else if (seasonChanged && curScene) curScene.inst.setSeason(curSeason);
     const env = SEASON_ENV[curSeason];
+    if (sky.dirty) { sky.dirty = false; envKey = ''; }
     const ek = curSeason + (st.nightSky ? 'S' : 'G');
     if (ek !== envKey) {
       envKey = ek;
       if (st.nightSky && skyTex) { scene.background = skyTex; scene.backgroundIntensity = 0.75; scene.fog.color.setHex(env.fog); }
       else { scene.background = gradientBg(curSeason); scene.backgroundIntensity = 1; scene.fog.color.setHex(st.nightSky ? env.fog : env.bg); }
       hemi.color.setHex(env.hemi);
-      const m = env.moon;
+      const m = sky.moon ? Object.assign({}, env.moon, sky.moon) : env.moon;
       moon.position.copy(skyDir(m.az, m.el, SKY_R)); moon.scale.setScalar(m.size);
       moonMat.color.setHex(m.color);
       moonLight.color.setHex(m.light); moonLight.intensity = m.power;

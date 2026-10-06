@@ -180,7 +180,7 @@ async function buildFromManifest(season, isStopped) {
 
 /* ---------- フィールド型素材（FABOTANIC の草地ブロックを焚火の周りにリング状に複製） ---------- */
 // manifest 内の { type:'field', dir, placements:'ring', count, radius, clearRadius, tint:{season:{...}} }
-async function collectFieldEntries() {
+export async function collectFieldEntries() {
   const m = await loadManifest();
   if (!m) return [];
   const all = Array.isArray(m) ? m : ['all', 'spring', 'summer', 'autumn', 'winter'].flatMap((k) => (Array.isArray(m[k]) ? m[k] : []));
@@ -215,7 +215,7 @@ function patchFieldMaterial(mat, key, opt) {
   mat.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|tkfield' + (thin ? 'T' : 'S'); };
   mat.needsUpdate = true;
 }
-async function loadField(entry, isStopped) {
+export async function loadField(entry, isStopped) {
   const dirURL = new URL('assets/plants/' + entry.dir.replace(/\/*$/, '/'), ROOT);
   // VerdantVegetation.js は 'three' を import map 経由で読む（ページと同じ1組。二重読み込みにならない）
   const V = await import(new URL('src/VerdantVegetation.js', dirURL).href);
@@ -262,7 +262,7 @@ const DEFAULT_LEVELS = {
   normal: { slots: [1, 2, 3], density: 0.6 },
   few: { slots: [1, 2, 3], density: 0.27 }
 };
-function applyFieldLevel(field, level) {
+export function applyFieldLevel(field, level) {
   if (!field) return;
   const cfg = (field.entry.levels && field.entry.levels[level]) || DEFAULT_LEVELS[level];
   field.group.visible = !!cfg;
@@ -274,7 +274,7 @@ function applyFieldLevel(field, level) {
     c.traverse((o) => { if (o.isInstancedMesh && o.userData.tkFull) o.count = Math.max(1, Math.floor(o.userData.tkFull * dens)); });
   });
 }
-function applyFieldTint(field, season) {
+export function applyFieldTint(field, season) {
   if (!field) return;
   const spec = (field.entry.tint && field.entry.tint[season]) || {};
   for (const [m, info] of field.mats) {

@@ -17,13 +17,21 @@
 //   fireCenter: 焚火の位置 {x, z}（今は原点）
 //   ground    : 地面のメッシュ。形（池の穴など）や material.color を変えてよいが、dispose で必ず元に戻す
 //   fireflies : { value } ホタルの数の倍率（1 = 22匹、最大 2 = 44匹）。シーンを離れると 1 に戻る
+//   fireLights: 焚火の2つの点光源の配列。distance / decay を変えて届く範囲を調整してよい（dispose で元に戻す）。強さは fire3d が毎フレーム入れ直すので、変えるなら update() の中で掛ける
+//   lights    : { hemi, moon } 環境光と月の光。強さを変えてよい（シーンを離れると元に戻る）
+//   sky       : sky.setMoon(az, el) 月の位置の上書き（シーンを離れると元に戻る）
 // api（window.TAKIBI）にシーン向けの窓口:
-//   api.playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null : 効果音（plop splash plip lap kakon pour drip trickle）。delay は「映像でその瞬間が来るまでの秒数」で、音は出力遅延ぶん早めに予約される
+//   api.playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null : 効果音（plop splash plip lap kakon pour drip trickle creak）。delay は「映像でその瞬間が来るまでの秒数」で、音は出力遅延ぶん早めに予約される
 //   api.onEnvEvent(cb) -> 解除関数 : 環境音の予約時刻に同期したイベント {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]}（蛙の喉の動き用）
+//                                   他に {kind:'wave', t, rise, fall, peak}（さざ波の寄せ始め・寄せる秒・引く秒・強さ 0.6〜1）と {kind:'fw', t}（遠くの花火。音の1秒前）
 // GLB: assets/models/ に置いたファイル名を assets/plants/manifest.json の "models" 配列に書くと、util.loadOptionalModel で読める
 // 注意: ライトは root に入れず scene 直下に add し、dispose で外す（fire3d の発光パスが root 全体を一時的に隠すため）。
 import forest from './forest.js';
 import pond from './pond.js';
 import garden from './garden.js';
+import cave from './cave.js';
+import river from './river.js';
+import sea from './sea.js';
+import cabin from './cabin.js';
 
-export const SCENES = [forest, pond, garden];
+export const SCENES = [forest, pond, garden, sea, cave, river, cabin];
