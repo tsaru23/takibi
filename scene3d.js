@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { createFire } from './fire3d.js';
 import { SCENES } from './scenes/index.js';
 import * as util from './scenes/util.js';
+import { loadProps, buildRockRing } from './scenes/props.js';
 
 const { mulberry32, clamp, rnd, rgb, radialTexture, disposeTree, makePoints, HILLS, hillH } = util;
 
@@ -150,7 +151,9 @@ export async function start(opts) {
     }
   };
   const BU = await import('three/addons/utils/BufferGeometryUtils.js');
-  if (stopped) return;
+  // Blender 製の石・薪・切り株（GLB）を1回だけ読む。失敗したものは null になり、下でコード製の形に戻る
+  const props = await loadProps(assets, aniso).catch((err) => { console.warn('[takibi] props:', err); return null; });
+  if (stopped) { if (props) props.dispose(); return; }
 
   /* 照明 */
   const hemi = new THREE.HemisphereLight(0x5a4470, 0x0a0806, 0.5);
@@ -188,19 +191,44 @@ export async function start(opts) {
     scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: l.color, side: THREE.DoubleSide })));
   }
 
-  /* 手前の小物: 予備の薪の束、切り株の腰掛け、小石（視界はふさがない位置） */
+  /* 手前の小物: 予備の薪の束、切り株の腰掛け、小石（視界はふさがない位置）。GLB が読めなければ円柱でつくる */
   {
-    const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
-    const cutMat = new THREE.MeshStandardMaterial({ color: 0x7d5f40, roughness: 0.95 });
-    const stumpGeo = new THREE.CylinderGeometry(0.27, 0.33, 0.42, 14);
-    const stump = new THREE.Mesh(stumpGeo, [barkMat, cutMat, cutMat]);
-    stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump);
-    const bundleGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.85, 8); bundleGeo.rotateZ(Math.PI / 2);
+    if (props && props.stump) {
+      const stump = new THREE.Mesh(props.stump, props.stumpMat);
+      stump.position.set(2.05, 0, 0.55); stump.rotation.y = 0.5; scene.add(stump);
+    } else {
+      const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
+      const cutMat = new THREE.MeshStandardMaterial({ color: 0x7d5f40, roughness: 0.95 });
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.33, 0.42, 14), [barkMat, cutMat, cutMat]);
+      stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump);
+    }
     const bundle = new THREE.Group();
-    [[-0.07, 0.065], [0.07, 0.065], [0.21, 0.065], [0, 0.175], [0.14, 0.175]].forEach(([z, y], i) => {
-      const m = new THREE.Mesh(bundleGeo, i % 2 ? barkMat : new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 }));
-      m.position.set((i % 3 - 1) * 0.04, y, z); m.rotation.y = (i - 2) * 0.05; bundle.add(m);
-    });
+    if (props && props.logs) {
+      // 手前の予備の薪: 下に3本、上に2本。GLB の薪（長さ1に正規化済み・軸は Y）を横に寝かせて重ねる。半割は割り面を下にする
+      const L = props.logs, halfI = L.findIndex((l) => l.half), full = L.map((l, i) => i).filter((i) => !L[i].half);
+      const fi = (k) => (full.length ? full[k % full.length] : 0);
+      const LEN = 0.68, rZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
+      const D = (L[fi(0)].thick) * LEN;    // 丸太の太さ
+      const lay = [[-D, 0, halfI >= 0 ? halfI : fi(1)], [0, 0, fi(0)], [D, 0, fi(1)], [-D / 2, 1, fi(1)], [D / 2, 1, fi(0)]];
+      const br = mulberry32(21);
+      lay.forEach(([z, row, vi], i) => {
+        const l = L[vi], isHalf = l.half, r = l.thick * LEN / 2;
+        const m = new THREE.Mesh(l.geo, props.logMat);
+        m.scale.setScalar(LEN * (0.94 + br() * 0.1));
+        // Y 軸まわりの向き × 軸を水平に倒す回転 × （丸太は軸まわりにランダムに回す。半割は割り面を下に固定）
+        m.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i - 2) * 0.05 + (br() - 0.5) * 0.05).multiply(rZ)
+          .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), isHalf ? 0 : br() * 6.28));
+        m.position.set((i % 3 - 1) * 0.03, row ? D * 0.88 + r : (isHalf ? 0.004 : r), z);
+        bundle.add(m);
+      });
+    } else {
+      const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
+      const bundleGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.85, 8); bundleGeo.rotateZ(Math.PI / 2);
+      [[-0.07, 0.065], [0.07, 0.065], [0.21, 0.065], [0, 0.175], [0.14, 0.175]].forEach(([z, y], i) => {
+        const m = new THREE.Mesh(bundleGeo, i % 2 ? barkMat : new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 }));
+        m.position.set((i % 3 - 1) * 0.04, y, z); m.rotation.y = (i - 2) * 0.05; bundle.add(m);
+      });
+    }
     bundle.position.set(-2.0, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle);
     const pebGeo = new THREE.IcosahedronGeometry(1, 0);
     const pebbles = new THREE.InstancedMesh(pebGeo, new THREE.MeshStandardMaterial({ color: 0x3a3836, roughness: 0.95, flatShading: true }), 16);
@@ -225,13 +253,18 @@ export async function start(opts) {
   ash.rotation.x = -Math.PI / 2; ash.position.y = 0.012; scene.add(ash);
 
   /* 石囲い */
-  const stoneGeo = buildStones(BU.mergeVertices, BU.mergeGeometries);
-  const stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-  const stones = new THREE.Mesh(stoneGeo, stoneMat);
-  scene.add(stones);
+  let stoneGeo = null;
+  if (props && props.rocks) scene.add(buildRockRing(props));      // Blender 製の石 rock_01〜08 を、焚火を囲むリングに並べる
+  else {
+    stoneGeo = buildStones(BU.mergeVertices, BU.mergeGeometries);
+    scene.add(new THREE.Mesh(stoneGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })));
+  }
 
-  /* 薪: 燃料の量に応じて本数が変わる。手前（カメラ側）の薪は低く寝かせて、炎を隠さない */
-  const logGeo = new THREE.CylinderGeometry(0.085, 0.075, 1, 8);
+  /* 薪: 燃料の量に応じて本数が変わる。手前（カメラ側）の薪は低く寝かせて、炎を隠さない。
+     GLB の薪は軸を Y・長さ 1 に正規化済み（props.js）なので、円柱と同じ扱いで置ける。
+     fire3d.js は logs の各 Mesh の材質に熾火の発光を重ねる（材質ごとに uniform を持つ）ため、薪1本ごとに材質を clone する（テクスチャは共有） */
+  const GL = props && props.logs ? props.logs : null;
+  const logGeo = GL ? null : new THREE.CylinderGeometry(0.085, 0.075, 1, 8);
   const LOG_ORDER = [0, 4, 2, 6, 1, 5, 3, 7];
   // 手前(+Z)の3本は、断面がカメラを向かないよう横向きに寝かせる。base=根元、h=水平方向の向き
   const FRONT = {
@@ -240,32 +273,57 @@ export async function start(opts) {
     3: { base: [0.8, 0.09, 0.15], h: [-0.85, -0.5] }
   };
   const logs = [];
+  const halfI = GL ? GL.findIndex((l) => l.half) : -1, fullI = GL ? GL.map((l, i) => i).filter((i) => !GL[i].half) : [];
+  const Y_UP = new THREE.Vector3(0, 1, 0), Y_AX = new THREE.Vector3(0, 1, 0), tmpV = new THREE.Vector3();
   for (let i = 0; i < 8; i++) {
     const slot = LOG_ORDER[i], fr = FRONT[slot];
-    let base, dir, len;
+    let base, dir, len, outward = null;
     if (fr) {
       const hl = Math.hypot(fr.h[0], fr.h[1]), th = 1.2;
       dir = new THREE.Vector3(fr.h[0] / hl * Math.sin(th), Math.cos(th), fr.h[1] / hl * Math.sin(th));
-      base = new THREE.Vector3(...fr.base); len = 0.78;
+      base = new THREE.Vector3(...fr.base); len = GL ? 0.74 : 0.78;
     } else {
       const a = slot * (Math.PI / 4) + (slot % 2) * 0.12;
       const R0 = 0.5 + (slot % 2) * 0.12, th = 0.52 + (slot % 2) * 0.14;
-      len = 1.0 - (slot % 2) * 0.16;
+      len = (GL ? 0.9 : 1.0) - (slot % 2) * (GL ? 0.14 : 0.16);
       dir = new THREE.Vector3(-Math.cos(a) * Math.sin(th), Math.cos(th), -Math.sin(a) * Math.sin(th));
       base = new THREE.Vector3(Math.cos(a) * R0, 0.1, Math.sin(a) * R0);
+      outward = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
       // 奥側の薪も、上の断面がカメラを向きすぎないよう水平方向にひねる（視点を回したときの偏りも減らす）
       const twist = { 5: 0.6, 6: 1.0, 7: -0.6 }[slot];
-      if (twist) dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), twist);
+      if (twist) dir.applyAxisAngle(Y_AX, twist);
     }
-    const mat = new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92, emissive: 0x000000 });
-    const m = new THREE.Mesh(logGeo, mat);
-    m.scale.y = len;
+    let m;
+    if (GL) {
+      // 前の3本: 手前左右は丸太、真ん中は半割（割り面を下）。奥側は丸太2種と半割を順に
+      const vi = fr ? (slot === 2 && halfI >= 0 ? halfI : fullI[(slot + 1) % fullI.length]) : (slot % 3 === 0 && halfI >= 0 ? halfI : fullI[slot % fullI.length]);
+      const l = GL[vi];
+      m = new THREE.Mesh(l.geo, props.logMat.clone());
+      m.scale.setScalar(len);
+      const q1 = new THREE.Quaternion().setFromUnitVectors(Y_UP, dir);
+      if (l.half) {
+        // 半割の丸い側（ジオメトリの -X）を、手前の薪は真上へ、奥側は外向きへ（割り面＝燃える面が焚火側を向く）
+        const up = outward || Y_UP;
+        const r1 = tmpV.set(-1, 0, 0).applyQuaternion(q1);
+        const t = up.clone().addScaledVector(dir, -up.dot(dir));
+        if (t.lengthSq() > 1e-4) {
+          t.normalize();
+          const ang = r1.angleTo(t) * (dir.dot(r1.clone().cross(t)) < 0 ? -1 : 1);
+          q1.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, ang));
+        }
+        if (fr) base.y = Math.max(0.03, base.y - l.thick * len * 0.5);
+      } else q1.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, i * 2.1));   // 丸太は軸まわりにばらす
+      m.quaternion.copy(q1);
+    } else {
+      m = new THREE.Mesh(logGeo, new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92, emissive: 0x000000 }));
+      m.scale.y = len;
+      m.quaternion.setFromUnitVectors(Y_UP, dir);
+    }
     m.position.copy(base).addScaledVector(dir, len / 2);
-    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     m.userData.seed = i;
     scene.add(m); logs.push(m);
   }
-  const dropMat = new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92 });
+  const dropMat = GL ? props.logMat : new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92 });
   const falling = [];    // 落下中の薪 {mesh, t0, landAt, dx, ang}
 
   /* 炎・火の粉・煙・熾火・火の光（fire3d.js） */
@@ -463,7 +521,9 @@ export async function start(opts) {
   const unsubs = [
     api.onLogAdded((ev) => {
       if (ev.type === 'drop') {
-        const mesh = new THREE.Mesh(logGeo, dropMat); mesh.scale.y = 0.95; scene.add(mesh);
+        const mesh = new THREE.Mesh(GL ? GL[fullI.length ? fullI[0] : 0].geo : logGeo, dropMat);
+        if (GL) mesh.scale.setScalar(0.85); else mesh.scale.y = 0.95;
+        scene.add(mesh);
         falling.push({ mesh, t0: ev.t0, landAt: ev.landAt, dx: ev.dx * 1.6, ang: ev.ang });
       }
     }),
@@ -579,7 +639,7 @@ export async function start(opts) {
       disposeTree(scene);
       Object.values(gradTex).forEach((x) => x.dispose());
       if (skyTex) skyTex.dispose();
-      moonTex.dispose(); logGeo.dispose(); stoneGeo.dispose();
+      moonTex.dispose(); if (logGeo) logGeo.dispose(); if (stoneGeo) stoneGeo.dispose(); if (props) props.dispose();
       owned.forEach((x) => x.dispose && x.dispose());
       renderer.dispose();
       renderer.forceContextLoss();

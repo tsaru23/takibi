@@ -1,10 +1,13 @@
-// シーン「池」。焚火の奥から右奥に広がる夜の池。水面（ノーマルマップ2枚＋フレネル反射の近似）、蓮の葉と花、錦鯉、メダカの群れ、蛙。
+// シーン「池」。焚火の右奥〜右側に置いた、夜の池。水面（ノーマルマップ2枚＋フレネル反射の近似）、蓮の葉と花、錦鯉、メダカの群れ、蛙。
 // 形式は scenes/index.js のコメントを参照。水面の反射は Reflector ではなく、空・月・焚火を式で近似する（内蔵GPUでも軽い）。
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, loadOptionalModel } from './util.js';
 
-/* ---------- 池の形（焚火の奥〜右奥） ---------- */
-const PC = { x: 1.0, z: -4.2, a: 3.6, b: 2.6 };     // 中心と楕円の半径（x 方向 a, z 方向 b）
+/* ---------- 池の形（焚火の右奥〜右） ----------
+   カメラ（0, 1.46, 3.6 から -Z を見る・縦画角55°）は低いので、手前の石囲いの陰にならないよう池を焚火から離し、
+   水面が帯として見渡せる位置に置く。右端は 4:3 の画面の右端（奥行き d のとき x = 0.69 d）より内側に収める。
+   月の映り込みの筋（カメラから右へ約29°の方向）が池を横切る位置でもある */
+const PC = { x: 1.9, z: -2.6, a: 1.6, b: 1.4 };     // 中心と楕円の半径（x 方向 a, z 方向 b）
 const Y_WATER = -0.06, Y_FLOOR = -1.0;
 const outline = (th) => 1 + 0.10 * Math.sin(3 * th + 1.0) + 0.06 * Math.sin(5 * th + 2.0) + 0.04 * Math.sin(2 * th + 0.3);
 const pondXZ = (th, u) => { const r = outline(th) * u; return [PC.x + Math.cos(th) * PC.a * r, PC.z + Math.sin(th) * PC.b * r]; };
@@ -12,13 +15,13 @@ const pondU = (x, z) => { const dx = (x - PC.x) / PC.a, dz = (z - PC.z) / PC.b; 
 const FIRE = new THREE.Vector3(0, 0.55, 0);
 
 const SEASON = {
-  spring: { leafN: 12, leaf: 0x3d7a3a, frogs: 3, flowers: 0, floating: 0, ice: false, ff: 1, riseEvery: [60, 140], grass: 0x6da85c,
+  spring: { leafN: 6, leaf: 0x3d7a3a, frogs: 3, flowers: 0, floating: 0, ice: false, ff: 1, riseEvery: [60, 140], grass: 0x6da85c,
             zen: 0x2a1c3c, hor: 0x6a4a80, moon: { az: 0.5, el: 0.16, col: 0xffe6d6 }, berm: 0x3a2a1c, stone: 1.0, frog: 0x5e8a30 },
-  summer: { leafN: 14, leaf: 0x2a6a32, frogs: 3, flowers: 4, floating: 0, ice: false, ff: 2, riseEvery: [50, 120], grass: 0x2f7a33,
+  summer: { leafN: 6, leaf: 0x2a6a32, frogs: 3, flowers: 4, floating: 0, ice: false, ff: 2, riseEvery: [50, 120], grass: 0x2f7a33,
             zen: 0x0c1a48, hor: 0x24407e, moon: { az: 0.55, el: 0.1, col: 0xffdf95 }, berm: 0x33261a, stone: 1.0, frog: 0x4a8a2a },
-  autumn: { leafN: 12, leaf: 0x6b6a2c, frogs: 1, flowers: 0, floating: 30, ice: false, ff: 1, riseEvery: [100, 220], grass: 0x9a6a2a,
+  autumn: { leafN: 5, leaf: 0x6b6a2c, frogs: 1, flowers: 0, floating: 30, ice: false, ff: 1, riseEvery: [100, 220], grass: 0x9a6a2a,
             zen: 0x3a1e12, hor: 0x80502c, moon: { az: 0.45, el: 0.18, col: 0xffd9aa }, berm: 0x3b2a1a, stone: 1.0, frog: 0x7a7a3a },
-  winter: { leafN: 10, leaf: 0x5a4a38, frogs: 0, flowers: 0, floating: 0, ice: true, ff: 1, riseEvery: [1e9, 1e9], grass: 0x6b7a8c,
+  winter: { leafN: 4, leaf: 0x5a4a38, frogs: 0, flowers: 0, floating: 0, ice: true, ff: 1, riseEvery: [1e9, 1e9], grass: 0x6b7a8c,
             zen: 0x284a70, hor: 0x6a98c8, moon: { az: 0.5, el: 0.21, col: 0xeef4ff }, berm: 0x8a96a6, stone: 1.6, frog: 0x5e8a30 }
 };
 const GRASS_N = { many: 70, normal: 40, few: 16, none: 0 };
@@ -48,7 +51,7 @@ void main() {
   vec2 p = vW.xz;
   vec3 a = texture2D(uN1, p * 0.33 + vec2(uTime * 0.013, uTime * 0.009)).xyz * 2.0 - 1.0;
   vec3 b = texture2D(uN2, p * 0.81 + vec2(-uTime * 0.021, uTime * 0.016)).xyz * 2.0 - 1.0;
-  vec2 sl = (a.xy + b.xy * 0.7) * 0.7;
+  vec2 sl = (a.xy + b.xy * 0.8) * 0.62;
   for (int i = 0; i < 8; i++) {
     vec4 r = uRip[i];
     if (r.w > 0.0) {
@@ -61,28 +64,32 @@ void main() {
   vec3 N = normalize(vec3(sl.x, 1.0, sl.y));
   vec3 V = normalize(cameraPosition - vW);
   vec3 R = reflect(-V, N);
-  float fres = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-  vec3 sky = mix(uHor, uZen, smoothstep(0.0, 0.9, R.y)) * 0.6;
-  // 月の映り込み（揺らぐ帯になる）
+  R.y = abs(R.y);
+  float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  // 空の映り込み: 夜の水は暗い青緑〜黒。季節の空の色はうっすら混ぜるだけ（紫に寄せない）
+  vec3 skyTop = mix(vec3(0.010, 0.024, 0.045), uZen, 0.22);
+  vec3 skyHor = mix(vec3(0.030, 0.062, 0.085), uHor, 0.20);
+  vec3 sky = mix(skyHor, skyTop, smoothstep(0.0, 0.8, R.y));
+  // 月の映り込み: 波の面が月を向いたところだけ光る。細かく割れた筋になって揺らぐ
   float md = max(dot(R, uMoonDir), 0.0);
-  vec3 moon = uMoonCol * (pow(md, 700.0) * 5.0 + pow(md, 160.0) * 0.6 + pow(md, 30.0) * 0.18);
-  // 焚火の映り込み: 水面で折り返した位置にある光源として、反射ベクトルとの近さで光らせる
-  vec3 F = vec3(uFire.x, 2.0 * uWaterY - uFire.y, uFire.z);
-  vec3 toF = F - vW; float dF = length(toF); float s = max(dot(R, toF / dF), 0.0);
-  vec3 fireC = vec3(1.0, 0.5, 0.18);
-  vec3 fire = fireC * uFlame * (pow(s, 240.0) * 3.0 + pow(s, 26.0) * 0.4 + pow(s, 7.0) * 0.05) / (1.0 + dF * 0.1);
-  // 焚火は池の手前にあるので鏡像は見えにくい。そこで波の面（ノーマルマップ）が焚火の方を向いたところが光る、きらめきも足す
-  vec3 Lf = normalize(uFire - vW); vec3 H = normalize(V + Lf);
-  float glit = pow(max(dot(N, H), 0.0), 140.0);
-  fire += fireC * uFlame * glit * 1.5 / (1.0 + dF * 0.02);
+  float shim = 0.65 + 0.35 * sin(uTime * 1.7 + p.x * 9.0 + p.y * 6.0 + a.x * 5.0);
+  vec3 moon = uMoonCol * (pow(md, 900.0) * 7.0 + pow(md, 260.0) * 0.8 + pow(md, 50.0) * 0.07) * shim;
+  // 焚火の光: 池は焚火の斜め奥にあるので鏡像は見えない。かわりに、波の面が焚火の方を向いたところが橙に光る（炎のゆらぎに連動）
+  vec3 toF = uFire - vW; float dF = length(toF); vec3 Lf = toF / dF;
+  vec3 fireC = vec3(1.0, 0.46, 0.15);
+  float lit = pow(max(dot(N, Lf), 0.0), 1.5);
+  vec3 H = normalize(V + Lf);
+  float glit = pow(max(dot(N, H), 0.0), 60.0);
+  float att = uFlame / (1.0 + dF * dF * 0.1);
+  vec3 fire = fireC * att * (lit * 0.22 + glit * 1.2);
   // 星の映り込み
   vec3 Rq = floor(R * 70.0); float sh = fract(sin(dot(Rq, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-  sky += vec3(0.7, 0.8, 1.0) * step(0.9965, sh) * smoothstep(0.1, 0.4, R.y) * (0.6 + 0.4 * sin(uTime * 2.0 + sh * 50.0));
-  vec3 toFl = uFire - vW;
-  vec3 body = uDeep + fireC * uFlame * 0.07 / (1.0 + dot(toFl, toFl) * 0.07);
+  sky += vec3(0.7, 0.8, 1.0) * step(0.9965, sh) * smoothstep(0.1, 0.4, R.y) * (0.6 + 0.4 * sin(uTime * 2.0 + sh * 50.0)) * 0.7;
+  // 水の色: 深い青緑〜黒。濁りは弱め（鯉が透けて見える）。焚火の近くはほんのり温かい
+  vec3 body = uDeep * (0.8 + 0.4 * a.z) + fireC * uFlame * 0.025 / (1.0 + dF * dF * 0.06);
   vec3 mixc = body * (1.0 - fres) + sky * fres;
-  float alpha = clamp(0.5 + fres * 0.6, 0.0, 0.96);
-  vec3 col = mixc * alpha + (moon + fire) * (0.35 + fres * 2.0);
+  float alpha = clamp(0.3 + fres * 0.62, 0.0, 0.94);
+  vec3 col = mixc * alpha + (moon + fire) * (0.5 + fres * 1.6);
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -110,7 +117,7 @@ varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed;
     kc = mix(kc, vec3(0.92, 0.9, 0.85), smoothstep(-0.02, -0.06, vLp.y) * 0.6);
     diffuseColor.rgb = kc;
   }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  totalEmissiveRadiance += diffuseColor.rgb * 0.42;`);
+  totalEmissiveRadiance += diffuseColor.rgb * 1.0;`);
   };
   mat.customProgramCacheKey = () => 'tkkoi';
 }
@@ -271,7 +278,7 @@ export default {
     Object.assign(U, {
       uTime: { value: 0 }, uFlame: { value: 0 }, uWaterY: { value: Y_WATER }, uN1: { value: nt1 }, uN2: { value: nt2 },
       uFire: { value: FIRE }, uMoonDir: { value: new THREE.Vector3() }, uMoonCol: { value: new THREE.Color() },
-      uZen: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uDeep: { value: new THREE.Color(0x06161b) }, uRip: { value: ripU }
+      uZen: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uDeep: { value: new THREE.Color(0x03141a) }, uRip: { value: ripU }
     });
     const waterMat = own(mats, new THREE.ShaderMaterial({
       uniforms: U, vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, fog: true,
@@ -306,7 +313,7 @@ export default {
       g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I); g.computeVertexNormals();
       root.add(new THREE.Mesh(g, bermMat));
     }
-    const NSTONE = 54;
+    const NSTONE = 40;
     const stoneMat = own(mats, new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true }));
     const stones = new THREE.InstancedMesh(own(geos, new THREE.IcosahedronGeometry(1, 1)), stoneMat, NSTONE);
     {
@@ -315,7 +322,9 @@ export default {
       for (let i = 0; i < NSTONE; i++) {
         const th = (i + sr() * 0.8) / NSTONE * Math.PI * 2, [x, z] = pondXZ(th, 1.02 + sr() * 0.1), s = 0.1 + sr() * 0.17;
         q.setFromEuler(e.set(sr() * 0.5, sr() * 6, sr() * 0.5));
-        m4.compose(new THREE.Vector3(x, 0.03 + s * 0.15, z), q, new THREE.Vector3(s * (1.1 + sr() * 0.5), s * (0.32 + sr() * 0.22), s * (0.9 + sr() * 0.4)));
+        // カメラ側の縁は、水面をふさがないよう小さく低くする
+        const near = Math.sin(th) > 0.1, hk = near ? 0.55 : 1, ss = near ? s * 0.6 : s;
+        m4.compose(new THREE.Vector3(x, 0.02 + ss * 0.1, z), q, new THREE.Vector3(ss * (1.1 + sr() * 0.5), ss * (0.32 + sr() * 0.22) * hk, ss * (0.9 + sr() * 0.4)));
         stones.setMatrixAt(i, m4); stones.setColorAt(i, c.setHex(tones[Math.floor(sr() * 4)]).multiplyScalar(0.8 + sr() * 0.5));
       }
       root.add(stones);
@@ -334,7 +343,9 @@ export default {
     {
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), gr = mulberry32(31);
       for (let i = 0; i < NGR; i++) {
-        const [x, z] = pondXZ(gr() * 6.28, 1.2 + gr() * 0.5), s = 0.4 + gr() * 0.5;
+        // カメラ側（手前の縁）には生やさない: 低い視点で水面をふさいでしまう
+        let th = gr() * 6.28; if (Math.sin(th) > 0.15) th = -th;
+        const [x, z] = pondXZ(th, 1.2 + gr() * 0.5), s = 0.35 + gr() * 0.4;
         q.setFromEuler(e.set(0, gr() * 6, 0)); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s, s)); tufts.setMatrixAt(i, m4);
       }
       tufts.count = 0; root.add(tufts);
@@ -352,7 +363,7 @@ export default {
       const lr = mulberry32(555), c = new THREE.Color(), base = new THREE.Color(cfg.leaf);
       let guard = 0;
       while (leaves.length < n && guard++ < 800) {
-        const [x, z] = pondXZ(lr() * 6.28, Math.sqrt(0.04 + lr() * 0.6)), r = 0.3 + lr() * 0.22;
+        const [x, z] = pondXZ(lr() * 6.28, Math.sqrt(0.04 + lr() * 0.6)), r = 0.2 + lr() * 0.14;
         if (leaves.some((l) => Math.hypot(l.x - x, l.z - z) < (l.r + r) * 0.95)) continue;
         if (pondU(x, z) > 0.84) continue;
         leaves.push({ x, z, r, ph: lr() * 6.28, rot: lr() * 6.28, tx: (lr() - 0.5) * 0.12, tz: (lr() - 0.5) * 0.12, y: Y_WATER + 0.01, occ: -1 });
@@ -400,7 +411,7 @@ export default {
     }
 
     /* --- 鯉（InstancedMesh 1つ） --- */
-    const KOI_N = 5, KOI_S = 0.62;
+    const KOI_N = 5, KOI_S = 0.55;
     const uKT = { value: 0 };
     const koiGeo = koiGeometry();
     const koiPh = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3), koiC1 = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3), koiC2 = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3);
@@ -419,15 +430,12 @@ export default {
     const koiMesh = new THREE.InstancedMesh(koiGeo, koiMat, KOI_N); koiMesh.frustumCulled = false; koiMesh.renderOrder = 2; root.add(koiMesh);
     const koi = [];
     for (let i = 0; i < KOI_N; i++) {
-      const [x, z] = pondXZ(rnd(-1.6, -1.2) + rnd(-0.3, 0.3), Math.sqrt(rnd(0.3, 0.6)));
-      koi.push({ x, z, psi: rnd(0, 6.28), v: 0.2, y: -0.4, pitch: 0, roll: 0, depth: -rnd(0.22, 0.45), tx: x, tz: z, state: 'swim', t0: 0, nextRise: 12 + i * 6 + rnd(0, 12), speed: rnd(0.2, 0.34), wob: rnd(0, 6) });
+      const [x, z] = pondXZ(rnd(0, 6.28), Math.sqrt(rnd(0.2, 0.55)));
+      koi.push({ x, z, psi: rnd(0, 6.28), v: 0.2, y: -0.15, pitch: 0, roll: 0, depth: -rnd(0.12, 0.2), tx: x, tz: z, state: 'swim', t0: 0, nextRise: 12 + i * 6 + rnd(0, 12), speed: rnd(0.2, 0.34), wob: rnd(0, 6) });
     }
     let lastRise = -99;
-    // 低いカメラからは、手前の岸や石囲いの陰に入る水中は見えない。奥寄り（z < -4.9）を主な泳ぎ場にする
-    function koiSpot(umin, umax) {
-      for (let i = 0; i < 60; i++) { const [x, z] = pondXZ(rnd(0, 6.28), Math.sqrt(rnd(umin, umax))); if (z < -4.9) return [x, z]; }
-      return pondXZ(-1.4, 0.55);
-    }
+    // 池は焚火の右奥にあり、カメラから水面が見渡せる。池のどこでも泳げる（岸の浅いところだけ避ける）
+    function koiSpot(umin, umax) { return pondXZ(rnd(0, 6.28), Math.sqrt(rnd(umin, umax))); }
     function koiTarget(k) { const [x, z] = koiSpot(0.04, 0.6); k.tx = x; k.tz = z; }
     koi.forEach(koiTarget);
 
@@ -628,7 +636,7 @@ export default {
       ice.visible = cfg.ice;
       ctx.fireflies && (ctx.fireflies.value = cfg.ff);
       koi.forEach((k) => { k.state = 'swim'; k.nextRise = curT + rnd(6, 16) + rnd(cfg.riseEvery[0], cfg.riseEvery[1]) * rnd(0.3, 1); });
-      const deep = cfg.ice; koi.forEach((k) => { k.depth = deep ? -rnd(0.75, 0.9) : -rnd(0.22, 0.45); });
+      const deep = cfg.ice; koi.forEach((k) => { k.depth = deep ? -rnd(0.75, 0.9) : -rnd(0.12, 0.2); });   // 夏〜秋は水面のすぐ下（氷の下では深く）
     }
 
     /* --- 更新 --- */
@@ -650,10 +658,9 @@ export default {
           if (k.state === 'approach') { k.state = 'rising'; k.t0 = t; k.y0 = k.y; }
           else koiTarget(k);
         }
-        let yT = deep ? k.depth : k.depth + 0.05 * Math.sin(t * 0.4 + k.wob), pT = 0;
+        let yT = deep ? k.depth : k.depth + 0.025 * Math.sin(t * 0.4 + k.wob), pT = 0;
         if (k.state === 'swim' && !deep && t > k.nextRise && t - lastRise > 8) {
-          // 顔を出す場所は、焚火側（手前）の見える位置。焚火の光で鯉が見える
-          const [x, z] = koiSpot(0.25, 0.62);   // 石囲いや焚火の陰にならない場所
+          const [x, z] = koiSpot(0.2, 0.55);   // 顔を出す場所（焚火と月の光が当たる、池の手前寄りが見やすい）
           k.tx = x; k.tz = z;
           k.state = 'approach'; lastRise = t;
         }
