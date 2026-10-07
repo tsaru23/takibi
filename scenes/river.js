@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, tileNoise, heightToNormalTexture, radialTexture, disposeTree } from './util.js';
 import { fbm3, rockNormalMap, noisedRockGeometry } from './rock.js';
 import { buildTrees, leafTexture } from './trees.js';
+import { loadFarTrees } from './farTrees.js';
 
 /* ---------- 川の形（x が川に沿う。流れは右 +x から左 -x へ）。川幅 4〜6m。両端は絞って霧の中に消える ---------- */
 const Y_WATER = -0.08;
@@ -335,7 +336,7 @@ export default {
     })();
 
     /* --- 対岸の木のシルエット --- */
-    const trees = (() => {
+    const treePts = (() => {
       const pts = []; let guard = 0;
       while (pts.length < 48 && guard++ < 800) {
         const x = (rng() * 2 - 1) * 28, d = 4 + rng() * 22, z = zc(clamp(x, -X_END, X_END)) - hw(clamp(x, -X_END, X_END)) - d;
@@ -344,9 +345,17 @@ export default {
         pts.push({ x, z, s: 0.9 + rng() * 1.1, y: bermH(Math.min(d, 8)) - 0.05 });
       }
       for (let i = 0; i < 8; i++) { const sd = i % 2 ? 1 : -1; pts.push({ x: sd * (14 + rng() * 9), z: -2 - rng() * 8, s: 0.9 + rng() * 0.8, y: -0.05 }); }
-      return buildTrees(pts, 91, 0.55);
+      return pts;
     })();
+    const trees = buildTrees(treePts, 91, 0.55);   // 仮の木（遠景の木が読めなかったときの代わり）
     root.add(trees.group);
+    // FABOTANIC の遠景の木。カメラから10m以上離す。読めたら仮の木と入れ替える
+    let far = null;
+    loadFarTrees(ctx, treePts.filter((p) => Math.hypot(p.x, p.z - 3.6) > 10).map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })), { seed: 31, brightness: 0.55 }).then((h) => {
+      if (!h || disposed) { if (h) h.dispose(); return; }
+      far = h; root.add(h.group); trees.group.visible = false;
+      if (season) h.setSeason(season);
+    }).catch((e) => console.warn('[takibi] far trees:', e));
 
     /* --- 季節: 春の花びら・秋の落ち葉（流れに浮かぶ）、冬の雪と氷 --- */
     const NFL = 120;
@@ -422,6 +431,7 @@ export default {
       WU.uMoonDir.value.copy(skyDir(cfg.moonAz, MOON_EL[s])); WU.uMoonCol.value.setHex(MOON_COL[s]);
       WU.uZen.value.setHex(SKY_ZEN[s]); WU.uHor.value.setHex(SKY_HOR[s]); WU.uDeep.value.setHex(cfg.deep);
       trees.setColors(cfg.crown, cfg.crownE, cfg.coniE);
+      if (far) far.setSeason(s);
       grassMat.color.setHex(cfg.grass).multiplyScalar(0.7);
       bermMat.emissive.setHex(cfg.berm);
       paintStones(cfg.snow);
@@ -445,6 +455,7 @@ export default {
         if (ground && origGround) { ground.geometry = origGround; if (holeGeo) holeGeo.dispose(); }
         if (ground && origGroundColor) ground.material.color.copy(origGroundColor);
         ctx.fireflies && (ctx.fireflies.value = 1);
+        if (far) { far.dispose(); far = null; }
         trees.dispose();
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());
       }

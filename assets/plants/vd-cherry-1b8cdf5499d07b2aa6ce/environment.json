@@ -1,0 +1,23 @@
+{
+  "time": "12:00",
+  "date": null,
+  "sunDirection": [
+    0.35,
+    0.82,
+    0.45
+  ],
+  "sunElevation": 55,
+  "sunIntensity": 1,
+  "windDirection": [
+    0.9702957262759965,
+    0,
+    0.24192189559966773
+  ],
+  "windSpeed": 2.5,
+  "windGust": 0.25,
+  "weather": "clear",
+  "season": 0.28,
+  "humidity": 55,
+  "temperature": 20,
+  "seed": 39172
+}

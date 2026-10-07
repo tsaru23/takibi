@@ -1,0 +1,207 @@
+{
+  "schema": "verdant-asset",
+  "schemaVersion": "1.0",
+  "assetId": "vd-maple-5bf2800efe7ccce2dddf",
+  "contentSha256": "5bf2800efe7ccce2dddf6edc0a52231c7fd841e77177c16f224d3694c58b3377",
+  "displayName": "広葉樹 E",
+  "product": {
+    "name": "FABOTANIC",
+    "tagline": "草木・植物3D素材ジェネレーター",
+    "publisher": "AMIX",
+    "nameStatus": "confirmed"
+  },
+  "generator": {
+    "name": "VERDANT",
+    "version": "4.50.0"
+  },
+  "kind": "three",
+  "species": "maple",
+  "models": [
+    {
+      "file": "models/asset.glb",
+      "sha256": "a1c4e407775d51f9ebb90669b34b1a8074b09d0a51f52fefed244b1c3b15a0e6",
+      "bytes": 244940
+    }
+  ],
+  "runtime": {
+    "apiVersion": "1.0",
+    "implementationVersion": "4.38.0",
+    "file": "src/VerdantVegetation.js",
+    "sha256": "a6b57eafdd72a343f942e6714ebdb141c5a448c3acbb8417dfe7547fbcf60310",
+    "threeRevision": "r185",
+    "compatibility": "Use this runtime or an explicitly tested compatible adapter; do not replace other packages blindly."
+  },
+  "coordinates": {
+    "units": "metres",
+    "metresPerUnit": 1,
+    "upAxis": "+Y",
+    "handedness": "right",
+    "pivot": [
+      0,
+      0,
+      0
+    ],
+    "origin": "plant root; lowest generated height is zero",
+    "recommendedInitialScale": [
+      1,
+      1,
+      1
+    ]
+  },
+  "treeArchitecture": null,
+  "representation": {
+    "kind": "background-tree-crosscards-v1",
+    "referenceQuality": "draft",
+    "referenceTriangles": 46604,
+    "referenceBounds": {
+      "min": [
+        -1.158674716949463,
+        0,
+        -1.0860182046890259
+      ],
+      "max": [
+        1.1914350986480713,
+        2.0999999046325684,
+        1.059523105621338
+      ]
+    },
+    "sourceLeafCount": 652,
+    "views": 4,
+    "triangles": 8,
+    "primitiveCount": 1,
+    "atlasWidth": 1024,
+    "atlasHeight": 256,
+    "tileSize": 256,
+    "alphaMode": "MASK",
+    "alphaCutoff": 0.3,
+    "static": true,
+    "lighting": "baked soft diffuse; unlit material",
+    "automaticLOD": false,
+    "placementHelper": true,
+    "viewLimitation": "Upright background only. Not overhead or close-up. Four intersecting image planes, not view-dependent impostor selection."
+  },
+  "levels": null,
+  "runtimeHelpers": [
+    {
+      "file": "src/BackgroundForest.js",
+      "api": "loadBackgroundForest(THREE, GLTFLoader, baseURL, placements, options)",
+      "apiVersion": "1.0",
+      "requires": "Three.js r185",
+      "example": "example/background.html",
+      "sha256": "e2e366223c49b6bd83397ba094240ad29bfdfca0bd1c485f7b9aabfe430318e6"
+    }
+  ],
+  "bounds": {
+    "min": [
+      -1.1998016834259033,
+      0,
+      -1.1235651969909668
+    ],
+    "max": [
+      1.2325620651245117,
+      2.0999999046325684,
+      1.0970700979232788
+    ],
+    "size": [
+      2.432363748550415,
+      2.0999999046325684,
+      2.2206352949142456
+    ]
+  },
+  "counts": {
+    "triangles": 8,
+    "vertices": 16,
+    "sharedTriangles": 8,
+    "plants": 1,
+    "groundObjects": 0,
+    "meshPrimitives": 1
+  },
+  "materials": [
+    "impostor"
+  ],
+  "capabilities": {
+    "staticGLB": true,
+    "rigged": false,
+    "boneAnimation": false,
+    "morphAnimation": false,
+    "collisionMesh": false,
+    "shaderWind": false,
+    "windScope": "none",
+    "distanceGatedWind": false,
+    "backgroundCrosscards": true,
+    "staticBatchHelper": true,
+    "automaticTreeLOD": false,
+    "crossFade": false,
+    "lod": "none",
+    "farDistanceMassPlacementOptimized": false,
+    "gpuInstancing": false
+  },
+  "requiredExtensions": [],
+  "settingsFile": "settings.json",
+  "environmentFile": "environment.json",
+  "guideFile": "AI_README.md",
+  "preview": {
+    "file": "preview.png",
+    "status": "current editor snapshot; may show a wind pose, static GLB remains rest pose",
+    "sha256": "3d8d82445d40b9d2360f7ac6978419c8b93e2f9fe4c5d4675d2860b3b04f20f0"
+  },
+  "usageTerms": {
+    "schema": "botanic-fab-usage",
+    "schemaVersion": "1.0",
+    "termsVersion": "1.0.0",
+    "status": "publisher-approved",
+    "policyDigest": "9c794a4be59c407f597ac0a6ea62dd7214253c2ceb71ba46dcd97a1bcc50d94d",
+    "effectiveDate": "2026-09-28",
+    "creator": {
+      "display": "AMIX｜トミナガハルキ",
+      "publisher": {
+        "name": "AMIX",
+        "url": "https://amix-design.com/"
+      },
+      "author": {
+        "name": "トミナガハルキ",
+        "url": "https://amix-design.com/tominaga/"
+      }
+    },
+    "creatorCreditScope": "generator attribution; not a claim of ownership of the user's entire work",
+    "commercialUse": true,
+    "creditRequiredInWorks": false,
+    "standaloneAssetSale": false,
+    "standaloneAssetRedistribution": false,
+    "sdkLicense": "MIT",
+    "file": "README.txt",
+    "assetTermsFile": null,
+    "sdkTermsFile": "LICENSES.txt",
+    "thirdPartyFile": "LICENSES.txt",
+    "summary": "生成素材は作品への商用組み込み・加工・納品が可能。作品内クレジット任意。素材単体の再配布・販売は対象外。付属SDKは対象ファイルのみMIT。",
+    "proposed": null,
+    "generatorURL": "https://amix-design.com/tl/fab-botanic/",
+    "licenseURL": "https://amix-design.com/tl/fab-botanic/license.html",
+    "termsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html",
+    "assetTermsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html#assets",
+    "presentation": "versioned-online-terms"
+  },
+  "generatorCredit": {
+    "display": "AMIX｜トミナガハルキ",
+    "publisher": {
+      "name": "AMIX",
+      "url": "https://amix-design.com/"
+    },
+    "author": {
+      "name": "トミナガハルキ",
+      "url": "https://amix-design.com/tominaga/"
+    }
+  },
+  "limitations": [
+    "No automatic terrain collision or root snapping.",
+    "Draft/detail refer to tessellation, not a performance guarantee for near/far use.",
+    "Near wind disables frustum culling for displaced meshes; far static mode restores it. Profile large scenes.",
+    "Do not combine files from different asset directories by filename."
+  ],
+  "selection": {
+    "style": "natural",
+    "purpose": "far",
+    "automaticLOD": false
+  },
+  "modelStyle": "natural"
+}

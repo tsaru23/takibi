@@ -1,0 +1,190 @@
+{
+  "schema": "verdant-asset",
+  "schemaVersion": "1.0",
+  "assetId": "vd-bamboo-b0c4849ceaaf82c4a67b",
+  "contentSha256": "b0c4849ceaaf82c4a67b3b29fbf1ce7724d589d865260a60bb4b880166d65d72",
+  "displayName": "竹類 A",
+  "product": {
+    "name": "FABOTANIC",
+    "tagline": "草木・植物3D素材ジェネレーター",
+    "publisher": "AMIX",
+    "nameStatus": "confirmed"
+  },
+  "generator": {
+    "name": "VERDANT",
+    "version": "4.50.0"
+  },
+  "kind": "three",
+  "species": "bamboo",
+  "models": [
+    {
+      "file": "models/asset.glb",
+      "sha256": "5bb70b1676562a47642fcb9d81b356d8822e5367bf9ff654875bec1ffcfc998f",
+      "bytes": 1892760
+    }
+  ],
+  "runtime": {
+    "apiVersion": "1.0",
+    "implementationVersion": "4.38.0",
+    "file": "src/VerdantVegetation.js",
+    "sha256": "a6b57eafdd72a343f942e6714ebdb141c5a448c3acbb8417dfe7547fbcf60310",
+    "threeRevision": "r185",
+    "compatibility": "Use this runtime or an explicitly tested compatible adapter; do not replace other packages blindly."
+  },
+  "coordinates": {
+    "units": "metres",
+    "metresPerUnit": 1,
+    "upAxis": "+Y",
+    "handedness": "right",
+    "pivot": [
+      0,
+      0,
+      0
+    ],
+    "origin": "support plane Y=0; rooted organ bases",
+    "recommendedInitialScale": [
+      1,
+      1,
+      1
+    ]
+  },
+  "placement": {
+    "pivot": [
+      0,
+      0,
+      0
+    ],
+    "supportPlaneY": 0,
+    "terrainConforming": false,
+    "mode": "grounded-culms",
+    "noGroundMesh": true
+  },
+  "treeArchitecture": null,
+  "representation": {
+    "kind": "bamboo-strip-lod-v1",
+    "style": "natural",
+    "purpose": "mid",
+    "automaticLOD": false,
+    "noBitmap": true,
+    "referenceHeight": 2.35,
+    "referenceScale": 2.3288706673679305,
+    "static": false,
+    "limitations": "All culm/branch/leaf anchors retained. Original natural near remains unchanged; new culm bases are horizontal. Leaves are open sheets, not solid volumes. Reference is the balanced near shape; sampling can slightly change bounds. No automatic LOD or terrain deformation."
+  },
+  "levels": null,
+  "runtimeHelpers": [],
+  "bounds": {
+    "min": [
+      -0.6612913608551025,
+      0,
+      -0.7464490532875061
+    ],
+    "max": [
+      0.7447296977043152,
+      2.350001335144043,
+      0.7040926218032837
+    ],
+    "size": [
+      1.4060210585594177,
+      2.350001335144043,
+      1.4505416750907898
+    ]
+  },
+  "counts": {
+    "triangles": 6320,
+    "vertices": 4920,
+    "sharedTriangles": 6320,
+    "plants": 1,
+    "groundObjects": 0,
+    "meshPrimitives": 2
+  },
+  "materials": [
+    "leaf",
+    "stem"
+  ],
+  "capabilities": {
+    "staticGLB": true,
+    "rigged": false,
+    "boneAnimation": false,
+    "morphAnimation": false,
+    "collisionMesh": false,
+    "shaderWind": true,
+    "windScope": "camera bounds distance / asset or field cell; all distances without camera",
+    "distanceGatedWind": true,
+    "backgroundCrosscards": false,
+    "staticBatchHelper": false,
+    "automaticTreeLOD": false,
+    "crossFade": false,
+    "lod": "none",
+    "farDistanceMassPlacementOptimized": false,
+    "gpuInstancing": false
+  },
+  "requiredExtensions": [],
+  "settingsFile": "settings.json",
+  "environmentFile": "environment.json",
+  "guideFile": "AI_README.md",
+  "preview": {
+    "file": "preview.png",
+    "status": "current editor snapshot; may show a wind pose, static GLB remains rest pose",
+    "sha256": "ccbbba2fdf47046a30ce654256a4659df5a632d14db376d17c2f51cf30c414bf"
+  },
+  "usageTerms": {
+    "schema": "botanic-fab-usage",
+    "schemaVersion": "1.0",
+    "termsVersion": "1.0.0",
+    "status": "publisher-approved",
+    "policyDigest": "9c794a4be59c407f597ac0a6ea62dd7214253c2ceb71ba46dcd97a1bcc50d94d",
+    "effectiveDate": "2026-09-28",
+    "creator": {
+      "display": "AMIX｜トミナガハルキ",
+      "publisher": {
+        "name": "AMIX",
+        "url": "https://amix-design.com/"
+      },
+      "author": {
+        "name": "トミナガハルキ",
+        "url": "https://amix-design.com/tominaga/"
+      }
+    },
+    "creatorCreditScope": "generator attribution; not a claim of ownership of the user's entire work",
+    "commercialUse": true,
+    "creditRequiredInWorks": false,
+    "standaloneAssetSale": false,
+    "standaloneAssetRedistribution": false,
+    "sdkLicense": "MIT",
+    "file": "README.txt",
+    "assetTermsFile": null,
+    "sdkTermsFile": "LICENSES.txt",
+    "thirdPartyFile": "LICENSES.txt",
+    "summary": "生成素材は作品への商用組み込み・加工・納品が可能。作品内クレジット任意。素材単体の再配布・販売は対象外。付属SDKは対象ファイルのみMIT。",
+    "proposed": null,
+    "generatorURL": "https://amix-design.com/tl/fab-botanic/",
+    "licenseURL": "https://amix-design.com/tl/fab-botanic/license.html",
+    "termsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html",
+    "assetTermsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html#assets",
+    "presentation": "versioned-online-terms"
+  },
+  "generatorCredit": {
+    "display": "AMIX｜トミナガハルキ",
+    "publisher": {
+      "name": "AMIX",
+      "url": "https://amix-design.com/"
+    },
+    "author": {
+      "name": "トミナガハルキ",
+      "url": "https://amix-design.com/tominaga/"
+    }
+  },
+  "limitations": [
+    "No automatic terrain collision or root snapping.",
+    "Draft/detail refer to tessellation, not a performance guarantee for near/far use.",
+    "Near wind disables frustum culling for displaced meshes; far static mode restores it. Profile large scenes.",
+    "Do not combine files from different asset directories by filename."
+  ],
+  "selection": {
+    "style": "natural",
+    "purpose": "mid",
+    "automaticLOD": false
+  },
+  "modelStyle": "natural"
+}

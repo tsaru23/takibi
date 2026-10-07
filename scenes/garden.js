@@ -20,6 +20,16 @@ const SEASON = {
             maple: 0x000000, pine: 0x1f3a2a, ume: 'bare', stoneTone: 1.25 }
 };
 const BAMBOO_N = 110, CLUSTERS = 3;
+const ROOT = new URL('../', import.meta.url);
+const BAMBOO_DIR = 'assets/plants/vd-bamboo-b0c4849ceaaf82c4a67b/';
+const BAMBOO_CLUMPS = 30;
+/* FABOTANIC の竹（竹類A）に掛ける季節の色（材質の色に掛け算。leaf = 葉、stem = 幹）。冬は葉に雪をのせたように白っぽく */
+const BAMBOO_TINT = {
+  spring: { leaf: [1.7, 2.2, 1.2], stem: [1.1, 1.3, 0.8], em: [0.05, 0.11, 0.03] },
+  summer: { leaf: [1.4, 1.9, 1.3], stem: [0.85, 1.0, 0.75], em: [0.02, 0.08, 0.04] },
+  autumn: { leaf: [2.3, 2.0, 0.9], stem: [1.2, 1.05, 0.65], em: [0.09, 0.08, 0.0] },
+  winter: { leaf: [1.8, 2.1, 2.2], stem: [0.9, 1.05, 1.15], em: [0.07, 0.09, 0.11] }
+};
 
 /* ---------- 竹の揺れ（頂点シェーダー）: 上ほど大きくしなる。幹とは別の InstancedMesh（葉の塊）も同じ式で動かす ---------- */
 const SWAY_GLSL = `
@@ -436,6 +446,54 @@ export default {
       void 0;
     }
 
+    /* --- FABOTANIC の竹（竹類A・約6,300三角形の株）。読めたら上のコード製の竹と入れ替える。
+           株ごとに InstancedMesh（幹と葉の2つ）で置く。風のしなりは付属の VerdantVegetation.js（頂点シェーダー）で、強さは季節と時間で変える --- */
+    let bamboo = null;
+    (async () => {
+      const dirURL = new URL(BAMBOO_DIR, ROOT);
+      const V = await import(new URL('src/VerdantVegetation.js', dirURL).href);
+      if (disposed) return;
+      const asset = await V.loadVerdantAsset(dirURL.href, { windStrength: 3.0, windSpeed: 2.0, gust: 0.3, distanceWind: { enabled: false, near: 12, far: 30 } });
+      if (disposed) { asset.dispose(); return; }
+      asset.root.updateMatrixWorld(true);
+      const br = mulberry32(4711), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
+      const place = [];
+      for (let i = 0; i < BAMBOO_CLUMPS; i++) {
+        let x, z, guard = 0;
+        do {
+          if (i < 20) { x = -13 + br() * 26; z = -12.5 + br() * 7.2; }                                   // 奥の帯
+          else { x = (br() < 0.5 ? -1 : 1) * (7 + br() * 6.5); z = -6 + br() * 6.5; }                  // 左右の端（カメラ側は空ける）
+          guard++;
+        } while ((Math.abs(Math.atan2(x, z)) < 1.05 && Math.hypot(x, z) < 11) && guard < 30);
+        place.push({ x, z, s: 2.3 + br() * 1.3, yaw: br() * 6.28, k: 0.8 + br() * 0.3, lean: (br() - 0.5) * 0.05 });
+      }
+      const ims = [], tintMats = [];
+      asset.root.traverse((o) => {
+        if (!o.isMesh) return;
+        const im = new THREE.InstancedMesh(o.geometry, o.material, place.length);
+        place.forEach((p, i) => {
+          q.setFromEuler(e.set(p.lean, p.yaw, 0)); m4.compose(new THREE.Vector3(p.x, -0.05, p.z), q, new THREE.Vector3(p.s, p.s, p.s)).multiply(o.matrixWorld);
+          im.setMatrixAt(i, m4); im.setColorAt(i, c.setScalar(p.k));
+        });
+        im.frustumCulled = false; root.add(im); ims.push(im);
+        const list = Array.isArray(o.material) ? o.material : [o.material];
+        list.forEach((m) => tintMats.push({ m, key: (m.userData && m.userData.verdantMaterial) || m.name || '', base: m.color.clone() }));
+      });
+      bamboo = { asset, ims, tintMats };
+      root.remove(stalks, clusters); stalks.dispose(); clusters.dispose();
+      applyBambooTint();
+    })().catch((err) => console.warn('[takibi] bamboo asset:', err));
+    function applyBambooTint() {
+      if (!bamboo) return;
+      const t = BAMBOO_TINT[season] || BAMBOO_TINT.summer;
+      bamboo.tintMats.forEach(({ m, key, base }) => {
+        const k = /stem|culm|trunk/i.test(key) ? t.stem : t.leaf;
+        m.color.copy(base).multiply(c3.setRGB(k[0], k[1], k[2]));
+        m.emissive.setRGB(t.em[0], t.em[1], t.em[2]);
+      });
+    }
+    const c3 = new THREE.Color();
+
     /* --- 落ち葉（秋）・花びら（春）・雪だまり（冬） --- */
     const NLEAF = 90;
     const leafTexM = own(texs, mapleTex());
@@ -474,6 +532,7 @@ export default {
       bambooMat2.color.setHex(cfg.bamboo); bambooMat2.emissive.setHex(cfg.bamboo).multiplyScalar(0.22); leafMat.color.setHex(cfg.leaf); leafMat.emissive.setHex(cfg.leaf).multiplyScalar(0.2);
       if (cfg.snow) leafMat.color.lerp(new THREE.Color(0xe4eef6), 0.8);
       U.uWind.value = cfg.wind;
+      applyBambooTint();
       stoneMat.color.setScalar(cfg.stoneTone);
       gLeaf.visible = cfg.groundLeaves > 0; gLeaf.count = cfg.groundLeaves || 1;
       snowPatch.visible = !!cfg.snow; petals.visible = cfg.petals > 0;
@@ -493,11 +552,14 @@ export default {
         const fl = 0.88 + 0.07 * Math.sin(t * 1.3) + 0.05 * Math.sin(t * 2.9 + 1) + 0.03 * Math.sin(t * 6.1);
         lamp.light.intensity = 2.0 * fl; lamp.win.color.setRGB(1.0 * fl, 0.62 * fl, 0.28 * fl); lamp.halo.material.opacity = 0.7 * fl;
         U.uWind.value = cfg.wind * (0.8 + 0.4 * Math.sin(t * 0.07));
+        if (bamboo) { bamboo.asset.wind.strength = 3.0 * cfg.wind * (0.8 + 0.4 * Math.sin(t * 0.07)); bamboo.asset.update(dt, t, ctx.camera); }
       },
       dispose() {
         disposed = true;
         if (SHI.trickle) { try { SHI.trickle.stop(); } catch (e) {} }
         scene.remove(lamp.light);
+        stalks.dispose(); clusters.dispose();
+        if (bamboo) { bamboo.ims.forEach((im) => { root.remove(im); im.dispose(); }); bamboo.asset.dispose(); bamboo = null; }
         if (ground && origGroundColor) ground.material.color.copy(origGroundColor);
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());
         disposeTree(bonsaiRoot);

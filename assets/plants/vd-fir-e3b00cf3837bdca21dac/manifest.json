@@ -1,0 +1,359 @@
+{
+  "suite": "amix-environment",
+  "environmentSpec": "0.1",
+  "generator": "verdant",
+  "format": "verdant-three-package",
+  "textureResolution": 256,
+  "selection": {
+    "style": "natural",
+    "purpose": "far",
+    "automaticLOD": false
+  },
+  "representation": {
+    "kind": "background-tree-crosscards-v1",
+    "referenceQuality": "draft",
+    "referenceTriangles": 78426,
+    "referenceBounds": {
+      "min": [
+        -0.6819343566894531,
+        -0.0011193897807970643,
+        -0.5937997102737427
+      ],
+      "max": [
+        0.667210042476654,
+        2.450000047683716,
+        0.6824028491973877
+      ]
+    },
+    "sourceLeafCount": 15008,
+    "views": 4,
+    "triangles": 8,
+    "primitiveCount": 1,
+    "atlasWidth": 1024,
+    "atlasHeight": 256,
+    "tileSize": 256,
+    "alphaMode": "MASK",
+    "alphaCutoff": 0.3,
+    "static": true,
+    "lighting": "baked soft diffuse; unlit material",
+    "automaticLOD": false,
+    "placementHelper": true,
+    "viewLimitation": "Upright background only. Not overhead or close-up. Four intersecting image planes, not view-dependent impostor selection."
+  },
+  "engineVersion": "4.50.0",
+  "threeRevision": "r185",
+  "units": "metres",
+  "upAxis": "+Y",
+  "model": "models/asset.glb",
+  "species": "fir",
+  "triangles": 8,
+  "vertices": 16,
+  "instances": 1,
+  "windProfile": {
+    "flex": 0.23,
+    "freq": 0.85,
+    "lag": 0.7
+  },
+  "windProfiles": {
+    "cactuscolumn": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "cactuspad": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "palmpinnate": {
+      "flex": 0.34,
+      "freq": 0.78,
+      "lag": 0.78
+    },
+    "palmfan": {
+      "flex": 0.38,
+      "freq": 0.74,
+      "lag": 0.82
+    },
+    "cycad": {
+      "flex": 0.14,
+      "freq": 0.68,
+      "lag": 0.52
+    },
+    "succulent": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "field": {
+      "flex": 1.05,
+      "freq": 1.12,
+      "lag": 0.85
+    },
+    "grass": {
+      "flex": 1.2,
+      "freq": 1.22,
+      "lag": 1
+    },
+    "pampas": {
+      "flex": 1.3,
+      "freq": 0.74,
+      "lag": 1.35
+    },
+    "deadgrass": {
+      "flex": 1,
+      "freq": 0.9,
+      "lag": 1
+    },
+    "bamboo": {
+      "flex": 0.5,
+      "freq": 0.78,
+      "lag": 1.05
+    },
+    "sasa": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "tree": {
+      "flex": 0.25,
+      "freq": 0.8,
+      "lag": 0.8
+    },
+    "oak": {
+      "flex": 0.23,
+      "freq": 0.78,
+      "lag": 0.75
+    },
+    "cherry": {
+      "flex": 0.32,
+      "freq": 0.85,
+      "lag": 0.85
+    },
+    "maple": {
+      "flex": 0.33,
+      "freq": 0.9,
+      "lag": 0.85
+    },
+    "ginkgo": {
+      "flex": 0.29,
+      "freq": 0.84,
+      "lag": 0.8
+    },
+    "zelkova": {
+      "flex": 0.3,
+      "freq": 0.86,
+      "lag": 0.8
+    },
+    "cedar": {
+      "flex": 0.25,
+      "freq": 0.94,
+      "lag": 0.7
+    },
+    "fir": {
+      "flex": 0.23,
+      "freq": 0.85,
+      "lag": 0.7
+    },
+    "pine": {
+      "flex": 0.26,
+      "freq": 0.76,
+      "lag": 0.8
+    },
+    "fern": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "fernb": {
+      "flex": 0.72,
+      "freq": 0.92,
+      "lag": 0.88
+    },
+    "cloverb": {
+      "flex": 0.62,
+      "freq": 1.12,
+      "lag": 0.72
+    },
+    "plumegrassb": {
+      "flex": 1,
+      "freq": 1.05,
+      "lag": 0.95
+    },
+    "finegrassb": {
+      "flex": 0.86,
+      "freq": 1.16,
+      "lag": 0.84
+    },
+    "floweringtreeb": {
+      "flex": 0.48,
+      "freq": 0.82,
+      "lag": 0.7
+    },
+    "succulentb": {
+      "flex": 0,
+      "freq": 0.65,
+      "lag": 0.4
+    },
+    "succulentc": {
+      "flex": 0,
+      "freq": 0.8,
+      "lag": 0.58
+    },
+    "ficus": {
+      "flex": 0.4,
+      "freq": 0.86,
+      "lag": 0.7
+    },
+    "splitleaf": {
+      "flex": 0.35,
+      "freq": 0.82,
+      "lag": 0.72
+    },
+    "hardleaf": {
+      "flex": 0,
+      "freq": 0.72,
+      "lag": 0.42
+    },
+    "dandelion": {
+      "flex": 0.85,
+      "freq": 1.08,
+      "lag": 0.9
+    },
+    "plantain": {
+      "flex": 0.65,
+      "freq": 1,
+      "lag": 0.8
+    },
+    "daisy": {
+      "flex": 0.8,
+      "freq": 1.1,
+      "lag": 0.9
+    },
+    "poppy": {
+      "flex": 1,
+      "freq": 0.9,
+      "lag": 1.05
+    },
+    "yarrow": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "clover": {
+      "flex": 0.6,
+      "freq": 1.18,
+      "lag": 0.7
+    },
+    "meadow": {
+      "flex": 1.05,
+      "freq": 1.2,
+      "lag": 0.9
+    },
+    "meadowb": {
+      "flex": 0.85,
+      "freq": 1.1,
+      "lag": 0.9
+    },
+    "meadowc": {
+      "flex": 1.05,
+      "freq": 0.96,
+      "lag": 1.15
+    }
+  },
+  "windDistance": {
+    "enabled": false,
+    "near": 12,
+    "far": 30,
+    "granularity": "asset"
+  },
+  "features": {
+    "backgroundCrosscards": true,
+    "wind": "none",
+    "distanceGatedWind": false,
+    "instancing": false,
+    "lod": false
+  },
+  "batchHelper": {
+    "file": "src/BackgroundForest.js",
+    "api": "loadBackgroundForest(THREE, GLTFLoader, baseURL, placements, options)",
+    "apiVersion": "1.0",
+    "requires": "Three.js r185",
+    "example": "example/background.html"
+  },
+  "assetId": "vd-fir-e3b00cf3837bdca21dac",
+  "assetSchemaVersion": "1.0",
+  "assetMetadata": "asset.json",
+  "runtime": {
+    "apiVersion": "1.0",
+    "implementationVersion": "4.38.0",
+    "file": "src/VerdantVegetation.js",
+    "sha256": "a6b57eafdd72a343f942e6714ebdb141c5a448c3acbb8417dfe7547fbcf60310",
+    "threeRevision": "r185",
+    "compatibility": "Use this runtime or an explicitly tested compatible adapter; do not replace other packages blindly."
+  },
+  "capabilities": {
+    "staticGLB": true,
+    "rigged": false,
+    "boneAnimation": false,
+    "morphAnimation": false,
+    "collisionMesh": false,
+    "shaderWind": false,
+    "windScope": "none",
+    "distanceGatedWind": false,
+    "backgroundCrosscards": true,
+    "staticBatchHelper": true,
+    "automaticTreeLOD": false,
+    "crossFade": false,
+    "lod": "none",
+    "farDistanceMassPlacementOptimized": false,
+    "gpuInstancing": false
+  },
+  "usageTerms": {
+    "schema": "botanic-fab-usage",
+    "schemaVersion": "1.0",
+    "termsVersion": "1.0.0",
+    "status": "publisher-approved",
+    "policyDigest": "9c794a4be59c407f597ac0a6ea62dd7214253c2ceb71ba46dcd97a1bcc50d94d",
+    "effectiveDate": "2026-09-28",
+    "creator": {
+      "display": "AMIX｜トミナガハルキ",
+      "publisher": {
+        "name": "AMIX",
+        "url": "https://amix-design.com/"
+      },
+      "author": {
+        "name": "トミナガハルキ",
+        "url": "https://amix-design.com/tominaga/"
+      }
+    },
+    "creatorCreditScope": "generator attribution; not a claim of ownership of the user's entire work",
+    "commercialUse": true,
+    "creditRequiredInWorks": false,
+    "standaloneAssetSale": false,
+    "standaloneAssetRedistribution": false,
+    "sdkLicense": "MIT",
+    "file": "README.txt",
+    "assetTermsFile": null,
+    "sdkTermsFile": "LICENSES.txt",
+    "thirdPartyFile": "LICENSES.txt",
+    "summary": "生成素材は作品への商用組み込み・加工・納品が可能。作品内クレジット任意。素材単体の再配布・販売は対象外。付属SDKは対象ファイルのみMIT。",
+    "proposed": null,
+    "generatorURL": "https://amix-design.com/tl/fab-botanic/",
+    "licenseURL": "https://amix-design.com/tl/fab-botanic/license.html",
+    "termsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html",
+    "assetTermsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html#assets",
+    "presentation": "versioned-online-terms"
+  },
+  "generatorCredit": {
+    "display": "AMIX｜トミナガハルキ",
+    "publisher": {
+      "name": "AMIX",
+      "url": "https://amix-design.com/"
+    },
+    "author": {
+      "name": "トミナガハルキ",
+      "url": "https://amix-design.com/tominaga/"
+    }
+  }
+}

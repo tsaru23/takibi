@@ -1,0 +1,15 @@
+{
+  "status": "publisher-approved",
+  "license": "MIT",
+  "files": [
+    "example/index.html",
+    "src/VerdantVegetation.js",
+    "tools/catalog-assets.mjs"
+  ],
+  "excludes": [
+    "editor/plant generator source",
+    "generated models and textures",
+    "third-party libraries"
+  ],
+  "notice": "The files listed here are licensed under MIT; see LICENSES.txt. The asset-only restriction does not override that license."
+}

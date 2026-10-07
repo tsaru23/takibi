@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, makePoints, radialTexture, disposeTree } from './util.js';
 import { fbm3, rockNormalMap, noisedRockGeometry } from './rock.js';
 import { buildTrees, leafTexture } from './trees.js';
+import { loadFarTrees } from './farTrees.js';
 import { makeFireflyPoints } from './firefly.js';
 import { makeSnowPoints } from './snow.js';
 
@@ -86,7 +87,7 @@ export default {
 
   build(ctx) {
     const { scene, root, api, ground, uScale, fireLights, lights, sky } = ctx;
-    let disposed = false, cfg = SEASON.summer, curT = 0, driftKey = '';
+    let disposed = false, cfg = SEASON.summer, curT = 0, driftKey = '', curSeasonKey = '';
     const texs = [], geos = [], mats = [];
     const own = (list, x) => { list.push(x); return x; };
     const rng = mulberry32(8123);
@@ -378,7 +379,7 @@ void main() {
 
     /* --- 入口の外: 木のシルエット・雪だまり --- */
     const mdx = Math.sin(MOON_AZ), mdz = -Math.cos(MOON_AZ);
-    const trees = (() => {
+    const treePts = (() => {
       const pts = []; let guard = 0;
       while (pts.length < 28 && guard++ < 600) {
         const a = PHE + (rng() - 0.5) * 1.5, d = 12 + rng() * 17, x = Math.sin(a) * d, z = -Math.cos(a) * d;
@@ -386,9 +387,17 @@ void main() {
         if (dx * mdx + dz * mdz > 0 && Math.abs(dx * mdz - dz * mdx) < 2.4) continue;   // 月の光の通り道には立てない
         pts.push({ x, z, s: 0.9 + rng() * 1.3, y: -0.05 });
       }
-      return buildTrees(pts, 77, 0.6);
+      return pts;
     })();
+    const trees = buildTrees(treePts, 77, 0.6);   // 仮の木（遠景の木が読めなかったときの代わり）
     root.add(trees.group);
+    // FABOTANIC の遠景の木。読めたら仮の木と入れ替える
+    let far = null;
+    loadFarTrees(ctx, treePts.map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })), { seed: 41, brightness: 1.15 }).then((h) => {
+      if (!h || disposed) { if (h) h.dispose(); return; }
+      far = h; root.add(h.group); trees.group.visible = false;
+      if (curSeasonKey) h.setSeason(curSeasonKey);
+    }).catch((e) => console.warn('[takibi] far trees:', e));
     const snowPatchGeo = own(geos, new THREE.CircleGeometry(0.5, 14)); snowPatchGeo.rotateX(-Math.PI / 2);
     const snowTex = own(texs, radialTexture(128, [[0, 'rgba(255,255,255,0.9)'], [0.5, 'rgba(255,255,255,0.55)'], [1, 'rgba(255,255,255,0)']]));
     const snowMat = own(mats, new THREE.MeshLambertMaterial({ color: 0xcfdcee, emissive: 0x1a2840, map: snowTex, transparent: true, depthWrite: false }));
@@ -469,7 +478,8 @@ void main() {
     }
 
     function applySeason(s) {
-      cfg = SEASON[s];
+      cfg = SEASON[s]; curSeasonKey = s;
+      if (far) far.setSeason(s);
       sky.setMoon(MOON_AZ, cfg.moonEl);
       trees.setColors(cfg.crown, cfg.crownE, cfg.coniE);
       snowPatches.visible = cfg.snow;
@@ -499,6 +509,7 @@ void main() {
         scene.remove(moonSpill, fill);
         if (ground && origGroundColor) ground.material.color.copy(origGroundColor);
         ctx.fireflies.value = 1;
+        if (far) { far.dispose(); far = null; }
         trees.dispose();
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());
         disposeTree(snowPts.points); disposeTree(ffPts.points);

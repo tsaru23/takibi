@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel } from './util.js';
 import { collectFieldEntries, loadField, applyFieldLevel, applyFieldTint } from './forest.js';
 import { makeSnowPoints } from './snow.js';
+import { loadFarTrees } from './farTrees.js';
 
 /* 家の位置（焚火の奥・やや左）と向き（焚火の方へ少し振る）。寸法は家のローカル座標（+Z が玄関側）*/
 const CAB = { x: -3.1, z: -8.6, ry: 0.32 };
@@ -320,7 +321,7 @@ export default {
 
     /* --- 森（仮の木。forest.js と同じ置き方。家のまわりは空ける）--- */
     const treeStyle = [];
-    let foli, trunks, snowFoli;
+    let foli, trunks, snowFoli, treeFallbackOff = false;
     {
       const trunkGeo = own(geos, new THREE.CylinderGeometry(0.08, 0.12, 0.7, 6)); trunkGeo.translate(0, 0.35, 0);
       const cone = (r, h, y) => ({ geo: new THREE.ConeGeometry(r, h, 6), matrix: new THREE.Matrix4().makeTranslation(0, y, 0) });
@@ -347,6 +348,27 @@ export default {
         trunks.setMatrixAt(i, M4); foli.setMatrixAt(i, M4); snowFoli.setMatrixAt(i, M4); treeStyle.push({ ci: Math.floor(rng() * 4), k: 0.55 * (0.8 + rng() * 0.4) });
       });
       foli.frustumCulled = trunks.frustumCulled = snowFoli.frustumCulled = false; snowFoli.visible = false; root.add(trunks, foli, snowFoli);
+    }
+
+    /* --- 遠景の木（FABOTANIC）。読めたら仮の円錐の木と入れ替える。家のまわりとカメラ手前の扇形は空ける --- */
+    let far = null;
+    {
+      const fr = mulberry32(909), fpts = [];
+      let guard = 0;
+      while (fpts.length < 130 && guard++ < 4000) {
+        const ridge = fpts.length >= 50;
+        const a = fr() * Math.PI * 2, r = ridge ? 26 + fr() * 9 : Math.sqrt(16 * 16 + fr() * (28 * 28 - 16 * 16));
+        const x = Math.sin(a) * r, z = Math.cos(a) * r;
+        if (!ridge && r < 21 && Math.abs(Math.atan2(x, z)) < 1.0) continue;
+        if (Math.hypot(x - CAB.x, z - CAB.z) < (ridge ? 7 : 9)) continue;      // 家のまわり
+        fpts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + fr() * 5 : 6 + fr() * 4 });
+      }
+      loadFarTrees(ctx, fpts, { seed: 23 }).then((h) => {
+        if (!h || isStopped()) { if (h) h.dispose(); return; }
+        far = h; root.add(h.group);
+        if (season) h.setSeason(season);
+        foli.visible = trunks.visible = false; treeFallbackOff = true; snowFoli.visible = false;
+      }).catch((e) => console.warn('[takibi] far trees:', e));
     }
 
     /* --- 季節の舞うもの（花びら・落ち葉・雪）と地面の雪・落ち葉 --- */
@@ -416,7 +438,8 @@ export default {
       season = s; cfg = SEASON[s];
       treeStyle.forEach((t, i) => foli.setColorAt(i, COL.setHex(cfg.trees[t.ci % cfg.trees.length]).multiplyScalar(t.k * (cfg.snow ? 1.15 : 1))));
       foli.instanceColor.needsUpdate = true;
-      snowFoli.visible = !!cfg.snow;
+      snowFoli.visible = !!cfg.snow && !treeFallbackOff;
+      if (far) far.setSeason(s);
       snowObjs.forEach((m) => { m.visible = !!cfg.snow; });
       roofLeaves.forEach((m) => { m.visible = !!cfg.leaves; });
       gLeaf.visible = !!cfg.leaves; snowPatch.visible = !!cfg.snow;
@@ -484,10 +507,11 @@ export default {
       },
       dispose() {
         disposed = true;
+        if (far) { far.dispose(); far = null; }
         lights.forEach((l) => scene.remove(l));
         if (ground && origGroundColor) ground.material.color.copy(origGroundColor);
         ctx.fireflies && (ctx.fireflies.value = 1);
-        if (fieldObj) { root.remove(fieldObj.group); fieldObj.asset.dispose(); fieldObj = null; }
+        if (fieldObj) { root.remove(fieldObj.group); fieldObj.group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); }); fieldObj.asset.dispose(); fieldObj = null; }
         [foli, trunks, snowFoli, petals, fallLeaves, gLeaf, snowPatch].forEach((m) => m.dispose && m.dispose());
         root.traverse((o) => { if (o.isInstancedMesh) o.dispose(); });
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());

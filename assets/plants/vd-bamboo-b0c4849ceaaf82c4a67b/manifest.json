@@ -1,0 +1,343 @@
+{
+  "suite": "amix-environment",
+  "environmentSpec": "0.1",
+  "generator": "verdant",
+  "format": "verdant-three-package",
+  "textureResolution": 1024,
+  "selection": {
+    "style": "natural",
+    "purpose": "mid",
+    "automaticLOD": false
+  },
+  "representation": {
+    "kind": "bamboo-strip-lod-v1",
+    "style": "natural",
+    "purpose": "mid",
+    "automaticLOD": false,
+    "noBitmap": true,
+    "referenceHeight": 2.35,
+    "referenceScale": 2.3288706673679305,
+    "static": false,
+    "limitations": "All culm/branch/leaf anchors retained. Original natural near remains unchanged; new culm bases are horizontal. Leaves are open sheets, not solid volumes. Reference is the balanced near shape; sampling can slightly change bounds. No automatic LOD or terrain deformation."
+  },
+  "engineVersion": "4.50.0",
+  "threeRevision": "r185",
+  "units": "metres",
+  "upAxis": "+Y",
+  "model": "models/asset.glb",
+  "species": "bamboo",
+  "triangles": 6320,
+  "vertices": 4920,
+  "instances": 1,
+  "windProfile": {
+    "flex": 0.5,
+    "freq": 0.78,
+    "lag": 1.05
+  },
+  "windProfiles": {
+    "cactuscolumn": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "cactuspad": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "palmpinnate": {
+      "flex": 0.34,
+      "freq": 0.78,
+      "lag": 0.78
+    },
+    "palmfan": {
+      "flex": 0.38,
+      "freq": 0.74,
+      "lag": 0.82
+    },
+    "cycad": {
+      "flex": 0.14,
+      "freq": 0.68,
+      "lag": 0.52
+    },
+    "succulent": {
+      "flex": 0,
+      "freq": 1,
+      "lag": 0
+    },
+    "field": {
+      "flex": 1.05,
+      "freq": 1.12,
+      "lag": 0.85
+    },
+    "grass": {
+      "flex": 1.2,
+      "freq": 1.22,
+      "lag": 1
+    },
+    "pampas": {
+      "flex": 1.3,
+      "freq": 0.74,
+      "lag": 1.35
+    },
+    "deadgrass": {
+      "flex": 1,
+      "freq": 0.9,
+      "lag": 1
+    },
+    "bamboo": {
+      "flex": 0.5,
+      "freq": 0.78,
+      "lag": 1.05
+    },
+    "sasa": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "tree": {
+      "flex": 0.25,
+      "freq": 0.8,
+      "lag": 0.8
+    },
+    "oak": {
+      "flex": 0.23,
+      "freq": 0.78,
+      "lag": 0.75
+    },
+    "cherry": {
+      "flex": 0.32,
+      "freq": 0.85,
+      "lag": 0.85
+    },
+    "maple": {
+      "flex": 0.33,
+      "freq": 0.9,
+      "lag": 0.85
+    },
+    "ginkgo": {
+      "flex": 0.29,
+      "freq": 0.84,
+      "lag": 0.8
+    },
+    "zelkova": {
+      "flex": 0.3,
+      "freq": 0.86,
+      "lag": 0.8
+    },
+    "cedar": {
+      "flex": 0.25,
+      "freq": 0.94,
+      "lag": 0.7
+    },
+    "fir": {
+      "flex": 0.23,
+      "freq": 0.85,
+      "lag": 0.7
+    },
+    "pine": {
+      "flex": 0.26,
+      "freq": 0.76,
+      "lag": 0.8
+    },
+    "fern": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "fernb": {
+      "flex": 0.72,
+      "freq": 0.92,
+      "lag": 0.88
+    },
+    "cloverb": {
+      "flex": 0.62,
+      "freq": 1.12,
+      "lag": 0.72
+    },
+    "plumegrassb": {
+      "flex": 1,
+      "freq": 1.05,
+      "lag": 0.95
+    },
+    "finegrassb": {
+      "flex": 0.86,
+      "freq": 1.16,
+      "lag": 0.84
+    },
+    "floweringtreeb": {
+      "flex": 0.48,
+      "freq": 0.82,
+      "lag": 0.7
+    },
+    "succulentb": {
+      "flex": 0,
+      "freq": 0.65,
+      "lag": 0.4
+    },
+    "succulentc": {
+      "flex": 0,
+      "freq": 0.8,
+      "lag": 0.58
+    },
+    "ficus": {
+      "flex": 0.4,
+      "freq": 0.86,
+      "lag": 0.7
+    },
+    "splitleaf": {
+      "flex": 0.35,
+      "freq": 0.82,
+      "lag": 0.72
+    },
+    "hardleaf": {
+      "flex": 0,
+      "freq": 0.72,
+      "lag": 0.42
+    },
+    "dandelion": {
+      "flex": 0.85,
+      "freq": 1.08,
+      "lag": 0.9
+    },
+    "plantain": {
+      "flex": 0.65,
+      "freq": 1,
+      "lag": 0.8
+    },
+    "daisy": {
+      "flex": 0.8,
+      "freq": 1.1,
+      "lag": 0.9
+    },
+    "poppy": {
+      "flex": 1,
+      "freq": 0.9,
+      "lag": 1.05
+    },
+    "yarrow": {
+      "flex": 0.8,
+      "freq": 1,
+      "lag": 0.9
+    },
+    "clover": {
+      "flex": 0.6,
+      "freq": 1.18,
+      "lag": 0.7
+    },
+    "meadow": {
+      "flex": 1.05,
+      "freq": 1.2,
+      "lag": 0.9
+    },
+    "meadowb": {
+      "flex": 0.85,
+      "freq": 1.1,
+      "lag": 0.9
+    },
+    "meadowc": {
+      "flex": 1.05,
+      "freq": 0.96,
+      "lag": 1.15
+    }
+  },
+  "windDistance": {
+    "enabled": false,
+    "near": 12,
+    "far": 30,
+    "granularity": "asset"
+  },
+  "features": {
+    "backgroundCrosscards": false,
+    "wind": "world-heading-height-bend-v3",
+    "distanceGatedWind": true,
+    "instancing": false,
+    "lod": false
+  },
+  "placement": {
+    "pivot": [
+      0,
+      0,
+      0
+    ],
+    "supportPlaneY": 0,
+    "terrainConforming": false,
+    "mode": "grounded-culms",
+    "noGroundMesh": true
+  },
+  "assetId": "vd-bamboo-b0c4849ceaaf82c4a67b",
+  "assetSchemaVersion": "1.0",
+  "assetMetadata": "asset.json",
+  "runtime": {
+    "apiVersion": "1.0",
+    "implementationVersion": "4.38.0",
+    "file": "src/VerdantVegetation.js",
+    "sha256": "a6b57eafdd72a343f942e6714ebdb141c5a448c3acbb8417dfe7547fbcf60310",
+    "threeRevision": "r185",
+    "compatibility": "Use this runtime or an explicitly tested compatible adapter; do not replace other packages blindly."
+  },
+  "capabilities": {
+    "staticGLB": true,
+    "rigged": false,
+    "boneAnimation": false,
+    "morphAnimation": false,
+    "collisionMesh": false,
+    "shaderWind": true,
+    "windScope": "camera bounds distance / asset or field cell; all distances without camera",
+    "distanceGatedWind": true,
+    "backgroundCrosscards": false,
+    "staticBatchHelper": false,
+    "automaticTreeLOD": false,
+    "crossFade": false,
+    "lod": "none",
+    "farDistanceMassPlacementOptimized": false,
+    "gpuInstancing": false
+  },
+  "usageTerms": {
+    "schema": "botanic-fab-usage",
+    "schemaVersion": "1.0",
+    "termsVersion": "1.0.0",
+    "status": "publisher-approved",
+    "policyDigest": "9c794a4be59c407f597ac0a6ea62dd7214253c2ceb71ba46dcd97a1bcc50d94d",
+    "effectiveDate": "2026-09-28",
+    "creator": {
+      "display": "AMIX｜トミナガハルキ",
+      "publisher": {
+        "name": "AMIX",
+        "url": "https://amix-design.com/"
+      },
+      "author": {
+        "name": "トミナガハルキ",
+        "url": "https://amix-design.com/tominaga/"
+      }
+    },
+    "creatorCreditScope": "generator attribution; not a claim of ownership of the user's entire work",
+    "commercialUse": true,
+    "creditRequiredInWorks": false,
+    "standaloneAssetSale": false,
+    "standaloneAssetRedistribution": false,
+    "sdkLicense": "MIT",
+    "file": "README.txt",
+    "assetTermsFile": null,
+    "sdkTermsFile": "LICENSES.txt",
+    "thirdPartyFile": "LICENSES.txt",
+    "summary": "生成素材は作品への商用組み込み・加工・納品が可能。作品内クレジット任意。素材単体の再配布・販売は対象外。付属SDKは対象ファイルのみMIT。",
+    "proposed": null,
+    "generatorURL": "https://amix-design.com/tl/fab-botanic/",
+    "licenseURL": "https://amix-design.com/tl/fab-botanic/license.html",
+    "termsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html",
+    "assetTermsURL": "https://amix-design.com/tl/fab-botanic/license/1.0.0.html#assets",
+    "presentation": "versioned-online-terms"
+  },
+  "generatorCredit": {
+    "display": "AMIX｜トミナガハルキ",
+    "publisher": {
+      "name": "AMIX",
+      "url": "https://amix-design.com/"
+    },
+    "author": {
+      "name": "トミナガハルキ",
+      "url": "https://amix-design.com/tominaga/"
+    }
+  }
+}

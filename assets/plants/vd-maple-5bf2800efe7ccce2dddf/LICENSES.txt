@@ -1,0 +1,118 @@
+FABOTANIC — 付属コード・第三者ライセンス
+素材の条件：https://amix-design.com/tl/fab-botanic/license/1.0.0.html
+対象の自作コード：SDK-SCOPE.jsonに列挙されたファイルのみ。生成器本体・モデルは対象外です。
+
+以下の原記録にある旧分割ファイル名は、このファイル内の同名セクションを指します。コード配布時は本ファイルとSDK-SCOPE.jsonを保持してください。
+
+=== SDK-LICENSE.md ===
+# ゲーム組み込み用コードの条件
+
+適用範囲は、同じ出力ZIPのSDK-SCOPE.jsonに明記された実装補助JS・サンプルHTML・目録ツールだけです。
+エディター・植物生成器本体・生成モデルには自動で適用しません。第三者部分は「第三者コード・参照ライブラリ」の表示が優先します。
+
+以下のMITライセンスを適用します。
+
+The MIT License
+
+Copyright (c) 2026 AMIX | トミナガハルキ
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+=== THIRD-PARTY-NOTICES.md ===
+# 第三者コード・参照ライブラリ
+
+確認日: 2026-09-28。対象は、この配布版で識別できたコードと参照先です。
+
+| 区分 | 対象と箇所 | 条件・扱い |
+| --- | --- | --- |
+| サンプルの外部依存 | Three.js r185（本体と公式addons）。書き出したサンプルHTMLがCDNから読み込みます | MIT。原文は THREE-r185-LICENSE.txt。本体ファイルは出力ZIPに同梱しません。自前配信・バンドルする場合も、著作権表示と許諾文を保持してください |
+| 本体へ組込み | Mulberry32の短い乱数実装。エディターの乱数生成 | 公開JavaScriptのPublic domain表記、元のC実装のCC0表記を記録。MULBERRY32-NOTICE.txt |
+| 本体へ組込み | Krzysztof NarkowiczのACES近似式。エディターのプレビュー描画と樹木画像の焼き込み | 作者がCC0またはMITを提示。この近似式についてCC0を採用。ACES-FIT-NOTICE.txt |
+| フォント | 端末に入っているフォントをCSSで指定 | フォントファイルは配布しません |
+
+各ライセンスの原文と出典は、条件ページの「第三者ライセンスの原文・出典記録」と、出力ZIPのLICENSES.txtに収録しています。
+利用者のゲームにあるライブラリ・写真・音源等の権利は、この一覧の対象外です。
+AMIXのクレジット表記は、上記の第三者表示を置き換えるものではありません。
+
+## 素材の由来
+植物のメッシュと色テクスチャは、本ツールの生成器が計算して作ります。外部のモデル集や画像素材を読み込んで生成する処理はありません。
+一覧のサムネイルは、本ツールの描画結果です。
+
+
+=== licenses/ACES-FIT-NOTICE.txt ===
+ACES filmic fitted curve — Krzysztof Narkowicz (2016)
+
+Source: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+Checked on 2026-09-28. The author offers this fitted HLSL curve under public
+domain CC0 or MIT. FABOTANIC records use of the CC0 option for this fit.
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/legalcode.en
+
+Locations: the FABOTANIC editor's preview renderer (GLSL fit) and its
+image baking for background trees (JavaScript fit), both built into the
+single-HTML application. Constants: 2.51, 0.03, 2.43, 0.59, 0.14.
+This is the small fitted curve, not the complete Academy ACES reference
+implementation; do not claim full ACES certification or endorsement.
+Adapted to the project's GLSL/JavaScript paths. This notice does not claim
+AMIX authorship of the fit or extend the license to an entire article.
+
+
+=== licenses/MULBERRY32-NOTICE.txt ===
+Mulberry32 / public JavaScript implementation
+
+Public source (fixed commit):
+https://github.com/bryc/code/blob/88c1317ea6f9b25c153afa9c369c365fed11b482/jshash/PRNGs.md#mulberry32
+The public JavaScript source labels the file "License: Public domain."
+
+Original C reference (fixed gist revision):
+https://gist.github.com/tommyettinger/46a874533244883189143505d203312c/fc93b8ad259c09a3635d80ed12a05309120795dc
+The original C file dedicates the code to the public domain under CC0 1.0:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Checked on 2026-09-28 via the sources above. The corresponding expression is
+used in the FABOTANIC editor's random number generator (built into the
+single-HTML application). Original algorithm attributed to Tommy Ettinger;
+JavaScript implementation published by bryc. This notice records matching
+public code; it does not establish the historical route by which code was added.
+The RNG is for procedural layout, not cryptographic security.
+
+This notice is not a new MIT license and does not relicense the public source.
+
+
+=== licenses/THREE-r185-LICENSE.txt ===
+The MIT License
+
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
