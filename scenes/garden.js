@@ -157,6 +157,7 @@ export default {
   id: 'garden',
   label: '庭園・竹藪',
   audio: { autoOn: ['bamboo', 'scenesfx'], reverb: { seconds: 1.6, decay: 3, wet: 0.22 } },
+  props: { logPile: { x: -2.0, z: 0.6, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
 
   build(ctx) {
     const { scene, root, api, ground } = ctx;

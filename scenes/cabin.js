@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel } from './util.js';
 import { collectFieldEntries, loadField, applyFieldLevel, applyFieldTint } from './forest.js';
+import { makeSnowPoints } from './snow.js';
 
 /* 家の位置（焚火の奥・やや左）と向き（焚火の方へ少し振る）。寸法は家のローカル座標（+Z が玄関側）*/
 const CAB = { x: -3.1, z: -8.6, ry: 0.32 };
@@ -23,6 +24,13 @@ const SEASON = {
   summer: { trees: [0x1f5a2a, 0x276b32, 0x184a22], win: 1.0, snow: 0, leaves: 0, petals: false, ff: 1.4 },
   autumn: { trees: [0xc0431b, 0xe07a24, 0xa02a14, 0xd9a12e], win: 1.0, snow: 0, leaves: 1, petals: false, ff: 1 },
   winter: { trees: [0x1a3324, 0x12281c, 0x203c2b], win: 1.3, snow: 1, leaves: 0, petals: false, ff: 1 }
+};
+/* 草地（FABOTANIC）の量。家・丸太の壁・森で三角形を使うので、森（manifest の levels）より絞る。
+   ふつうで全体 30 万三角形以下。カメラ手前の扇形には元から置かない。使う複製は焚火の背後の弧（slots 1〜3）のままで、1 つあたりの密度を下げる */
+const FIELD_LEVELS = {
+  many: { slots: [0, 1, 2, 3, 4], density: 0.3 },
+  normal: { slots: [1, 2, 3], density: 0.38 },
+  few: { slots: [1, 2, 3], density: 0.17 }
 };
 const GROUND_TINT = { spring: [1, 1, 1], summer: [1, 1, 1], autumn: [1, 0.96, 0.9], winter: [2.1, 2.3, 2.7] };
 const LEAF_COLORS = [0xc8471c, 0xe0842a, 0xa02c14, 0xd9a12e];
@@ -345,7 +353,7 @@ export default {
     const NDR = 120;
     const mkDrift = (tex, size, emissive) => { const im = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(size, size)), own(mats, new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.04, side: THREE.DoubleSide, depthWrite: false, emissive })), NDR); im.frustumCulled = false; im.visible = false; root.add(im); return im; };
     const petals = mkDrift(petalT, 0.11, 0x2a1520), fallLeaves = mkDrift(leafT, 0.19, 0x241208);
-    const snowPts = makePoints(700, THREE.NormalBlending, 0.3, uScale); snowPts.points.visible = false; root.add(snowPts.points);
+    const snowPts = makeSnowPoints(700, uScale); snowPts.points.visible = false; root.add(snowPts.points);
     const dd = []; for (let i = 0; i < 700; i++) { const a = rng() * 6.28, r = Math.sqrt(rng()) * 11; dd.push({ x: Math.cos(a) * r, z: Math.sin(a) * r - 2, y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2.2, 2.2), tilt: rnd(0.5, 1.1) }); }
     { const cs1 = [0xffc4d6, 0xffd6e2, 0xf7b0c8]; for (let i = 0; i < NDR; i++) { petals.setColorAt(i, COL.setHex(cs1[i % 3])); fallLeaves.setColorAt(i, COL.setHex(LEAF_COLORS[i % 4])); } }
     const gLeaf = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(0.17, 0.17).rotateX(-Math.PI / 2)), leafMat, 110); gLeaf.frustumCulled = false; gLeaf.visible = false; root.add(gLeaf);
@@ -375,11 +383,11 @@ export default {
     let fieldObj = null, fieldLoading = false, grassLevel = '';
     function ensureField(level) {
       if (level === 'none') { if (fieldObj) fieldObj.group.visible = false; return; }
-      if (fieldObj) { applyFieldLevel(fieldObj, level); fieldObj.group.visible = true; return; }
+      if (fieldObj) { applyFieldLevel(fieldObj, level, FIELD_LEVELS); fieldObj.group.visible = true; return; }
       if (fieldLoading) return; fieldLoading = true;
       collectFieldEntries().then((list) => (list.length ? loadField(list[0], isStopped) : null)).then((f) => {
         if (!f) return; if (isStopped()) { f.asset.dispose(); return; }
-        fieldObj = f; root.add(f.group); applyFieldLevel(f, grassLevel === 'none' ? 'many' : grassLevel); f.group.visible = grassLevel !== 'none'; applyFieldTint(f, season);
+        fieldObj = f; root.add(f.group); applyFieldLevel(f, grassLevel === 'none' ? 'many' : grassLevel, FIELD_LEVELS); f.group.visible = grassLevel !== 'none'; applyFieldTint(f, season);
       }).catch((err) => console.warn('[takibi] field asset:', err));
     }
 

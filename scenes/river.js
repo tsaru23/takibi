@@ -83,7 +83,8 @@ void main() {
     float wd = r.z * 1.05 + 0.11 * max(s, 0.0);
     float tail = step(-r.z * 0.6, s) * exp(-max(s, 0.0) / r.w) * (1.0 - smoothstep(wd * 0.3, wd, abs(d.y)));
     float up = 1.0 - smoothstep(0.0, 0.4, length(d + vec2(r.z * 0.8, 0.0)) - r.z * 0.45);
-    foam = max(foam, max(rim * 0.85, max(tail, up * 0.7)));
+    float con = 1.0 - smoothstep(r.z * 0.95, r.z * 1.3 + 0.06, length(d));   // 岩が水面と接するふち: 白い泡の縁
+    foam = max(foam, max(max(rim * 0.85, con * 0.95), max(tail, up * 0.7)));
   }
   float pn = texture2D(uFoam, p * vec2(0.06, 0.22) + vec2(uTime * 0.02, 0.0)).r;
   float riffle = smoothstep(0.55, 0.8, pn) * smoothstep(0.5, 1.2, edge) * 0.7;      // 瀬: ところどころ白く泡立つ
@@ -136,6 +137,7 @@ export default {
   id: 'river',
   label: '川',
   audio: { autoOn: ['river'], reverb: null },
+  props: { logPile: { x: -2.0, z: 0.45, rotY: 0.45 }, pebbles: false },   // 水際から離す。共通の小石は川の水の中に出るので置かない
 
   build(ctx) {
     const { scene, root, ground, uScale } = ctx;
@@ -232,12 +234,25 @@ export default {
     /* --- 川の中の岩 --- */
     const rockNormal = own(texs, rockNormalMap(256, 29, 5));
     const rockMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.42, metalness: 0, emissive: 0x0a1018, normalMap: rockNormal, normalScale: new THREE.Vector2(1.3, 1.3) }));
+    // 水に濡れた跡: 水面より下と、水面すれすれの帯を暗く青黒くする（水から頭を出して見える）。座標はワールドの高さ
+    rockMat.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying float vTkY;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+  { vec4 tkp = vec4(transformed, 1.0);
+    #ifdef USE_INSTANCING
+      tkp = instanceMatrix * tkp;
+    #endif
+    vTkY = (modelMatrix * tkp).y; }`);
+      sh.fragmentShader = 'varying float vTkY;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+  { float tkWet = 1.0 - smoothstep(${Y_WATER.toFixed(3)}, ${(Y_WATER + 0.2).toFixed(3)}, vTkY);
+    diffuseColor.rgb *= mix(1.0, 0.28, tkWet) * mix(vec3(1.0), vec3(0.75, 0.88, 1.0), tkWet); }`);
+    };
+    rockMat.customProgramCacheKey = () => 'tkriverrock';
     {
       const geo = own(geos, noisedRockGeometry(2, 4.4, 0.26));
       const im = new THREE.InstancedMesh(geo, rockMat, ROCKS.length);
       ROCKS.forEach((r, i) => {
         q.setFromEuler(e.set((rng() - 0.5) * 0.2, rng() * 6, (rng() - 0.5) * 0.2));
-        m4.compose(tmp.set(r.x, Y_WATER + r.ry * 0.35, r.z), q, new THREE.Vector3(r.r * 1.15, r.ry, r.r));
+        m4.compose(tmp.set(r.x, Y_WATER - r.ry * 0.35, r.z), q, new THREE.Vector3(r.r * 1.05, r.ry, r.r * 1.05));   // 水面より下へ沈め、頭だけ出す
         im.setMatrixAt(i, m4); im.setColorAt(i, col.setScalar(0.7 + rng() * 0.5));
       });
       im.frustumCulled = false; root.add(im);

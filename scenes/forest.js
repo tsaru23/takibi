@@ -2,6 +2,7 @@
 // 形式は scenes/index.js のコメントを参照。
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, rgb, radialTexture, mergeGeoms, disposeTree, makePoints, inCameraWedge, HILLS, hillGround } from './util.js';
+import { makeSnowPoints } from './snow.js';
 
 const SEASON_INDEX = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 const ROOT = new URL('../', import.meta.url);   // サイトのルート
@@ -262,9 +263,10 @@ const DEFAULT_LEVELS = {
   normal: { slots: [1, 2, 3], density: 0.6 },
   few: { slots: [1, 2, 3], density: 0.27 }
 };
-export function applyFieldLevel(field, level) {
+// levels: シーンごとの上書き（省略可。manifest の levels より優先）。家など別の物で三角形を使うシーンが、草を絞るのに使う
+export function applyFieldLevel(field, level, levels) {
   if (!field) return;
-  const cfg = (field.entry.levels && field.entry.levels[level]) || DEFAULT_LEVELS[level];
+  const cfg = (levels && levels[level]) || (field.entry.levels && field.entry.levels[level]) || DEFAULT_LEVELS[level];
   field.group.visible = !!cfg;
   if (!cfg) return;
   const dens = clamp(cfg.density, 0.05, 1);
@@ -313,7 +315,7 @@ export default {
       return im;
     }
     const driftMesh = { spring: mkDriftMesh('petal', 0.11), autumn: mkDriftMesh('maple', 0.19) };
-    const driftPts = makePoints(900, THREE.NormalBlending, 0.3, uScale);   // 雪
+    const driftPts = makeSnowPoints(900, uScale);   // 雪
     driftPts.points.visible = false; root.add(driftPts.points);
     let drift = [], driftKey = '';
     const dm4 = new THREE.Matrix4(), dq = new THREE.Quaternion(), de = new THREE.Euler(), dp = new THREE.Vector3(), ds = new THREE.Vector3(), dc = new THREE.Color();

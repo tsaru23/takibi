@@ -109,7 +109,8 @@ float tkN(vec2 p) {
     float k = 0.74 + 0.5 * (0.55 * n1 + 0.3 * n2 + 0.15 * n3);
     vec3 tint = mix(vec3(1.06, 0.97, 0.88), vec3(0.9, 0.97, 1.06), n2);
     diffuseColor.rgb *= k * tint;
-  }`);
+  }`).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+  roughnessFactor = max(roughnessFactor, 0.93);   // 乾いた土: 低い月の光が斜めに当たっても、水面のような光の帯を作らない`);
   };
   mat.customProgramCacheKey = () => 'tksoil';
 }
@@ -176,7 +177,8 @@ export async function start(opts) {
   const ground = new THREE.Mesh(new THREE.CircleGeometry(GROUND_R, 64), groundMat);
   ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-  /* 遠景の丘: 地面の端（世界の果て）を隠す。霧で夜空の色になじませる */
+  /* 遠景の丘: 地面の端（世界の果て）を隠す。霧で夜空の色になじませる（シーンからは ctx.hills で表示・非表示を切り替える） */
+  const hillMeshes = [];
   for (const l of HILLS) {
     const N = 128, P = [], I = [];
     for (let i = 0; i <= N; i++) {
@@ -189,19 +191,21 @@ export async function start(opts) {
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(I);
-    scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: l.color, side: THREE.DoubleSide })));
+    const hm = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: l.color, side: THREE.DoubleSide }));
+    scene.add(hm); hillMeshes.push(hm);
   }
 
   /* 手前の小物: 予備の薪の束、切り株の腰掛け、小石（視界はふさがない位置）。GLB が読めなければ円柱でつくる */
+  let stumpObj = null, stumpY = 0, bundleObj = null, pebbleObj = null;
   {
     if (props && props.stump) {
       const stump = new THREE.Mesh(props.stump, props.stumpMat);
-      stump.position.set(2.05, 0, 0.55); stump.rotation.y = 0.5; scene.add(stump);
+      stump.position.set(2.05, 0, 0.55); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump;
     } else {
       const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
       const cutMat = new THREE.MeshStandardMaterial({ color: 0x7d5f40, roughness: 0.95 });
       const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.33, 0.42, 14), [barkMat, cutMat, cutMat]);
-      stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump);
+      stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump; stumpY = 0.19;
     }
     const bundle = new THREE.Group();
     if (props && props.logs) {
@@ -209,11 +213,11 @@ export async function start(opts) {
       const L = props.logs, halfI = L.findIndex((l) => l.half), full = L.map((l, i) => i).filter((i) => !L[i].half);
       const fi = (k) => (full.length ? full[k % full.length] : 0);
       const LEN = 0.68, rZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
-      const D = (L[fi(0)].thick) * LEN;    // 丸太の太さ
+      const D = (L[fi(0)].dia) * LEN;    // 丸太の太さ（断面の直径。軸の長さを含む thick を使うと、上の段が宙に浮く）
       const lay = [[-D, 0, halfI >= 0 ? halfI : fi(1)], [0, 0, fi(0)], [D, 0, fi(1)], [-D / 2, 1, fi(1)], [D / 2, 1, fi(0)]];
       const br = mulberry32(21);
       lay.forEach(([z, row, vi], i) => {
-        const l = L[vi], isHalf = l.half, r = l.thick * LEN / 2;
+        const l = L[vi], isHalf = l.half, r = l.dia * LEN / 2;
         const m = new THREE.Mesh(l.geo, props.logMat);
         m.scale.setScalar(LEN * (0.94 + br() * 0.1));
         // Y 軸まわりの向き × 軸を水平に倒す回転 × （丸太は軸まわりにランダムに回す。半割は割り面を下に固定）
@@ -230,7 +234,7 @@ export async function start(opts) {
         m.position.set((i % 3 - 1) * 0.04, y, z); m.rotation.y = (i - 2) * 0.05; bundle.add(m);
       });
     }
-    bundle.position.set(-2.0, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle);
+    bundle.position.set(-2.0, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle); bundleObj = bundle;
     const pebGeo = new THREE.IcosahedronGeometry(1, 0);
     const pebbles = new THREE.InstancedMesh(pebGeo, new THREE.MeshStandardMaterial({ color: 0x3a3836, roughness: 0.95, flatShading: true }), 16);
     const pr = mulberry32(5), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler();
@@ -240,7 +244,7 @@ export async function start(opts) {
       m4.compose(new THREE.Vector3(Math.sin(a) * r, s2 * 0.4, Math.cos(a) * r), q, new THREE.Vector3(s2 * 1.3, s2 * 0.7, s2));
       pebbles.setMatrixAt(i, m4);
     }
-    scene.add(pebbles);
+    scene.add(pebbles); pebbleObj = pebbles;
   }
 
   /* 焚火の周りの灰 */
@@ -493,33 +497,75 @@ export async function start(opts) {
 
   /* ---------- シーンの切り替え ---------- */
   let curScene = null, curSceneId = '', curSeason = '', envKey = '';
-  // シーン向けの窓口: fireLights = 焚火の2つの点光源（distance を変えて届く範囲を調整してよい。dispose で戻す）、
-  // lights = {hemi, moon}（環境光と月の光の強さを変えてよい。シーンを離れると元に戻る）、
-  // sky.setMoon(az, el) = 月の位置の上書き（洞窟の入口から月が見えるように。シーンを離れると元に戻る）
+  // シーン向けの窓口（どれも、シーンを離れるとホスト側で元に戻す）:
+  //   fireLights = 焚火の2つの点光源（distance を変えて届く範囲を調整してよい。dispose で戻す）
+  //   lights     = {hemi, moon}（環境光と月の光の強さを変えてよい）
+  //   sky.setMoon(az, el)               = 月の位置の上書き（洞窟の入口から月が見えるように）
+  //   sky.setMoonColor(color, intensity) = 月の見た目と月光の色の上書き（null で解除）
+  //   hills.setVisible(bool)            = 遠景の丘の表示・非表示（海のように水平線を見せたいシーン用）
   const fireLights = []; scene.traverse((o) => { if (o.isPointLight) fireLights.push(o); });
-  const sky = { moon: null, dirty: false, setMoon(az, el) { sky.moon = { az, el }; sky.dirty = true; } };
+  const sky = {
+    moon: null, moonColor: null, dirty: false,
+    setMoon(az, el) { sky.moon = { az, el }; sky.dirty = true; },
+    /* color: 月の見た目（円盤とにじみ）の色。intensity（既定 1）: 月光の強さの倍率。lightColor（省略時は color）: 月光の色 */
+    setMoonColor(color, intensity = 1, lightColor = color) {
+      sky.moonColor = color == null ? null : { color, intensity, light: lightColor };
+      sky.dirty = true;
+    }
+  };
+  const hills = {
+    visible: true,
+    setVisible(v) { hills.visible = !!v; hillMeshes.forEach((h) => { h.visible = hills.visible; }); }
+  };
+  /* 共通の小物の置き場所: シーン定義の props で上書きできる（未指定は既定、null は非表示）。位置は地面の上（y は自動） */
+  const DEFAULT_PROPS = { logPile: { x: -2.0, z: 0.1, rotY: 0.35 }, stump: { x: 2.05, z: 0.55, rotY: 0.5 }, pebbles: true };
+  function applyProps(p) {
+    p = p || {};
+    const pick = (k) => (p[k] === undefined ? DEFAULT_PROPS[k] : p[k]);
+    const lp = pick('logPile'), st = pick('stump');
+    if (bundleObj) { bundleObj.visible = !!lp; if (lp) { bundleObj.position.set(lp.x, 0, lp.z); bundleObj.rotation.y = lp.rotY || 0; } }
+    if (stumpObj) { stumpObj.visible = !!st; if (st) { stumpObj.position.set(st.x, stumpY, st.z); stumpObj.rotation.y = st.rotY || 0; } }
+    if (pebbleObj) pebbleObj.visible = pick('pebbles') !== false;
+  }
+  const fireLight0 = fireLights.map((l) => ({ distance: l.distance, decay: l.decay }));
+  const groundGeo0 = ground.geometry, groundColor0 = ground.material.color.clone();
+  let baseChildren = null;
   const sceneCtx = {
     THREE, scene, renderer, camera, api, util, assets, uScale, isStopped,
-    fireCenter: { x: 0, z: 0 }, root: null, fireLights, lights: { hemi, moon: moonLight }, sky,
+    fireCenter: { x: 0, z: 0 }, root: null, fireLights, lights: { hemi, moon: moonLight }, sky, hills,
     ground, fireflies: ffScale,   // ground: 地面のメッシュ（シーンが穴や色を変えたら dispose で戻す）。fireflies.value: ホタルの数の倍率（1=22匹、最大2）
   };
   function switchScene(id) {
     const def = SCENES.find((s) => s.id === id) || SCENES[0];
     curSceneId = id;
     if (curScene && curScene.def === def) return;
+    if (!baseChildren) baseChildren = new Set(scene.children);   // 共通部分（シーン無しの状態）の物
     if (curScene) {
       try { curScene.inst.dispose(); } catch (err) { console.error(err); }
       scene.remove(curScene.root); disposeTree(curScene.root);
       curScene = null;
     }
+    // 前のシーンが scene 直下に残したもの（ライトなど）を、共通部分の物と落下中の薪以外すべて外す
+    for (const c of scene.children.slice()) {
+      if (baseChildren.has(c) || falling.some((d) => d.mesh === c)) continue;
+      console.warn('[takibi] scene dispose で外されなかった物を外しました:', c.type);
+      scene.remove(c); disposeTree(c);
+    }
+    // 地面・丘・光・月・ホタル・小物を、共通の状態へ戻す（シーンの dispose の戻し忘れがあっても残さない）
+    if (ground.geometry !== groundGeo0) ground.geometry = groundGeo0;
+    ground.material.color.copy(groundColor0); ground.visible = true;
+    hills.setVisible(true);
     ffScale.value = 1;
-    hemi.intensity = 0.5; sky.moon = null; sky.dirty = false; envKey = '';   // シーンが変えた光・月を元に戻す（次の更新で季節の値を入れ直す）
+    hemi.intensity = 0.5; sky.moon = null; sky.moonColor = null; sky.dirty = false; envKey = '';   // シーンが変えた光・月を元に戻す（次の更新で季節の値を入れ直す）
+    fireLights.forEach((l, i) => { l.distance = fireLight0[i].distance; l.decay = fireLight0[i].decay; });
+    applyProps(null);
     const root = new THREE.Group();
     scene.add(root);
     sceneCtx.root = root;
     let inst;
     try { inst = def.build(sceneCtx); } catch (err) { console.error('[takibi] scene build:', err); scene.remove(root); return; }
     curScene = { def, inst, root };
+    applyProps(def.props);
     if (curSeason) inst.setSeason(curSeason);
     if (api.applySceneAudio) api.applySceneAudio(def.audio || {});
   }
@@ -561,6 +607,8 @@ export async function start(opts) {
       moon.position.copy(skyDir(m.az, m.el, SKY_R)); moon.scale.setScalar(m.size);
       moonMat.color.setHex(m.color);
       moonLight.color.setHex(m.light); moonLight.intensity = m.power;
+      const mc = sky.moonColor;
+      if (mc) { moonMat.color.setHex(mc.color); moonLight.color.setHex(mc.light); moonLight.intensity = m.power * mc.intensity; }
       moonLight.position.copy(skyDir(m.az, m.el, 40));
     }
     moon.visible = stars.visible = !!st.nightSky;

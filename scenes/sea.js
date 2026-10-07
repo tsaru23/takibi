@@ -2,6 +2,7 @@
 // 形式は scenes/index.js のコメントを参照。波の寄せる時刻は、環境音「さざ波」の予約時刻（index.html の onEnvEvent {kind:'wave'}）に合わせる。
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, tileNoise, heightToNormalTexture, makePoints } from './util.js';
+import { makeSnowPoints } from './snow.js';
 
 /* ---------- 浜の形（z は奥がマイナス。焚火は原点、カメラは +Z 側から見る）----------
    z > -3 は平ら（y = 0）。沖へ向かってなだらかに下り、y = Y_WATER と交わる z = Z_BASE が静止時の波打ち際。 */
@@ -124,21 +125,19 @@ export default {
   id: 'sea',
   label: '海',
   audio: { autoOn: ['wave'], reverb: null },
+  props: { logPile: { x: -2.0, z: 0.3, rotY: 0.35 } },   // 波が届かない平らな砂の上（z > -3）
 
   build(ctx) {
-    const { scene, root, api, assets, ground, uScale, camera } = ctx;
+    const { root, api, assets, ground, uScale, camera, hills, sky } = ctx;
     let disposed = false;
     const isStopped = () => disposed || ctx.isStopped();
     const texs = [], geos = [], mats = [];
     const own = (list, x) => { list.push(x); return x; };
     let cfg = SEASON.summer, season = '', curT = 0;
 
-    /* --- scene3d.js の共通部分のうち、海の邪魔になるものを控える（dispose で戻す）--- */
-    const hills = scene.children.filter((o) => o.isMesh && o.material && o.material.isMeshBasicMaterial && o.material.side === THREE.DoubleSide && o.material.color.getHex() < 0x101820);
-    hills.forEach((h) => { h.visible = false; });       // 遠景の丘: 海の方角に出ると水平線を隠す
+    /* --- scene3d.js の共通部分のうち、海の邪魔になるものを控える（離れるとホスト側が戻す）--- */
+    hills.setVisible(false);                             // 遠景の丘: 海の方角に出ると水平線を隠す
     if (ground) ground.visible = false;                  // 土の地面のかわりに砂浜を敷く
-    const moonSprite = scene.children.find((o) => o.isSprite && o.material && o.material.toneMapped === false && o.material.map && o.material.map.isCanvasTexture);
-    const moonLight = scene.children.find((o) => o.isDirectionalLight);
 
     /* --- 砂浜 --- */
     const NS = 1.8;
@@ -221,14 +220,14 @@ export default {
       geo.translate(-c.x, -c.y, -c.z);
       const axis = sz.x >= sz.y && sz.x >= sz.z ? 'x' : sz.y >= sz.z ? 'y' : 'z', len = sz[axis], thick = (sz.x + sz.y + sz.z - len) / 2;
       const mat = own(mats, (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).clone());
-      mat.color.setRGB(1.2, 1.15, 1.05); mat.roughness = 1; mat.emissive.setRGB(0.05, 0.05, 0.045);   // 海水にさらされて白っぽく
-      [[-3.6, -2.4, 0.25, 1.5, 0.0], [3.9, -4.2, -0.55, 1.2, -0.12]].forEach(([x, z, yaw, L, tilt]) => {
+      mat.color.setRGB(0.78, 0.74, 0.68); mat.roughness = 1; mat.emissive.setRGB(0.012, 0.012, 0.011);   // 海水にさらされて少し白っぽく（砂より明るくなりすぎない程度）
+      [[-3.1, -1.4, 0.25, 1.5, 0.0], [3.1, -1.5, -0.5, 1.2, 0.0]].forEach(([x, z, yaw, L, tilt]) => {
         const m = new THREE.Mesh(geo, mat), s = L / len; m.scale.setScalar(s);
         if (axis === 'y') m.rotation.set(0, 0, Math.PI / 2); else if (axis === 'z') m.rotation.set(0, Math.PI / 2, 0);
         const holder = new THREE.Group(); holder.add(m);
-        holder.position.set(x, Math.max(sandY(z), Y_WATER) + thick * s * 0.3, z); holder.rotation.set(0, yaw, tilt); root.add(holder);
+        holder.position.set(x, sandY(z) + thick * s * 0.3, z);   // 波の届かない砂浜（波は最大でも z=-2.9 まで、濡れ跡は -2.6 まで）。砂に少し沈める
+         holder.rotation.set(0, yaw, tilt); root.add(holder);
       });
-      mats.push(...[]);
       texs.push(...[mat.map, mat.normalMap, mat.roughnessMap].filter(Boolean));
     })().catch(() => {});
     {
@@ -260,7 +259,7 @@ export default {
       const cc = new THREE.Color(), cs = [0xffc4d6, 0xffd6e2, 0xf7b0c8];
       for (let i = 0; i < NP; i++) { pd.push({ x: rnd(-9, 9), z: rnd(-7, 4), y: rnd(0, 5), vy: rnd(0.25, 0.55), ph: rnd(0, 20), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2, 2), tilt: rnd(0.5, 1.1), s: rnd(0.8, 1.4) }); petals.setColorAt(i, cc.setHex(cs[i % 3])); }
     }
-    const NSNOW = 520, snow = makePoints(NSNOW, THREE.NormalBlending, 0.3, uScale);
+    const NSNOW = 520, snow = makeSnowPoints(NSNOW, uScale);
     snow.points.visible = false; root.add(snow.points);
     const sd = []; for (let i = 0; i < NSNOW; i++) sd.push({ x: rnd(-14, 14), z: rnd(-16, 5), y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3) });
     // 花火: 遠くの空に開き、水面に光の筋を落とす
@@ -336,12 +335,10 @@ export default {
       petals.visible = s === 'spring'; snow.points.visible = s === 'winter';
       if (s !== 'winter') snow.flush(0);
       ctx.fireflies && (ctx.fireflies.value = s === 'summer' ? 0.5 : 1);
+      // 月の見た目: 秋は涼しい白い月（他の季節は scene3d.js の季節の既定のまま。離れると自動で戻る）
+      if (cfg.moon.sprite) sky.setMoonColor(cfg.moon.sprite, 1, cfg.moon.light); else sky.setMoonColor(null);
       bursts.length = 0; fwPts.flush(0);
     }
-
-    /* --- 月の見た目: 秋は涼しい白い月（scene3d.js が季節の切替のたびに色を入れ直すので、秋の間は毎フレーム上書きし、離れるとき元に戻す）--- */
-    const MOON_ORIG = { spring: [0xffe6d6, 0xbcc8f0], summer: [0xffdf95, 0xc8d0f0], autumn: [0xffd9aa, 0xc0c8ea], winter: [0xeef4ff, 0xb4ccff] };
-    function restoreMoon() { const o = MOON_ORIG[api.getState().season]; if (!o) return; if (moonSprite) moonSprite.material.color.setHex(o[0]); if (moonLight) moonLight.color.setHex(o[1]); }
 
     const dm = new THREE.Matrix4(), dq = new THREE.Quaternion(), de = new THREE.Euler(), dp = new THREE.Vector3(), ds = new THREE.Vector3(), tmp = new THREE.Vector3();
     return {
@@ -351,7 +348,6 @@ export default {
         const fl0 = st.started ? clamp(st.flame, 0, 1.3) : 0;
         U.uFlame.value = fl0 * (0.85 + 0.15 * Math.sin(t * 13 + Math.sin(t * 5) * 2)) + 0.12 * (st.ember || 0);
         tmp.copy(U.uMoonDir.value).transformDirection(camera.matrixWorldInverse); U.uMoonV.value.copy(tmp);
-        if (season === 'autumn') { if (moonSprite) moonSprite.material.color.setHex(cfg.moon.sprite); if (moonLight) moonLight.color.setHex(cfg.moon.light); }
         updateWaves(dt, t);
         if (season === 'summer' && st.seasonFx !== false) {
           if (t > fwNext && t - lastExtFw > 20) {   // 音の花火がオフでも、遠くで数発
@@ -385,9 +381,7 @@ export default {
       },
       dispose() {
         disposed = true; offEnv();
-        hills.forEach((h) => { h.visible = true; });
         if (ground) ground.visible = true;
-        restoreMoon();
         ctx.fireflies && (ctx.fireflies.value = 1);
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());
       }

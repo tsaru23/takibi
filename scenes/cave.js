@@ -7,6 +7,7 @@ import { mulberry32, rnd, clamp, makePoints, radialTexture, disposeTree } from '
 import { fbm3, rockNormalMap, noisedRockGeometry } from './rock.js';
 import { buildTrees, leafTexture } from './trees.js';
 import { makeFireflyPoints } from './firefly.js';
+import { makeSnowPoints } from './snow.js';
 
 /* ---------- 洞窟の形（焚火が原点。φ は奥(-Z)が 0、右が正） ---------- */
 const H = 3.5;                                            // 天井の高さ（中央）
@@ -81,6 +82,7 @@ export default {
   id: 'cave',
   label: '洞窟',
   audio: { autoOn: ['cavewind', 'scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 } },
+  props: { logPile: { x: -2.1, z: 0.4, rotY: 0.4 } },   // 洞窟の床（平らな地面）の手前。壁・水たまり・石筍から離れた位置
 
   build(ctx) {
     const { scene, root, api, ground, uScale, fireLights, lights, sky } = ctx;
@@ -183,26 +185,36 @@ export default {
     }
 
     /* --- 鍾乳石（壁際の天井から）と石筍（床から） --- */
+    // 鍾乳石の形: 太さが不規則に変わり（うねり）、ところどころにこぶがあり、先へ向かって細くなって少し曲がる。断面も崩す
     const stalGeo = (() => {
-      const pr = [];
-      for (let k = 0; k <= 10; k++) { const ty = k / 10; pr.push(new THREE.Vector2(0.06 + 0.94 * Math.pow(1 - ty, 1.25), -ty)); }
-      const g = new THREE.LatheGeometry(pr, 8), p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + 0.55 * (fbm3(x * 3 + 2, y * 4, z * 3, 3) - 0.5); p.setXYZ(i, x * k, y, z * k); }
+      const pr = [], NK = 18;
+      for (let k = 0; k <= NK; k++) {
+        const ty = k / NK;
+        let r = (0.06 + 0.94 * Math.pow(1 - ty, 1.25)) * (1 + 0.2 * Math.sin(ty * 15 + 1.3) + 0.1 * Math.sin(ty * 37 + 0.4));
+        r += 0.2 * Math.exp(-Math.pow((ty - 0.3) / 0.07, 2)) + 0.14 * Math.exp(-Math.pow((ty - 0.62) / 0.06, 2));   // こぶ
+        pr.push(new THREE.Vector2(Math.max(0.035, r), -ty));
+      }
+      const g = new THREE.LatheGeometry(pr, 10), p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + 0.9 * (fbm3(x * 3 + 2, y * 4, z * 3, 3) - 0.5);
+        p.setXYZ(i, x * k + 0.18 * y * y, y, z * k - 0.08 * y * y);
+      }
       g.computeVertexNormals();
       return own(geos, g);
     })();
-    const stalMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x8c8c90, roughness: 0.42, normalMap: rockNormal, normalScale: new THREE.Vector2(1.2, 1.2) }));
+    // 岩壁と同じ系統の、濡れて少し光る茶灰色
+    const stalMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x6a5e51, roughness: 0.34, metalness: 0.05, emissive: 0x060504, normalMap: rockNormal, normalScale: new THREE.Vector2(1.2, 1.2) }));
     const dripSpots = [];
     {
       const list = [];
       const add = (a, rr, len, rad, drip) => { wallAt(a, rr, tmp); list.push({ x: tmp.x, y: tmp.y + 0.2, z: tmp.z, len, rad, drip }); };
       // 水滴が落ちる3本（映像の見える範囲に、長めに垂らす）
-      [[-0.78, 4.2], [0.3, 4.3], [-1.45, 4.4]].forEach(([a, rr]) => { add(a, rr, 1.15, 0.2, true); });
+      [[-0.78, 4.2], [0.3, 4.3], [-1.45, 4.4]].forEach(([a, rr]) => { add(a, rr, 1.15, 0.26, true); });
       let n = 0, guard = 0;
       while (n < 15 && guard++ < 200) {
         const a = (rng() - 0.5) * Math.PI * 2 * 0.95 + 0.0, rr = R0(a) * (0.55 + rng() * 0.38);
         if (Math.abs(a - PHE) < 0.4) continue;
-        add(a, rr, 0.35 + rng() * 0.8, 0.11 + rng() * 0.12, false); n++;
+        add(a, rr, 0.35 + rng() * 0.8, 0.15 + rng() * 0.14, false); n++;
       }
       const im = new THREE.InstancedMesh(stalGeo, stalMat, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
       list.forEach((s, i) => {
@@ -258,15 +270,54 @@ export default {
     }
 
     /* --- 水滴と水たまり --- */
-    const puddleMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x07121a, roughness: 0.06, metalness: 0.15, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-    const puddleGeo = own(geos, new THREE.CircleGeometry(1, 24)); puddleGeo.rotateX(-Math.PI / 2);
+    // 水たまり: 縁が不規則な形（形は1つずつ違う）。縁はすっと透け、焚火の暖かい光と入口の月明かりが、かすかに映る
+    const PU = {
+      uTime: { value: 0 }, uFlame: { value: 0 }, uFire: { value: new THREE.Vector3(0, 0.55, 0) },
+      uMoonP: { value: new THREE.Vector3(E0.x + NOUT.x * 1.2, 1.6, E0.z + NOUT.y * 1.2) }
+    };
+    const puddleMat = own(mats, new THREE.ShaderMaterial({
+      uniforms: PU, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      vertexShader: `varying vec3 vW; varying float vE; attribute float aE;
+void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; vE = aE; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+      fragmentShader: `uniform float uTime, uFlame; uniform vec3 uFire, uMoonP;
+varying vec3 vW; varying float vE;
+void main() {
+  vec3 V = normalize(cameraPosition - vW);
+  vec2 q = vW.xz * 9.0;
+  vec3 N = normalize(vec3(0.06 * sin(q.x + uTime * 0.7 + sin(q.y * 1.3)), 1.0, 0.06 * sin(q.y * 1.1 - uTime * 0.6 + sin(q.x * 0.9))));
+  vec3 R = reflect(-V, N);
+  vec3 toF = uFire - vW; float dF = length(toF);
+  float fres = 0.15 + 0.85 * pow(1.0 - max(dot(N, V), 0.0), 3.0);
+  float sm = pow(max(dot(R, normalize(uMoonP - vW)), 0.0), 7.0);
+  float sf = pow(max(dot(R, normalize(toF)), 0.0), 6.0);
+  vec3 col = vec3(0.016, 0.026, 0.034)
+    + vec3(1.0, 0.46, 0.16) * uFlame * (0.045 / (1.0 + dF * dF * 0.1) * fres + 0.5 * sf)
+    + vec3(0.30, 0.45, 0.85) * sm * 0.45 * fres;
+  float a = 0.9 * smoothstep(0.0, 0.45, 1.0 - vE);
+  gl_FragColor = vec4(col, a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`
+    }));
+    const puddleGeos = [0, 1, 2, 3, 4].map((i) => {
+      const NP = 32, P = [0, 0, 0], E = [0], I = [], ph = [i * 1.7, i * 2.9 + 1, i * 0.8 + 2];
+      for (let k = 0; k < NP; k++) {
+        const th = k / NP * Math.PI * 2;
+        const r = 1 + 0.2 * Math.sin(2 * th + ph[0]) + 0.14 * Math.sin(3 * th + ph[1]) + 0.1 * Math.sin(5 * th + ph[2]) + 0.05 * Math.sin(9 * th + ph[0] * 2);
+        P.push(Math.cos(th) * r, 0, Math.sin(th) * r); E.push(1);
+        I.push(0, 1 + (k + 1) % NP, 1 + k);
+      }
+      const g = own(geos, new THREE.BufferGeometry());
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aE', new THREE.Float32BufferAttribute(E, 1)); g.setIndex(I);
+      return g;
+    });
     const ringGeo = own(geos, new THREE.RingGeometry(0.88, 1, 32)); ringGeo.rotateX(-Math.PI / 2);
     const beadGeo = own(geos, new THREE.SphereGeometry(1, 8, 6));
     const streakGeo = own(geos, new THREE.CylinderGeometry(1, 1, 1, 5, 1, true)); streakGeo.translate(0, -0.5, 0);
     const beadMat = own(mats, new THREE.MeshBasicMaterial({ color: 0xc8e0ff, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
     const streakMat = own(mats, new THREE.MeshBasicMaterial({ color: 0xb4d4ff, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide }));
     const drips = dripSpots.map((d, i) => {
-      const pud = new THREE.Mesh(puddleGeo, puddleMat); pud.position.set(d.x, 0.012, d.z); pud.scale.set(0.5 + 0.1 * i, 1, 0.38 + 0.08 * i); root.add(pud);
+      const pud = new THREE.Mesh(puddleGeos[i % puddleGeos.length], puddleMat); pud.position.set(d.x, 0.012, d.z); pud.rotation.y = i * 1.3; pud.scale.set(0.5 + 0.1 * i, 1, 0.38 + 0.08 * i); root.add(pud);
       const bead = new THREE.Mesh(beadGeo, beadMat); bead.position.set(d.x, d.tipY, d.z); bead.visible = false; root.add(bead);
       const streak = new THREE.Mesh(streakGeo, streakMat); streak.visible = false; streak.renderOrder = 6; root.add(streak);
       const rings = [0, 1, 2].map(() => {
@@ -360,7 +411,7 @@ export default {
       const im = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(size, size)), m, NDR); im.frustumCulled = false; im.visible = false; root.add(im); return im;
     };
     const driftMesh = { petal: mkDrift('petal', 0.12, 0xffffff, 0x4a2a38), leaf: mkDrift('maple', 0.2, 0xffffff, 0x3a1c0a) };
-    const snowPts = makePoints(300, THREE.NormalBlending, 0.3, uScale); snowPts.points.visible = false; root.add(snowPts.points);
+    const snowPts = makeSnowPoints(300, uScale); snowPts.points.visible = false; root.add(snowPts.points);
     const FFN = 22;
     const ffPts = makeFireflyPoints(FFN, uScale); ffPts.points.visible = false; root.add(ffPts.points);
     const toWorld = (lat, al, y, out) => out.set(E0.x + TLAT.x * lat + NOUT.x * al, y, E0.z + TLAT.y * lat + NOUT.y * al);
@@ -428,7 +479,7 @@ export default {
     return {
       setSeason(s) { applySeason(s); },
       update(dt, t, st) {
-        curT = t;
+        curT = t; PU.uTime.value = t; PU.uFlame.value = (st.started ? clamp(st.flame, 0, 1.3) : 0) * (0.85 + 0.15 * Math.sin(t * 13 + Math.sin(t * 5) * 2)) + 0.12 * (st.ember || 0);
         let sum = 0; fireLights.forEach((l) => { sum += l.intensity; l.intensity *= FIRE_GAIN; });
         fill.intensity = 0.14 * sum;   // fire3d は毎フレーム強さを入れ直す。洞窟では壁が揺らめいて見えるよう、そのあとに掛ける
         lights.moon.intensity = 0.03;             // 月の光は洞窟の中には差さない（外の淡い光は moonSpill）

@@ -90,7 +90,8 @@ export async function loadProps(assets, aniso) {
       const g = own(normalizeLog(bakedGeometry(m)));
       const bb = g.boundingBox;
       // 半割（割り面が y=0）は、元の y が全部 0 以上 = ここでは x が全部 0 以下
-      return { geo: g, half: bb.max.x < 1e-4, thick: Math.max(bb.max.y - bb.min.y, bb.max.z - bb.min.z) };
+      // thick は fire3d / 焚火の薪の置き方が使う従来の値（軸 Y の長さを含む）。dia は断面の直径（x, z）で、積んだ薪の高さに使う
+      return { geo: g, half: bb.max.x < 1e-4, thick: Math.max(bb.max.y - bb.min.y, bb.max.z - bb.min.z), dia: Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) };
     });
   }
   if (stumpMesh) {
