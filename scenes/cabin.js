@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel } from './util.js';
 import { collectFieldEntries, loadField, applyFieldLevel, applyFieldTint } from './forest.js';
 import { makeSnowPoints } from './snow.js';
-import { loadFarTrees } from './farTrees.js';
+import { loadFarTrees, inSkyClearing } from './farTrees.js';
 
 /* 家の位置（焚火の奥・やや左）と向き（焚火の方へ少し振る）。寸法は家のローカル座標（+Z が玄関側）*/
 const CAB = { x: -3.1, z: -8.6, ry: 0.32 };
@@ -355,13 +355,13 @@ export default {
     {
       const fr = mulberry32(909), fpts = [];
       let guard = 0;
-      while (fpts.length < 130 && guard++ < 4000) {
-        const ridge = fpts.length >= 50;
-        const a = fr() * Math.PI * 2, r = ridge ? 26 + fr() * 9 : Math.sqrt(16 * 16 + fr() * (28 * 28 - 16 * 16));
+      while (fpts.length < 160 && guard++ < 6000) {
+        const ridge = fpts.length >= 90;
+        const a = fr() * Math.PI * 2, r = ridge ? 31 + fr() * 5 : 24 + fr() * 6;
         const x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (!ridge && r < 21 && Math.abs(Math.atan2(x, z)) < 1.0) continue;
-        if (Math.hypot(x - CAB.x, z - CAB.z) < (ridge ? 7 : 9)) continue;      // 家のまわり
-        fpts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + fr() * 5 : 6 + fr() * 4 });
+        if (inSkyClearing(x, z)) continue;                                      // 正面の夜空・家と煙突のうしろは空ける
+        if (Math.hypot(x - CAB.x, z - CAB.z) < 7) continue;
+        fpts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + fr() * 5 : 9 + fr() * 4 });
       }
       loadFarTrees(ctx, fpts, { seed: 23 }).then((h) => {
         if (!h || isStopped()) { if (h) h.dispose(); return; }

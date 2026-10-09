@@ -16,6 +16,13 @@ const FILES = {
 };
 const KINDS = Object.keys(FILES);
 
+/* カメラ正面の夜空（月・星）を木で隠さないための空け方。焚火から見た方位 az（カメラの正面 = 0、右 = +）が
+   この範囲の方向には木を置かない。月は季節で az 0.45〜0.55 にあるので、右側を広めに空ける */
+export function inSkyClearing(x, z) {
+  const az = Math.atan2(x, -z);
+  return az > -0.42 && az < 0.78;
+}
+
 /* 季節ごとの木の構成（割合。合計 1） */
 const MIX = {
   spring: { cherry: 0.42, tree: 0.28, fir: 0.30 },

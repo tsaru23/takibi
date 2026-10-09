@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, rgb, radialTexture, mergeGeoms, disposeTree, makePoints, inCameraWedge, HILLS, hillGround } from './util.js';
 import { makeSnowPoints } from './snow.js';
-import { loadFarTrees } from './farTrees.js';
+import { loadFarTrees, inSkyClearing } from './farTrees.js';
 
 const SEASON_INDEX = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 const ROOT = new URL('../', import.meta.url);   // サイトのルート
@@ -387,16 +387,17 @@ export default {
       }).catch((err) => console.warn('[takibi] plants manifest:', err));
     }
 
-    /* 遠景の木: 手前の輪（16〜28m）と遠景の稜線の上。カメラ手前の扇形は空ける */
+    /* 遠景の木: 手前の輪（24〜30m）と遠景の稜線の上。正面の夜空とカメラ手前の扇形は空ける */
     (function loadFar() {
       const rng = mulberry32(4242), pts = [];
       let guard = 0;
-      while (pts.length < 150 && guard++ < 3000) {
-        const ridge = pts.length >= 55;
-        const a = rng() * Math.PI * 2, r = ridge ? 26 + rng() * 9 : Math.sqrt(16 * 16 + rng() * (28 * 28 - 16 * 16));
+      while (pts.length < 180 && guard++ < 6000) {
+        const ridge = pts.length >= 100;
+        // 手前の輪は 24〜30m（交差した板だと分からない距離）。正面（月・星の方向）には木を置かない
+        const a = rng() * Math.PI * 2, r = ridge ? 31 + rng() * 5 : 24 + rng() * 6;
         const x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (!ridge && r < 21 && Math.abs(Math.atan2(x, z)) < 1.0) continue;
-        pts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + rng() * 5 : 6 + rng() * 4 });
+        if (inSkyClearing(x, z)) continue;
+        pts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + rng() * 5 : 9 + rng() * 4 });
       }
       loadFarTrees(ctx, pts, { seed: 11 }).then((h) => {
         if (!h || isStopped()) { if (h) h.dispose(); return; }
