@@ -1,5 +1,6 @@
 {
   "_comment": "季節キー(spring/summer/autumn/winter)と all に配列を書く。GLB型: { file, count, radiusMin, radiusMax, scale }（file は assets/plants/ からの相対パス）。フィールド型: { type:'field', dir, placements:'ring', count, levels, radius, clearRadius,  windStrength, windSpeed, gust, tint:{ 季節:{ default|素材キー: '#rrggbb' | {color, emissive, emissiveIntensity} } } }。フィールド型は全季節に共通で、季節切替では色だけ変わる。 levels は設定「草の量」ごとの { slots: 使う複製の番号, density: instance の割合 }。なしは何も置かない。",
+  "models": ["koi.glb", "frog.glb", "lotus_leaf.glb", "lotus_flower.glb", "cabin.glb"],
   "spring": [],
   "summer": [],
   "autumn": [],

@@ -175,6 +175,21 @@ export async function loadOptionalModel(assets, file, isStopped) {
     const bb = geo.boundingBox, c = bb.getCenter(new THREE.Vector3()), s = 1 / Math.max(1e-6, ...bb.getSize(new THREE.Vector3()).toArray());
     geo.translate(-c.x, -c.y, -c.z); geo.scale(s, s, s);
     if (!geo.attributes.normal) geo.computeVertexNormals();
-    return { geometry: geo, material: mesh.material };
+    // 最初の Mesh 以外（frog の目・喉、lotus_flower の茎など）も、同じ移動・拡大をかけて extras に入れる
+    const extras = [];
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh || o === mesh) return;
+      const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld); g.translate(-c.x, -c.y, -c.z); g.scale(s, s, s);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      extras.push({ name: o.name, geometry: g, material: o.material });
+    });
+    return { geometry: geo, material: mesh.material, extras };
   } catch (e) { return null; }
+}
+
+/* GLB 由来の材質が持つテクスチャを全部集める（dispose 用） */
+export function materialTextures(m) {
+  const out = [];
+  (Array.isArray(m) ? m : [m]).forEach((mm) => { if (mm) for (const k in mm) { const v = mm[k]; if (v && v.isTexture) out.push(v); } });
+  return out;
 }

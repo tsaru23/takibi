@@ -170,7 +170,7 @@ export default {
   props: { logPile: { x: -2.0, z: 0.6, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
 
   build(ctx) {
-    const { scene, root, api, ground } = ctx;
+    const { scene, root, api, assets, ground } = ctx;
     let disposed = false, season = '', cfg = SEASON.summer, curT = 0;
     const texs = [], geos = [], mats = [];
     const own = (list, x) => { list.push(x); return x; };
@@ -246,30 +246,34 @@ export default {
     const bambooDark = own(mats, new THREE.MeshLambertMaterial({ color: 0x4e5a24 }));
     const woodMat = own(mats, new THREE.MeshLambertMaterial({ color: 0x6b4a2c }));
     const TH_REST = -0.42, TH_TIP = 0.75, TS = 1.9, PIV_Y = 0.85;
-    const tube = new THREE.Group(); tube.position.set(0, PIV_Y, 0); tube.scale.setScalar(TS); sh.add(tube);
-    let waterBox, pourSheet, stream, rings = [];
+    const tube = new THREE.Group(); tube.position.set(0, PIV_Y, 0); sh.add(tube);   // 支点。rotation.z がそのまま傾き
+    // コード製の筒・水は TS 倍の実寸で作るので、拡大した子グループ tubeS に入れる（GLB の筒は TS=1.9 を焼き込み済みなので拡大しない）
+    const tubeS = new THREE.Group(); tubeS.scale.setScalar(TS); tube.add(tubeS);
+    const tubeFB = new THREE.Group(); tubeS.add(tubeFB);        // コード製の筒（GLB が読めたら隠す）
+    const fbSh = new THREE.Group(); sh.add(fbSh);               // コード製の支柱・樋・石・鉢（GLB が読めたら隠す）
+    let waterBox, pourSheet, stream, rings = [], waterY = -0.014;   // waterY: 水の箱の高さ（筒のローカル。TS 倍前）
     {
       const trough = own(geos, new THREE.CylinderGeometry(0.04, 0.04, 0.3, 12, 1, true, Math.PI * 0.9, Math.PI * 1.2)); trough.rotateZ(Math.PI / 2); trough.translate(-0.15, 0, 0);
       const tm = own(mats, new THREE.MeshLambertMaterial({ color: 0x7a8a3c, side: THREE.DoubleSide }));
-      tube.add(new THREE.Mesh(trough, tm));
+      tubeFB.add(new THREE.Mesh(trough, tm));
       const rear = own(geos, new THREE.CylinderGeometry(0.04, 0.04, 0.22, 12)); rear.rotateZ(Math.PI / 2); rear.translate(0.11, 0, 0);
-      tube.add(new THREE.Mesh(rear, bambooMat));
+      tubeFB.add(new THREE.Mesh(rear, bambooMat));
       const ring = own(geos, new THREE.CylinderGeometry(0.044, 0.044, 0.012, 12)); ring.rotateZ(Math.PI / 2);
-      [-0.02, 0.2, -0.28].forEach((x) => { const r = new THREE.Mesh(ring, bambooDark); r.position.x = x; tube.add(r); });
+      [-0.02, 0.2, -0.28].forEach((x) => { const r = new THREE.Mesh(ring, bambooDark); r.position.x = x; tubeFB.add(r); });
       const wg = own(geos, new THREE.BoxGeometry(1, 0.05, 0.07));
-      waterBox = new THREE.Mesh(wg, own(mats, new THREE.MeshLambertMaterial({ color: 0x9fd0f0, emissive: 0x1a3048, transparent: true, opacity: 0.8 }))); waterBox.position.set(-0.01, -0.012, 0); waterBox.visible = false; tube.add(waterBox);
+      waterBox = new THREE.Mesh(wg, own(mats, new THREE.MeshLambertMaterial({ color: 0x9fd0f0, emissive: 0x1a3048, transparent: true, opacity: 0.8 }))); waterBox.position.set(-0.01, -0.012, 0); waterBox.visible = false; tubeS.add(waterBox);
       // 軸と支柱
       const post = own(geos, new THREE.CylinderGeometry(0.026, 0.03, 0.95, 8)); post.translate(0, 0.475, 0);
-      [-0.09, 0.09].forEach((z) => { const p = new THREE.Mesh(post, bambooMat); p.position.set(0, 0, z); sh.add(p); });
+      [-0.09, 0.09].forEach((z) => { const p = new THREE.Mesh(post, bambooMat); p.position.set(0, 0, z); fbSh.add(p); });
       const axle = own(geos, new THREE.CylinderGeometry(0.012, 0.012, 0.24, 8)); axle.rotateX(Math.PI / 2);
-      const ax = new THREE.Mesh(axle, woodMat); ax.position.set(0, PIV_Y, 0); sh.add(ax);
+      const ax = new THREE.Mesh(axle, woodMat); ax.position.set(0, PIV_Y, 0); fbSh.add(ax);
       // 竹の樋（右から左へ、わずかに下る）と支柱
       const fl = own(geos, new THREE.CylinderGeometry(0.05, 0.05, 0.8, 10, 1, true, Math.PI * 0.9, Math.PI * 1.2));
       const flume = new THREE.Mesh(fl, own(mats, new THREE.MeshLambertMaterial({ color: 0x7a8a3c, side: THREE.DoubleSide })));
-      flume.rotation.z = Math.PI / 2 - 0.28; flume.position.set(-0.93, 1.41, 0); sh.add(flume);
+      flume.rotation.z = Math.PI / 2 - 0.28; flume.position.set(-0.93, 1.41, 0); fbSh.add(flume);
       const fp = own(geos, new THREE.CylinderGeometry(0.022, 0.028, 1, 6)); fp.translate(0, 0.5, 0);
-      const fpm = new THREE.Mesh(fp, bambooMat); fpm.position.set(-1.2, 0, 0); fpm.scale.y = 1.45; sh.add(fpm);
-      const fp2 = new THREE.Mesh(fp, bambooMat); fp2.position.set(-0.75, 0, 0); fp2.scale.y = 1.33; sh.add(fp2);
+      const fpm = new THREE.Mesh(fp, bambooMat); fpm.position.set(-1.2, 0, 0); fpm.scale.y = 1.45; fbSh.add(fpm);
+      const fp2 = new THREE.Mesh(fp, bambooMat); fp2.position.set(-0.75, 0, 0); fp2.scale.y = 1.33; fbSh.add(fp2);
       // 落ちる水
       const st = own(geos, new THREE.CylinderGeometry(0.0055, 0.0055, 1, 5)); st.translate(0, -0.5, 0);
       stream = new THREE.Mesh(st, own(mats, new THREE.MeshBasicMaterial({ map: own(texs, stripeTex()), transparent: true, depthWrite: false, opacity: 0.85 }))); stream.position.set(-0.53, 1.29, 0); stream.scale.set(1, 0.2, 1); stream.renderOrder = 3; sh.add(stream);
@@ -277,11 +281,11 @@ export default {
       pourSheet = new THREE.Mesh(sg, own(mats, new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.7, depthWrite: false }))); pourSheet.visible = false; pourSheet.renderOrder = 3; sh.add(pourSheet);
       // 打たれる石
       const sg2 = own(geos, new THREE.CylinderGeometry(0.11, 0.14, 0.6, 9)); sg2.translate(0, 0.3, 0);
-      const stn = new THREE.Mesh(sg2, own(mats, new THREE.MeshStandardMaterial({ color: 0x5c5a54, roughness: 0.95, flatShading: true }))); stn.position.set(0.4, 0, 0); stn.scale.set(1.1, 1, 0.9); sh.add(stn);
+      const stn = new THREE.Mesh(sg2, own(mats, new THREE.MeshStandardMaterial({ color: 0x5c5a54, roughness: 0.95, flatShading: true }))); stn.position.set(0.4, 0, 0); stn.scale.set(1.1, 1, 0.9); fbSh.add(stn);
       // 受けの石鉢（水面は動く波紋）
       const bg = own(geos, new THREE.CylinderGeometry(0.27, 0.3, 0.26, 14)); bg.translate(0, 0.13, 0);
       const bm = own(mats, new THREE.MeshStandardMaterial({ color: 0x5a5852, roughness: 0.95, flatShading: true }));
-      const basin = new THREE.Mesh(bg, bm); basin.position.set(-0.45, 0, 0); sh.add(basin);
+      const basin = new THREE.Mesh(bg, bm); basin.position.set(-0.45, 0, 0); fbSh.add(basin);
       const wm = own(mats, new THREE.MeshStandardMaterial({ color: 0x142634, roughness: 0.08, metalness: 0.2 }));
       const wd = own(geos, new THREE.CircleGeometry(0.22, 20)); wd.rotateX(-Math.PI / 2);
       const wsurf = new THREE.Mesh(wd, wm); wsurf.position.set(-0.45, 0.262, 0); sh.add(wsurf);
@@ -332,7 +336,7 @@ export default {
       tube.rotation.z = th;
       // 水
       const len = fill * 0.27;
-      waterBox.visible = len > 0.003; waterBox.scale.x = Math.max(0.001, len); waterBox.position.x = -len / 2 - 0.012; waterBox.position.y = -0.016 + 0.002;
+      waterBox.visible = len > 0.003; waterBox.scale.x = Math.max(0.001, len); waterBox.position.x = -len / 2 - 0.012; waterBox.position.y = waterY;
       const flowing = a < tF;
       stream.visible = flowing && a > 0.05; stream.scale.y = 0.24;
       if (stream.material.map) stream.material.map.offset.y -= 0.12;
@@ -351,9 +355,10 @@ export default {
     /* --- 石灯籠 --- */
     const lantern = new THREE.Group(); lantern.position.set(LANTERN.x, 0, LANTERN.z); root.add(lantern);
     const stoneMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x74716a, roughness: 0.95, flatShading: true }));
-    const lamp = { light: new THREE.PointLight(0xffa860, 2, 5.5, 2), win: null, halo: null, snowCap: [] };
+    const lamp = { light: new THREE.PointLight(0xffa860, 2, 5.5, 2), win: null, halo: null, snowCap: [], snowMat: null, winMeshes: [], glbMats: [] };
+    const fbLantern = new THREE.Group(); lantern.add(fbLantern);     // コード製の灯籠本体（GLB が読めたら隠す）
     {
-      const add = (geo, y, mat = stoneMat) => { const m = new THREE.Mesh(own(geos, geo), mat); m.position.y = y; lantern.add(m); return m; };
+      const add = (geo, y, mat = stoneMat) => { const m = new THREE.Mesh(own(geos, geo), mat); m.position.y = y; fbLantern.add(m); return m; };
       add(new THREE.CylinderGeometry(0.3, 0.34, 0.12, 6), 0.06);
       add(new THREE.CylinderGeometry(0.09, 0.11, 0.5, 8), 0.37);
       add(new THREE.CylinderGeometry(0.22, 0.16, 0.1, 6), 0.67);
@@ -365,18 +370,58 @@ export default {
       lamp.win = wm;
       [[0, 0.152, 0], [0.152, 0, Math.PI / 2], [0, -0.152, 0], [-0.152, 0, Math.PI / 2]].forEach(([x, z, ry], i) => {
         const w = new THREE.Mesh(own(geos, new THREE.PlaneGeometry(0.15, 0.17)), wm);
-        const isZ = i % 2 === 0; w.position.set(isZ ? 0 : x, 0.87, isZ ? z : 0); w.rotation.y = isZ ? (i === 0 ? 0 : Math.PI) : (i === 1 ? Math.PI / 2 : -Math.PI / 2); lantern.add(w);
+        const isZ = i % 2 === 0; w.position.set(isZ ? 0 : x, 0.87, isZ ? z : 0); w.rotation.y = isZ ? (i === 0 ? 0 : Math.PI) : (i === 1 ? Math.PI / 2 : -Math.PI / 2); lantern.add(w); lamp.winMeshes.push(w);
       });
       const hm = own(mats, new THREE.SpriteMaterial({ map: own(texs, radialTexture(64, [[0, 'rgba(255,190,110,0.9)'], [0.35, 'rgba(255,150,70,0.3)'], [1, 'rgba(255,120,40,0)']])), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
       lamp.halo = new THREE.Sprite(hm); lamp.halo.position.set(0, 0.87, 0); lamp.halo.scale.setScalar(1.3); lantern.add(lamp.halo);
       // 雪（冬）
-      const snowMat = own(mats, new THREE.MeshLambertMaterial({ color: 0xeef4ff, emissive: 0x1c2630 }));
+      const snowMat = lamp.snowMat = own(mats, new THREE.MeshLambertMaterial({ color: 0xeef4ff, emissive: 0x1c2630 }));
       const roofSnow = new THREE.Mesh(own(geos, new THREE.CylinderGeometry(0.0, 0.5, 0.2, 6)), snowMat); roofSnow.position.y = 1.22; lantern.add(roofSnow);
       const topSnow = new THREE.Mesh(own(geos, new THREE.SphereGeometry(0.075, 8, 6)), snowMat); topSnow.scale.y = 0.6; topSnow.position.y = 1.4; lantern.add(topSnow);
       const baseSnow = new THREE.Mesh(own(geos, new THREE.CylinderGeometry(0.24, 0.28, 0.04, 8)), snowMat); baseSnow.position.y = 0.14; lantern.add(baseSnow);
       lamp.snowCap = [roofSnow, topSnow, baseSnow];
       lamp.light.position.set(LANTERN.x, 0.95, LANTERN.z); scene.add(lamp.light);
     }
+
+    /* --- Blender 製の鹿威し・石灯籠（GLB）。読めたらコード製の本体と入れ替え、読めなければコード製のまま。
+           動き・水・波紋・灯りの揺らぎ・雪・季節の色はコード側のまま。鹿威しの筒は TS=1.9 を焼き込んだ実寸なので tube.scale は使わない --- */
+    let shishiGLB = null, lanternGLB = null;
+    function applyLanternTone() { lamp.glbMats.forEach((m) => m.color.setScalar(cfg.stoneTone)); }
+    (async () => {
+      const [g1, g2] = await Promise.all(['shishiodoshi.glb', 'stone_lantern.glb'].map((f) => assets.loadGLTF('assets/models/' + f).catch(() => null)));
+      if (disposed || ctx.isStopped()) { [g1, g2].forEach((g) => g && disposeTree(g.scene)); return; }
+      if (g1) {
+        const sc = g1.scene, tu = sc.getObjectByName('shishi_tube');
+        if (tu && ['shishi_basin', 'shishi_flume', 'shishi_posts', 'shishi_stone'].every((n) => sc.getObjectByName(n))) {
+          tu.removeFromParent(); tu.position.set(0, 0, 0); tube.add(tu);    // 支点（0, 0.85, 0）はコード側の tube に任せる
+          sh.add(sc); tubeFB.visible = false; fbSh.visible = false; shishiGLB = sc;
+          // GLB の筒は内半径 約0.061・縁 y +0.033 の半割りの樋。水の箱を内側に収まる大きさにする（ローカル値。×1.9 で実寸）
+          waterBox.geometry = own(geos, new THREE.BoxGeometry(1, 0.034, 0.04)); waterY = -0.0066;
+        } else disposeTree(sc);
+      }
+      if (g2) {
+        const sc = g2.scene, lt = sc.getObjectByName('lantern_light'), wins = [0, 1, 2].map((i) => sc.getObjectByName('lantern_window_' + i));
+        if (lt && wins.every(Boolean)) {
+          lantern.add(sc); fbLantern.visible = false; lanternGLB = sc;
+          const seen = new Set(); sc.traverse((o) => { if (o.isMesh && !seen.has(o.material)) { seen.add(o.material); lamp.glbMats.push(o.material); } });
+          applyLanternTone();
+          lamp.light.position.set(LANTERN.x, lt.position.y, LANTERN.z); lamp.halo.position.y = lt.position.y;
+          // 窓: 4枚の発光板 → 3つの窓の位置（外向き）に置き直す
+          lamp.winMeshes.forEach((w) => { lantern.remove(w); });
+          lamp.winMeshes = wins.map((wn) => {
+            const px = wn.position.x, pz = wn.position.z, r = Math.hypot(px, pz);
+            const w = new THREE.Mesh(own(geos, new THREE.PlaneGeometry(0.15, 0.17)), lamp.win);
+            w.position.set(px / r * (r + 0.002), wn.position.y, pz / r * (r + 0.002)); w.rotation.y = Math.atan2(px, pz); lantern.add(w); return w;
+          });
+          // 雪の冠: 笠（y 1.00〜1.24・幅 0.97）、宝珠（頂点 1.43）、土台（上面 y 0.12）に合わせる。六角の頂点は ±x
+          lamp.snowCap.forEach((m) => lantern.remove(m));
+          const roofSnow = new THREE.Mesh(own(geos, new THREE.CylinderGeometry(0.09, 0.42, 0.12, 6)), lamp.snowMat); roofSnow.position.y = 1.19; roofSnow.rotation.y = Math.PI / 6;
+          const topSnow = new THREE.Mesh(own(geos, new THREE.SphereGeometry(0.075, 8, 6)), lamp.snowMat); topSnow.scale.y = 0.55; topSnow.position.y = 1.4;
+          const baseSnow = new THREE.Mesh(own(geos, new THREE.CylinderGeometry(0.27, 0.3, 0.04, 6)), lamp.snowMat); baseSnow.position.y = 0.14; baseSnow.rotation.y = Math.PI / 6;
+          lamp.snowCap = [roofSnow, topSnow, baseSnow]; lamp.snowCap.forEach((m) => { m.visible = !!cfg.snow; lantern.add(m); });
+        } else disposeTree(sc);
+      }
+    })().catch((e) => console.warn('[takibi] garden models:', e));
 
     /* --- 縁台と盆栽 --- */
     const stand = new THREE.Group(); stand.position.set(STAND.x, 0, STAND.z); root.add(stand);
@@ -533,7 +578,7 @@ export default {
       if (cfg.snow) leafMat.color.lerp(new THREE.Color(0xe4eef6), 0.8);
       U.uWind.value = cfg.wind;
       applyBambooTint();
-      stoneMat.color.setScalar(cfg.stoneTone);
+      stoneMat.color.setScalar(cfg.stoneTone); applyLanternTone();
       gLeaf.visible = cfg.groundLeaves > 0; gLeaf.count = cfg.groundLeaves || 1;
       snowPatch.visible = !!cfg.snow; petals.visible = cfg.petals > 0;
       lamp.snowCap.forEach((m) => { m.visible = !!cfg.snow; }); standSnow.visible = !!cfg.snow;
@@ -558,6 +603,7 @@ export default {
         disposed = true;
         if (SHI.trickle) { try { SHI.trickle.stop(); } catch (e) {} }
         scene.remove(lamp.light);
+        if (shishiGLB) disposeTree(shishiGLB); if (lanternGLB) disposeTree(lanternGLB);
         stalks.dispose(); clusters.dispose();
         if (bamboo) { bamboo.ims.forEach((im) => { root.remove(im); im.dispose(); }); bamboo.asset.dispose(); bamboo = null; }
         if (ground && origGroundColor) ground.material.color.copy(origGroundColor);

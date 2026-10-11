@@ -1,11 +1,11 @@
 // シーン「ログハウス」。森の中の小さなログハウス（丸太の壁・三角屋根・煙突・ポーチと手すり）の前で焚火。
 // 窓の暖かい光が地面に落ち、ポーチにランタン、横に薪棚、手前に斧の刺さった切り株。周りは森と FABOTANIC の草地。
 // 形式は scenes/index.js のコメントを参照。家は低ポリゴンの丸太の積み重ね（InstancedMesh）。
-// Blender 製に差し替えるとき: assets/models/cabin.glb を置き、assets/plants/manifest.json の "models" に "cabin.glb" を書く（util.loadOptionalModel）。
-//   最初の Mesh の形と材質を、壁・屋根・煙突・ポーチの代わりに使う（窓の光・ドア・ランタン・薪棚はコードのまま）。
-//   玄関（ポーチ側）が +Z、棟の向きが Z、いちばん長い辺が 7m になるよう正規化して、原点（家の中心）に置く。窓は家の前面 x=±1.4, y=1.3 の位置に重ねている。
+// Blender 製の家: assets/models/cabin.glb（manifest の "models" に "cabin.glb" がある）が読めたら、壁・屋根・煙突・ポーチはその1メッシュを使う（util.loadOptionalModel。最長辺 7m が倍率 1.0）。
+//   窓の光・ドア・ランタン・薪棚・冬の雪・秋の屋根の落ち葉はコードのまま（雪と落ち葉は GLB の屋根・手すりの位置に置き直す）。読めなければ、下の丸太の積み重ねの家のまま。
+//   玄関（ポーチ側）が +Z、棟の向きが Z。窓は家の前面 x=±1.45, y=1.3 の位置に重ねている。
 import * as THREE from 'three';
-import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel } from './util.js';
+import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel, materialTextures } from './util.js';
 import { collectFieldEntries, loadField, applyFieldLevel, applyFieldTint } from './forest.js';
 import { makeSnowPoints } from './snow.js';
 import { loadFarTrees, inSkyClearing } from './farTrees.js';
@@ -160,11 +160,12 @@ export default {
     const roofLeafGeo = own(geos, new THREE.PlaneGeometry(0.17, 0.17).rotateX(-Math.PI / 2));
     const leafT = own(texs, leafTex('maple')), petalT = own(texs, leafTex('petal'));
     const leafMat = own(mats, new THREE.MeshLambertMaterial({ map: leafT, alphaTest: 0.5, side: THREE.DoubleSide, emissive: 0x241208 }));
-    const roofLeaves = [];
+    const roofLeaves = [], roofSnowMeshes = [], railSnow = [];   // GLB の屋根・手すりに合わせて置き直す冬の雪・落ち葉
+    let ridgeSnow = null;
     for (const sd of [1, -1]) {
       const pv = new THREE.Group(); pv.position.set(0, Y_RIDGE, ROOF_ZC); pv.rotation.z = -sd * ALPHA; body.add(pv);
       const m = new THREE.Mesh(roofGeo, roofMats); m.position.set(sd * SLANT / 2, -0.05, 0); pv.add(m);
-      const sn = new THREE.Mesh(roofSnowGeo, snowMat); sn.position.set(sd * SLANT / 2, 0.06, 0); sn.visible = false; pv.add(sn); snowObjs.push(sn);
+      const sn = new THREE.Mesh(roofSnowGeo, snowMat); sn.position.set(sd * SLANT / 2, 0.06, 0); sn.visible = false; pv.add(sn); snowObjs.push(sn); roofSnowMeshes.push(sn);
       const lv = new THREE.InstancedMesh(roofLeafGeo, leafMat, 26); lv.visible = false; lv.frustumCulled = false;
       for (let i = 0; i < 26; i++) {
         Q.setFromEuler(E.set((rng() - 0.5) * 0.2, rng() * 6.28, (rng() - 0.5) * 0.2)); M4.compose(V.set(sd * (0.2 + rng() * (SLANT - 0.4)), 0.02 + rng() * 0.01, (rng() - 0.5) * (ROOF_L - 0.4)), Q, SC.setScalar(0.8 + rng() * 0.7));
@@ -174,7 +175,7 @@ export default {
     }
     {
       const rg = own(geos, new THREE.BoxGeometry(0.14, 0.12, ROOF_L + 0.1)); const rm = new THREE.Mesh(rg, darkWood); rm.position.set(0, Y_RIDGE + 0.03, ROOF_ZC); body.add(rm);
-      addSnow(own(geos, new THREE.BoxGeometry(0.34, 0.1, ROOF_L + 0.1)), body, 0, Y_RIDGE + 0.12, ROOF_ZC);
+      ridgeSnow = addSnow(own(geos, new THREE.BoxGeometry(0.34, 0.1, ROOF_L + 0.1)), body, 0, Y_RIDGE + 0.12, ROOF_ZC);
       // 煙突（石積み）
       const cx = 1.15, cz = -0.9, topY = 4.45, botY = 2.0;
       const cg = own(geos, new THREE.BoxGeometry(0.56, topY - botY, 0.56));
@@ -210,7 +211,7 @@ export default {
       });
       const bg = own(geos, new THREE.BoxGeometry(0.04, 0.52, 0.04)), bi = new THREE.InstancedMesh(bg, darkWood, bal.length);
       bal.forEach(([x, z], i) => { M4.makeTranslation(x, 0.78, z); bi.setMatrixAt(i, M4); }); bi.frustumCulled = false; body.add(bi);
-      railTop.forEach(([m, ax, len]) => addSnow(own(geos, new THREE.BoxGeometry(ax === 'x' ? len : 0.1, 0.05, ax === 'x' ? 0.1 : len)), body, m.position.x, 1.1, m.position.z));
+      railTop.forEach(([m, ax, len]) => railSnow.push({ m: addSnow(own(geos, new THREE.BoxGeometry(ax === 'x' ? len : 0.1, 0.05, ax === 'x' ? 0.1 : len)), body, m.position.x, 1.1, m.position.z), ax, len }));
       bx(1.0, 0.12, 0.38, plankMat, 0, 0.18, PORCH_Z + 0.2); bx(1.0, 0.1, 0.34, plankMat, 0, 0.06, PORCH_Z + 0.52);   // 階段
     }
 
@@ -427,8 +428,20 @@ export default {
       const cm = await loadOptionalModel(assets, 'cabin.glb', isStopped);
       if (cm && !isStopped()) {
         const g = own(geos, cm.geometry); g.computeBoundingBox(); const bb = g.boundingBox, s = 7, h = (bb.max.y - bb.min.y) * s;
+        if (cm.material) materialTextures(cm.material).forEach((t) => texs.push(t));
         const mesh = new THREE.Mesh(g, cm.material ? own(mats, cm.material) : woodMat); mesh.scale.setScalar(s); mesh.position.y = h / 2 + Math.max(0, -bb.min.y * 0); cab.add(mesh);
-        body.visible = false; shed.visible = true;
+        // コード製の壁・屋根・煙突・ポーチは隠す。ただし冬の雪（屋根・棟・煙突・手すり）と秋の屋根の落ち葉は body の子なので残す
+        body.traverse((o) => { if (o.isMesh && !snowObjs.includes(o) && !roofLeaves.includes(o)) o.visible = false; });
+        // GLB の屋根は z -3.5〜3.5（棟の長さ 7m。コード製は z -2.65〜3.8）、手すりは前が z 3.10・横が x ±1.75 で z 2.44〜3.10、天板の上面は y 1.08。雪・落ち葉を合わせる
+        const kz = 7 / ROOF_L;
+        roofSnowMeshes.forEach((m) => { m.position.z = -ROOF_ZC; m.scale.z = (7.06) / (ROOF_L + 0.06); });
+        roofLeaves.forEach((m) => { m.position.z = -ROOF_ZC; m.scale.z = kz; });
+        if (ridgeSnow) { ridgeSnow.position.z = 0; ridgeSnow.scale.z = 7.1 / (ROOF_L + 0.1); }
+        railSnow.forEach(({ m, ax, len }) => {
+          if (ax === 'x') { const left = m.position.x < 0, x0 = left ? -1.8 : 0.6, x1 = left ? -0.5 : 1.8; m.position.set((x0 + x1) / 2, 1.105, 3.10); m.scale.x = (x1 - x0) / len; }
+          else { const z0 = D / 2 + R, z1 = 3.10; m.position.z = (z0 + z1) / 2; m.position.y = 1.105; m.scale.z = (z1 - z0) / len; }
+        });
+        shed.visible = true;
       }
     })().catch((e) => console.warn('[takibi] cabin models:', e));
 

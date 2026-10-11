@@ -1,7 +1,7 @@
 // シーン「池」。焚火の右奥〜右側に置いた、夜の池。水面（ノーマルマップ2枚＋フレネル反射の近似）、蓮の葉と花、錦鯉、メダカの群れ、蛙。
 // 形式は scenes/index.js のコメントを参照。水面の反射は Reflector ではなく、空・月・焚火を式で近似する（内蔵GPUでも軽い）。
 import * as THREE from 'three';
-import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, loadOptionalModel } from './util.js';
+import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, loadOptionalModel, materialTextures } from './util.js';
 
 /* ---------- 池の形（焚火の右奥〜右） ----------
    カメラ（0, 1.46, 3.6 から -Z を見る・縦画角55°）は低いので、手前の石囲いの陰にならないよう池を焚火から離し、
@@ -101,13 +101,18 @@ function patchKoi(mat, uKT) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uKT = uKT;
     shader.vertexShader = `attribute vec3 aPh; attribute vec3 aC1; attribute vec3 aC2; uniform float uKT;
-varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed;
+varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed; varying float vWY;
 ` + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+  vec4 tkW = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+  tkW = instanceMatrix * tkW;
+#endif
+  vWY = (modelMatrix * tkW).y;
   vLp = position; vC1 = aC1; vC2 = aC2; vSeed = aPh.z;
   float kw = smoothstep(0.3, -0.75, position.x);
   transformed.z += sin(uKT * aPh.y * 5.5 + aPh.x - position.x * 5.0) * 0.085 * aPh.y * kw * kw
                  + sin(uKT * aPh.y * 5.5 + aPh.x) * 0.012;`);
-    shader.fragmentShader = `varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed;
+    shader.fragmentShader = `varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed; varying float vWY;
 ` + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
   {
     float kn = sin(vLp.x * 8.0 + vSeed * 6.0) + sin(vLp.x * 3.1 - vLp.z * 23.0 + vSeed * 3.0) * 0.8 + sin(vLp.x * 13.0 + vLp.y * 17.0 - vSeed) * 0.5;
@@ -115,6 +120,9 @@ varying vec3 vC1; varying vec3 vC2; varying vec3 vLp; varying float vSeed;
     float top = smoothstep(-0.02, 0.03, vLp.y);
     vec3 kc = mix(vC1, vC2, pat * top);
     kc = mix(kc, vec3(0.92, 0.9, 0.85), smoothstep(-0.02, -0.06, vLp.y) * 0.6);
+    // 水の中は暗く青みがかる（水面 y=-0.06 から深いほど）。水面より上に出た部分はそのまま
+    float dep = smoothstep(-0.06, -0.30, vWY);
+    kc = mix(kc, kc * vec3(0.5, 0.68, 0.88), dep * 0.7);
     diffuseColor.rgb = kc;
   }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   totalEmissiveRadiance += diffuseColor.rgb * 1.0;`);
@@ -372,6 +380,7 @@ export default {
       leafMesh.count = leaves.length;
       if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
     }
+    let leafK = 1;   // GLB の葉は直径 1（半径 0.5）に正規化されるので 2 倍にする
     const lm = new THREE.Matrix4(), lq = new THREE.Quaternion(), le = new THREE.Euler(), lv = new THREE.Vector3(), ls = new THREE.Vector3();
     function updateLeaves(t) {
       for (let i = 0; i < leaves.length; i++) {
@@ -380,7 +389,7 @@ export default {
         const dx = Math.sin(t * 0.13 + l.ph) * 0.03, dz = Math.cos(t * 0.11 + l.ph * 1.3) * 0.03;
         l.cx = l.x + dx; l.cz = l.z + dz;
         lq.setFromEuler(le.set(l.tx + Math.sin(t * 0.7 + l.ph) * 0.015, l.rot + Math.sin(t * 0.1 + l.ph) * 0.15, l.tz + Math.cos(t * 0.8 + l.ph) * 0.015));
-        lm.compose(lv.set(l.cx, l.y, l.cz), lq, ls.setScalar(l.r)); leafMesh.setMatrixAt(i, lm);
+        lm.compose(lv.set(l.cx, l.y, l.cz), lq, ls.setScalar(l.r * leafK)); leafMesh.setMatrixAt(i, lm);
       }
       leafMesh.instanceMatrix.needsUpdate = true;
     }
@@ -393,6 +402,8 @@ export default {
     const coreGeo = own(geos, new THREE.ConeGeometry(0.03, 0.05, 6));
     const coreMat = own(mats, new THREE.MeshLambertMaterial({ color: 0xe6c84a, emissive: 0x504010 }));
     const flowers = new THREE.Group(); root.add(flowers);
+    let flowerA = null;   // lotus_flower.glb が読めたら { geo, mat, lift }。花の直径 1 に正規化されているので FLOWER_K を掛ける
+    const FLOWER_K = 0.2;
     function placeFlowers(n) {
       while (flowers.children.length) flowers.remove(flowers.children[0]);
       const fr = mulberry32(808);
@@ -403,15 +414,21 @@ export default {
         const f = new THREE.Group(), h = 0.26 + fr() * 0.12;
         const st = new THREE.Mesh(stemGeo, stemMat); st.scale.set(1, h + 0.5, 1); st.position.y = -0.5; f.add(st);
         const head = new THREE.Group(); head.position.y = h;
-        head.add(new THREE.Mesh(flowerGeo, petalMat)); const core = new THREE.Mesh(coreGeo, coreMat); core.position.y = 0.045; head.add(core);
-        head.scale.setScalar(1.25); f.add(head);
+        if (flowerA) {
+          // GLB の花は花托とおしべ込み。花の底（がく）を茎の先に合わせ、コードの花托（円錐）は出さない
+          const fm = new THREE.Mesh(flowerA.geo, flowerA.mat); fm.position.y = flowerA.lift; head.add(fm); head.scale.setScalar(FLOWER_K);
+        } else {
+          head.add(new THREE.Mesh(flowerGeo, petalMat)); const core = new THREE.Mesh(coreGeo, coreMat); core.position.y = 0.045; head.add(core);
+          head.scale.setScalar(1.25);
+        }
+        f.add(head);
         f.position.set(x, Y_WATER, z); f.userData.ph = fr() * 6.28;
         flowers.add(f);
       }
     }
 
     /* --- 鯉（InstancedMesh 1つ） --- */
-    const KOI_N = 5, KOI_S = 0.55;
+    const KOI_N = 5; let koiS = 0.55, koiDepth = [0.12, 0.2];   // GLB の鯉は全長 1 に正規化されるので、読めたら koiS を変える
     const uKT = { value: 0 };
     const koiGeo = koiGeometry();
     const koiPh = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3), koiC1 = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3), koiC2 = new THREE.InstancedBufferAttribute(new Float32Array(KOI_N * 3), 3);
@@ -431,7 +448,7 @@ export default {
     const koi = [];
     for (let i = 0; i < KOI_N; i++) {
       const [x, z] = pondXZ(rnd(0, 6.28), Math.sqrt(rnd(0.2, 0.55)));
-      koi.push({ x, z, psi: rnd(0, 6.28), v: 0.2, y: -0.15, pitch: 0, roll: 0, depth: -rnd(0.12, 0.2), tx: x, tz: z, state: 'swim', t0: 0, nextRise: 12 + i * 6 + rnd(0, 12), speed: rnd(0.2, 0.34), wob: rnd(0, 6) });
+      koi.push({ x, z, psi: rnd(0, 6.28), v: 0.2, y: -0.15, pitch: 0, roll: 0, depth: -rnd(0.24, 0.3), tx: x, tz: z, state: 'swim', t0: 0, nextRise: 12 + i * 6 + rnd(0, 12), speed: rnd(0.2, 0.34), wob: rnd(0, 6) });
     }
     let lastRise = -99;
     // 池は焚火の右奥にあり、カメラから水面が見渡せる。池のどこでも泳げる（岸の浅いところだけ避ける）
@@ -470,7 +487,24 @@ export default {
       const g = new THREE.Group(), body = new THREE.Mesh(fp.body, frogMat), eyes = new THREE.Mesh(fp.eyes, eyeMat), throat = new THREE.Mesh(fp.throat, throatMat);
       throat.position.set(0.5, 0.22, 0); throat.scale.set(0.12, 0.1, 0.12);
       g.add(body, eyes, throat); g.scale.setScalar(0.17); g.visible = false; root.add(g);
-      frogs.push({ g, body, throat, state: 'sit', until: 0, leaf: -1, calls: [], t0: 0, dur: 1, from: new THREE.Vector3(), to: new THREE.Vector3(), nextLeaf: -1, psi: 0, active: false });
+      frogs.push({ g, body, eyes, throat, state: 'sit', until: 0, leaf: -1, calls: [], t0: 0, dur: 1, from: new THREE.Vector3(), to: new THREE.Vector3(), nextLeaf: -1, psi: 0, active: false });
+    }
+    // frog.glb が読めたら { lift（体の底を原点に合わせる持ち上げ量）, tp（喉の中心）, tgeo } 。喉は GLB の楕円体を中心に置き直し、膨らませる
+    let frogA = null;
+    const FROG_REF = new THREE.Color(0x5e8a30);
+    function frogTint() {
+      if (!frogA) { frogMat.color.setHex(cfg.frog); return; }
+      const c = new THREE.Color(cfg.frog);   // 春の色を基準（白）にして、季節の色の比を GLB の材質の color に掛ける
+      frogA.bodyMat.color.setRGB(c.r / FROG_REF.r, c.g / FROG_REF.g, c.b / FROG_REF.b);
+    }
+    function setThroat(f, e, br) {
+      if (frogA) {
+        f.throat.scale.set(1 + 1.1 * e + br * 0.25, 1 + 0.9 * e + br * 0.25, 1 + 1.6 * e + br * 0.25);
+        f.throat.position.set(frogA.tp.x + 0.07 * e, frogA.tp.y + 0.02 * e, 0);
+      } else {
+        f.throat.scale.set(0.12 + 0.3 * e + br * 0.3, 0.1 + 0.26 * e + br * 0.3, 0.12 + 0.28 * e + br * 0.3);
+        f.throat.position.set(0.5 + 0.06 * e, 0.22, 0);
+      }
     }
     const nowS = () => performance.now() / 1000;
     const offEnv = api.onEnvEvent ? api.onEnvEvent((ev) => {
@@ -507,10 +541,11 @@ export default {
         f.leaf = pickFreeLeaf(PC.x - 1.2 + i * 0.9, PC.z + 1.4, -1);
         if (f.leaf >= 0) leaves[f.leaf].occ = i;
         f.psi = rnd(0, 6.28);
-        frogMat.color.setHex(cfg.frog);
+        frogTint();
       });
     }
-    function frogLeafPos(f, out) { const l = leaves[f.leaf]; if (!l) return out.set(PC.x, Y_WATER, PC.z); return out.set(l.cx ?? l.x, (l.y ?? Y_WATER) + 0.03, l.cz ?? l.z); }
+    const frogLift = () => (frogA ? 0.004 : 0.03);   // 葉の中心の上（GLB の葉は中心がいちばん低い皿）
+    function frogLeafPos(f, out) { const l = leaves[f.leaf]; if (!l) return out.set(PC.x, Y_WATER, PC.z); return out.set(l.cx ?? l.x, (l.y ?? Y_WATER) + frogLift(), l.cz ?? l.z); }
     const tmpV = new THREE.Vector3();
     function updateFrog(f, i, t) {
       if (!f.active) return;
@@ -521,15 +556,14 @@ export default {
         frogLeafPos(f, f.g.position);
         f.g.rotation.set(0, -f.psi, 0);
         const e = throatLevel(f), br = 0.04 * Math.sin(t * 2.2 + i);
-        f.throat.scale.set(0.12 + 0.3 * e + br * 0.3, 0.1 + 0.26 * e + br * 0.3, 0.12 + 0.28 * e + br * 0.3);
-        f.throat.position.set(0.5 + 0.06 * e, 0.22, 0);
+        setThroat(f, e, br);
         f.body.scale.set(1, 1 + 0.03 * Math.sin(t * 2.2 + i) + 0.05 * e, 1);
         if (t > f.until && cfg.frogs > 0) startJumpOut(f, i, t);
       } else if (f.state === 'jumpOut' || f.state === 'jumpIn') {
         const p = clamp((t - f.t0) / f.dur, 0, 1);
         f.g.position.lerpVectors(f.from, f.to, p); f.g.position.y += 0.2 * 4 * p * (1 - p);
         f.g.rotation.set(0, -f.psi, 0); f.g.rotation.z = (0.5 - p) * 0.9;
-        f.throat.scale.set(0.12, 0.1, 0.12);
+        setThroat(f, 0, 0);
         if (p >= 1) {
           if (f.state === 'jumpOut') {
             ripple(f.to.x, f.to.z, 1.0); f.g.visible = false; f.state = 'hidden'; f.until = t + rnd(6, 12);
@@ -548,7 +582,7 @@ export default {
         f.g.position.y = Y_WATER - 0.01 + 0.02 * Math.sin((t - f.t0) * 6); f.g.rotation.set(0, -f.psi, 0);
         if (t - f.t0 >= f.dur) {
           const l = leaves[f.nextLeaf]; f.leaf = f.nextLeaf; f.state = 'jumpIn'; f.t0 = t; f.dur = 0.4;
-          f.to.set(l.cx ?? l.x, l.y + 0.03, l.cz ?? l.z);
+          f.to.set(l.cx ?? l.x, l.y + frogLift(), l.cz ?? l.z);
         }
       }
     }
@@ -606,22 +640,60 @@ export default {
       m.renderOrder = 5; m.visible = false; root.add(m); return m;
     })();
 
-    /* --- 任意の GLB（assets/models/）があれば、コードの簡易モデルの代わりに使う --- */
-    // 使うファイル名を assets/plants/manifest.json の "models" 配列に書くと読み込む（例 "models": ["koi.glb", "frog.glb"]）
-    // koi.glb: 頭が +X・長さ方向が X の向きで作ってあるもの（体の模様と尾の振りはコード側のシェーダーで付く）
-    // lotus_leaf.glb / lotus_flower.glb / frog.glb: 最初の Mesh の形と材質をそのまま使う（frog は体のみ。目と喉はコードのまま）
+    /* --- Blender 製の GLB（assets/models/）があれば、コードの簡易モデルの代わりに使う。読めなかったものはコード製のまま --- */
+    // 使うファイル名は assets/plants/manifest.json の "models" 配列に書く（util.loadOptionalModel）
+    // koi.glb: 形（頭 +X・全長 1 に正規化）と鱗の法線マップ。体の模様と尾の振りはコード側のシェーダー（koiMat）
+    // lotus_leaf.glb: 直径 1 に正規化 → インスタンスの拡大を 2 倍。材質は季節色を乗算する前提の淡い緑
+    // lotus_flower.glb: 花（花托・おしべ込み）。茎はコードの円柱
+    // frog.glb: 体・目・喉。体長 1 に正規化し、底が原点（葉に接する）になるよう持ち上げる。喉は GLB の楕円体を膨らませる
+    const ownMat = (m) => { materialTextures(m).forEach((t) => own(texs, t)); return own(mats, m); };
     (async () => {
       const [mk, ml, mf, mfr] = await Promise.all(['koi.glb', 'lotus_leaf.glb', 'lotus_flower.glb', 'frog.glb'].map((f) => loadOptionalModel(assets, f, isStopped)));
-      if (isStopped()) { [mk, ml, mf, mfr].forEach((m) => m && m.geometry.dispose()); return; }
+      const all = [mk, ml, mf, mfr].filter(Boolean);
+      if (isStopped()) { all.forEach((m) => { m.geometry.dispose(); m.extras.forEach((x) => x.geometry.dispose()); }); return; }
       if (mk) {
         mk.geometry.setAttribute('aPh', koiPh); mk.geometry.setAttribute('aC1', koiC1); mk.geometry.setAttribute('aC2', koiC2);
-        koiMesh.geometry = mk.geometry; own(geos, mk.geometry); mk.geometry.scale(1, 1, 1);
+        koiMesh.geometry = mk.geometry; own(geos, mk.geometry);
+        const km0 = ownMat(mk.material);
+        if (km0.normalMap) { koiMat.normalMap = km0.normalMap; koiMat.normalScale.set(0.7, 0.7); koiMat.needsUpdate = true; }   // 鱗（模様はコードのまま）
+        koiS = 0.62; koiDepth = [0.25, 0.31]; if (!cfg.ice) koi.forEach((k) => { k.depth = -rnd(koiDepth[0], koiDepth[1]); });   // 背びれの先まで水面（y=-0.06）より下。体の高さは koiS×約±0.2
       }
-      if (ml) { leafMesh.geometry = ml.geometry; own(geos, ml.geometry); if (ml.material) { leafMesh.material = ml.material; own(mats, ml.material); } }
-      if (mf) { flowerGeoSwap = mf; flowers.children.forEach((f) => { const h = f.children[1]; if (h) { h.children[0].geometry = mf.geometry; if (mf.material) h.children[0].material = mf.material; } }); own(geos, mf.geometry); }
-      if (mfr) { frogs.forEach((f) => { f.body.geometry = mfr.geometry; if (mfr.material) f.body.material = mfr.material; }); own(geos, mfr.geometry); }
-    })().catch(() => {});
-    let flowerGeoSwap = null;
+      if (ml) {
+        ml.geometry.computeBoundingBox(); ml.geometry.translate(0, -ml.geometry.boundingBox.min.y, 0);   // 皿の中心（いちばん低い所）が y=0
+        leafMesh.geometry = ml.geometry; own(geos, ml.geometry); leafK = 2;
+        if (ml.material) { leafMesh.material = ownMat(ml.material); }
+      }
+      if (mf) {
+        mf.geometry.computeBoundingBox();
+        flowerA = { geo: own(geos, mf.geometry), mat: ownMat(mf.material), lift: -mf.geometry.boundingBox.min.y };
+        flowerA.mat.emissive.setHex(0x26101a);   // 夜でも花がほのかに見える（コード製の花びらの emissive と同じ考え方）
+        mf.extras.forEach((x) => x.geometry.dispose());   // 茎はコードのものを使う
+        placeFlowers(cfg.flowers);
+      }
+      if (mfr) {
+        const ex = (n) => mfr.extras.find((x) => x.name === n);
+        const eg = ex('frog_eyes'), tg = ex('frog_throat');
+        mfr.geometry.computeBoundingBox();
+        const lift = -mfr.geometry.boundingBox.min.y;
+        const bodyMat = ownMat(mfr.material); bodyMat.emissive.setHex(0x0a1204);
+        frogA = { lift, bodyMat, tp: new THREE.Vector3() };
+        own(geos, mfr.geometry);
+        let eyeM = null, throatM = null, throatGeo = null;
+        if (eg) { own(geos, eg.geometry); eyeM = ownMat(eg.material); eyeM.emissive.setHex(0x120e02); }
+        if (tg) {
+          tg.geometry.computeBoundingBox(); tg.geometry.boundingBox.getCenter(frogA.tp);
+          tg.geometry.translate(-frogA.tp.x, -frogA.tp.y, -frogA.tp.z); frogA.tp.y += lift;
+          throatGeo = own(geos, tg.geometry); throatM = ownMat(tg.material); throatM.emissive.setHex(0x2a2a10);
+        }
+        frogs.forEach((f) => {
+          f.body.geometry = mfr.geometry; f.body.material = bodyMat; f.body.position.y = lift;
+          if (eg) { f.eyes.geometry = eg.geometry; f.eyes.material = eyeM; f.eyes.position.y = lift; }
+          if (tg) { f.throat.geometry = throatGeo; f.throat.material = throatM; } else { f.throat.visible = false; }
+          setThroat(f, 0, 0);
+        });
+        frogTint();
+      }
+    })().catch((e) => console.warn('[takibi] pond models:', e));
 
     /* --- 季節 --- */
     function applySeason(s) {
@@ -636,14 +708,15 @@ export default {
       ice.visible = cfg.ice;
       ctx.fireflies && (ctx.fireflies.value = cfg.ff);
       koi.forEach((k) => { k.state = 'swim'; k.nextRise = curT + rnd(6, 16) + rnd(cfg.riseEvery[0], cfg.riseEvery[1]) * rnd(0.3, 1); });
-      const deep = cfg.ice; koi.forEach((k) => { k.depth = deep ? -rnd(0.75, 0.9) : -rnd(0.12, 0.2); });   // 夏〜秋は水面のすぐ下（氷の下では深く）
+      const deep = cfg.ice; koi.forEach((k) => { k.depth = deep ? -rnd(0.75, 0.9) : -rnd(koiDepth[0], koiDepth[1]); });   // 夏〜秋は水面のすぐ下（氷の下では深く）
     }
 
     /* --- 更新 --- */
     let grassLevel = '', nextLap = 2;
-    const km = new THREE.Matrix4(), kq = new THREE.Quaternion(), ke = new THREE.Euler(), kv = new THREE.Vector3(), ksc = new THREE.Vector3(KOI_S, KOI_S, KOI_S);
+    const km = new THREE.Matrix4(), kq = new THREE.Quaternion(), ke = new THREE.Euler(), kv = new THREE.Vector3(), ksc = new THREE.Vector3(1, 1, 1);
     function updateKoi(dt, t) {
       const deep = cfg.ice;
+      ksc.set(koiS, koiS, koiS);
       koi.forEach((k, i) => {
         const dxT = k.tx - k.x, dzT = k.tz - k.z, dist = Math.hypot(dxT, dzT);
         const spd = deep ? 0.05 : k.speed * (season === 'autumn' ? 0.75 : 1) * (k.state === 'swim' ? 1 : 0.55);
@@ -667,12 +740,12 @@ export default {
         if (k.state === 'rising') {
           const p = clamp((t - k.t0) / 0.9, 0, 1), e = p * p * (3 - 2 * p);
           yT = k.y0 + (-0.12 - k.y0) * e; pT = 0.5 * e;
-          if (p >= 1) { k.state = 'hold'; k.t0 = t; const hx = k.x + Math.cos(k.psi) * KOI_S * 0.5, hz = k.z + Math.sin(k.psi) * KOI_S * 0.5;
+          if (p >= 1) { k.state = 'hold'; k.t0 = t; const hx = k.x + Math.cos(k.psi) * koiS * 0.5, hz = k.z + Math.sin(k.psi) * koiS * 0.5;
             ripple(hx, hz, 1.0); ctxSfx('plop', hx, 1); k.sec = false; }
           else { k.y = yT; }
         } else if (k.state === 'hold') {
           yT = -0.12; pT = 0.5;
-          if (!k.sec && t - k.t0 > 0.3) { k.sec = true; ripple(k.x + Math.cos(k.psi) * KOI_S * 0.45, k.z + Math.sin(k.psi) * KOI_S * 0.45, 0.55); }
+          if (!k.sec && t - k.t0 > 0.3) { k.sec = true; ripple(k.x + Math.cos(k.psi) * koiS * 0.45, k.z + Math.sin(k.psi) * koiS * 0.45, 0.55); }
           if (t - k.t0 > 0.45) { k.state = 'diving'; k.t0 = t; }
         } else if (k.state === 'diving') {
           pT = -0.15;
@@ -706,7 +779,6 @@ export default {
         ke.set(0, -m.h, Math.sin(t * 9 + m.ph) * 0.08); kq.setFromEuler(ke);
         km.compose(kv.set(m.x, y0 - m.dy, m.z), kq, ksc.set(1, 1, 1)); medMesh.setMatrixAt(i, km);
       });
-      ksc.set(KOI_S, KOI_S, KOI_S);
       medMesh.instanceMatrix.needsUpdate = true;
     }
     const fm = new THREE.Matrix4(), fq = new THREE.Quaternion(), fe = new THREE.Euler(), fv = new THREE.Vector3(), fs = new THREE.Vector3();

@@ -36,6 +36,8 @@
 //   api.onEnvEvent(cb) -> 解除関数 : 環境音の予約時刻に同期したイベント {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]}（蛙の喉の動き用）
 //                                   他に {kind:'wave', t, rise, fall, peak}（さざ波の寄せ始め・寄せる秒・引く秒・強さ 0.6〜1）と {kind:'fw', t}（遠くの花火。音の1秒前）
 // GLB: assets/models/ に置いたファイル名を assets/plants/manifest.json の "models" 配列に書くと、util.loadOptionalModel で読める
+//   loadOptionalModel は最初の Mesh を長さ（最大寸法）1・原点中心に正規化して返す。2つ目以降の Mesh は同じ変換をかけて extras に入る（frog の目・喉など）。util.materialTextures(mat) は GLB の材質のテクスチャ一覧（dispose 用）
+//   複数オブジェクトの GLB（garden の shishiodoshi.glb / stone_lantern.glb）は assets.loadGLTF で直接読み、getObjectByName で使う（manifest には書かない）
 // 注意: ライトは root に入れず scene 直下に add し、dispose で外す（fire3d の発光パスが root 全体を一時的に隠すため）。
 import forest from './forest.js';
 import pond from './pond.js';
