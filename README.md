@@ -4,7 +4,7 @@
 
 **使ってみる → https://tsaru23.github.io/takibi/**
 
-![秋の焚火。紅葉が舞っている](docs/screenshot.jpg)
+![秋の森の焚火。もみじに囲まれ、正面に月と星空が見える](docs/screenshot.jpg)
 
 ## 動画の焚火と違うところ
 
