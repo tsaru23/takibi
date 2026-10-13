@@ -55,8 +55,17 @@
   .row label { display:flex; justify-content:space-between; color:var(--dim); margin-bottom:4px; }
   .row output { color:var(--fg); font-variant-numeric:tabular-nums; }
   input[type=range] { width:100%; accent-color:var(--accent); margin:0; }
-  .chk { display:flex; align-items:center; gap:8px; margin:10px 0; cursor:pointer; color:var(--fg); }
-  .chk input { accent-color:var(--accent); width:16px; height:16px; }
+  /* スイッチ（チェックボックス）: 設定パネルのオン・オフはすべてこの見た目にそろえる。ラベルが左、スイッチが右 */
+  .sw { margin:10px 0; }
+  .chk { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0; cursor:pointer; color:var(--fg); }
+  .chk .lb { flex:1; min-width:0; }
+  #panel input[type=checkbox] { -webkit-appearance:none; appearance:none; flex:none; position:relative; width:36px; height:20px; margin:0; border-radius:999px;
+    border:1px solid var(--line); background:rgba(255,190,120,.16); cursor:pointer; transition:background .15s; }
+  #panel input[type=checkbox]::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--dim); transition:transform .15s, background .15s; }
+  #panel input[type=checkbox]:checked { background:rgba(255,154,60,.5); }
+  #panel input[type=checkbox]:checked::after { transform:translateX(16px); background:var(--fg); }
+  #panel input[type=checkbox]:disabled { opacity:.5; cursor:not-allowed; }
+  #panel input[type=checkbox]:focus-visible, #panel button:focus-visible, #panel summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   #panel h2 { margin:0 0 4px; font-size:13px; font-weight:600; color:var(--dim); letter-spacing:.1em; }
   #panel .hint { font-size:11px; color:var(--dim); margin-top:10px; line-height:1.5; }
   #start { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
@@ -67,9 +76,10 @@
   #start p { margin:0; color:var(--dim); font-size:13px; line-height:1.7; }
   body.started #start { display:none; }
   #panel h2 { margin:16px 0 4px; padding-top:10px; border-top:1px solid var(--line); }
-  #secFire > h2 { margin-top:12px; }
-  #secScene > h2 { display:none; }
-  .acch { display:block; width:100%; margin:0; padding:0; border:0; background:none; color:inherit; font:inherit; letter-spacing:inherit; text-align:left; cursor:default; pointer-events:none; }
+  #secScene > h2 { margin-top:0; padding-top:0; border-top:0; }
+  .acch { display:flex; align-items:baseline; gap:10px; width:100%; margin:0; padding:0; border:0; background:none; color:inherit; font:inherit; letter-spacing:inherit; text-align:left; cursor:default; pointer-events:none; }
+  .acch .t { flex:none; }
+  .acch .sum { flex:1; min-width:0; text-align:right; font-size:11px; font-weight:400; letter-spacing:.02em; color:var(--dim); opacity:.85; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .acch .chev { display:none; }
   #sheetHead { display:none; }
   .sp, body.m .pc { display:none; }
@@ -78,10 +88,23 @@
   .seg button { flex:1; padding:7px 0; background:transparent; border:0; color:var(--dim); cursor:pointer; font:inherit; }
   .seg button.on { background:rgba(255,154,60,.25); color:var(--fg); }
   .ehead { display:flex; align-items:center; gap:8px; color:var(--fg); margin-bottom:4px; }
-  .ehead span { flex:1; }
+  .ehead .nm { flex:1; min-width:0; }
   .ehead output { color:var(--dim); font-variant-numeric:tabular-nums; }
-  .ehead input { accent-color:var(--accent); width:16px; height:16px; margin:0; }
-  .note { font-size:11px; color:var(--dim); margin:2px 0 0 24px; }
+  .tag { display:none; margin-left:6px; padding:0 6px; border:1px solid var(--line); border-radius:999px; font-size:10px; line-height:16px; color:var(--dim); vertical-align:1px; white-space:nowrap; }
+  .tag.on { display:inline-block; }
+  .note { font-size:11px; color:var(--dim); margin:2px 0 0; line-height:1.5; }
+  .sub { margin:14px 0 2px; font-size:12px; color:var(--dim); letter-spacing:.08em; }
+  .empty { font-size:11px; color:var(--dim); margin:4px 0 8px; }
+  details.more { margin:8px 0 2px; }
+  details.more > summary { cursor:pointer; color:var(--dim); font-size:12px; letter-spacing:.06em; padding:4px 0; list-style:none; display:flex; align-items:center; gap:8px; }
+  details.more > summary::-webkit-details-marker { display:none; }
+  details.more > summary::before { content:''; width:6px; height:6px; border-right:2px solid var(--dim); border-bottom:2px solid var(--dim); transform:rotate(-45deg); transition:transform .2s; }
+  details.more[open] > summary::before { transform:rotate(45deg); }
+  .btn { display:block; width:100%; padding:9px 12px; border-radius:8px; border:1px solid var(--line); background:rgba(40,24,14,.9); color:var(--fg); font:inherit; cursor:pointer; }
+  .btn:hover { border-color:rgba(255,190,120,.5); }
+  .seg.three button { line-height:1.3; padding:7px 2px; font-size:12px; }
+  .seg.three button:first-child { flex:2.3; }
+  #envSfx { margin-top:14px; padding-top:4px; border-top:1px solid var(--line); }
   .row.off { opacity:.4; }
   .ic { display:inline-flex; vertical-align:-3px; }
   .ic svg { width:1.15em; height:1.15em; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
@@ -122,9 +145,8 @@
   body.m .row { margin:12px 0; }
   body.m .row label { margin-bottom:2px; min-height:24px; align-items:center; }
   body.m #panel h2 { margin:0; padding:0; border-top:1px solid var(--line); font-size:15px; }
-  body.m #secFire > h2, body.m #secScene > h2 { display:block; margin:0; }
   body.m #secScene > h2 { border-top:0; }
-  body.m .acch { pointer-events:auto; display:flex; align-items:center; justify-content:space-between; min-height:52px; cursor:pointer; color:var(--fg); letter-spacing:.06em; touch-action:manipulation; }
+  body.m .acch { pointer-events:auto; display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:52px; cursor:pointer; color:var(--fg); letter-spacing:.06em; touch-action:manipulation; }
   body.m .acch .chev { display:block; width:10px; height:10px; border-right:2px solid var(--dim); border-bottom:2px solid var(--dim); transform:rotate(45deg); margin:-4px 6px 0 0; transition:transform .2s; }
   body.m .acc.shut .acch .chev { transform:rotate(-45deg); margin:0 6px 0 0; }
   body.m .acc.shut > .accb { display:none; }
@@ -132,11 +154,21 @@
   body.m select { min-height:48px; padding:0 12px; font-size:16px; }
   body.m .seg button { min-height:48px; padding:0 4px; font-size:15px; }
   body.m .seg { border-radius:10px; }
-  body.m .chk { min-height:48px; margin:2px 0; gap:12px; font-size:15px; }
-  body.m .chk input, body.m .ehead input { width:26px; height:26px; flex:none; }
+  body.m .acch .sum { font-size:13px; }
+  body.m .sw { margin:6px 0; }
+  body.m .chk { min-height:48px; gap:12px; font-size:15px; }
+  body.m #panel input[type=checkbox] { width:52px; height:30px; }
+  body.m #panel input[type=checkbox]::after { top:2px; left:2px; width:24px; height:24px; }
+  body.m #panel input[type=checkbox]:checked::after { transform:translateX(22px); }
+  body.m .btn { min-height:48px; font-size:15px; }
+  body.m .sub { font-size:13px; }
+  body.m .empty { font-size:13px; }
+  body.m details.more > summary { min-height:44px; font-size:14px; }
+  body.m .tag { font-size:11px; }
+  body.m .seg.three button { font-size:13px; }
   body.m .ehead { min-height:44px; font-size:15px; }
   body.m .ehead output { font-size:14px; }
-  body.m .note { font-size:13px; margin-left:38px; }
+  body.m .note { font-size:13px; }
   body.m #panel .hint { font-size:13px; line-height:1.7; margin:14px 0 4px; }
   body.m input[type=range] { -webkit-appearance:none; appearance:none; height:44px; background:transparent; cursor:pointer; touch-action:pan-y; }
   body.m input[type=range]::-webkit-slider-runnable-track { height:6px; border-radius:3px; background:rgba(255,190,120,.28); }
@@ -170,34 +202,52 @@
   <div id="sheetHead" role="button" tabindex="0" aria-controls="panelBody" aria-expanded="false" aria-label="設定を開く"><i class="grab"></i><span class="st">設定</span></div>
   <div id="panelBody">
   <section class="acc" id="secScene">
-    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">シーンと季節</span><i class="chev"></i></button></h2>
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">シーン</span><span class="sum" id="sumScene"></span><i class="chev"></i></button></h2>
     <div class="accb">
-      <div class="row" id="sceneRow" style="display:none"><label><span>シーン</span></label><select id="sceneSel"></select></div>
-      <div class="seg" id="seasonSeg"></div>
-      <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
-      <label class="chk"><input type="checkbox" id="fireflies"> ホタル</label>
-      <label class="chk"><input type="checkbox" id="nightSky"> 夜空（星・月・流れ星）</label>
+      <div class="row" id="sceneRow" style="display:none"><select id="sceneSel" aria-label="シーン"></select></div>
+      <div class="row"><label><span>季節</span></label><div class="seg" id="seasonSeg"></div></div>
+      <div class="sw"><label class="chk"><span class="lb">季節の演出</span><input type="checkbox" id="seasonFx"></label></div>
+      <div class="sw"><label class="chk"><span class="lb">ホタル</span><input type="checkbox" id="fireflies"></label></div>
+      <div class="sw"><label class="chk"><span class="lb">夜空</span><input type="checkbox" id="nightSky"></label><div class="note">星・月・流れ星</div></div>
     </div>
   </section>
   <section class="acc" id="secFire">
-    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">焚火</span><i class="chev"></i></button></h2>
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">焚火</span><span class="sum" id="sumFire"></span><i class="chev"></i></button></h2>
     <div class="accb">
-      <div class="row" id="grassRow"><label><span>草の量</span></label><div class="seg" id="grassSeg"></div></div>
-      <div id="sliders"></div>
-      <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
-      <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
-      <label class="chk"><input type="checkbox" id="lookAround"> ゆっくり見回す</label>
-      <div class="row" id="lookRow" style="display:none"><label><span>1周の速さ</span></label><div class="seg" id="lookSeg"></div></div>
-      <label class="chk" id="wakeRow" style="display:none"><input type="checkbox" id="keepAwake"> 画面をつけたままにする</label>
+      <div class="sw"><label class="chk"><span class="lb">自動くべ</span><input type="checkbox" id="autoFeed"></label><div class="note">薪が減ったら足します</div></div>
+      <div id="slFire"></div>
     </div>
   </section>
-  <section class="acc" id="secEnv">
-    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">環境音</span><i class="chev"></i></button></h2>
-    <div class="accb"><div id="envAll"></div></div>
+  <section class="acc" id="secSound">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">音</span><span class="sum" id="sumSound"></span><i class="chev"></i></button></h2>
+    <div class="accb">
+      <div id="slSound"></div>
+      <div class="row"><label><span>音の聞き方</span></label><div class="seg three" id="outSeg"></div><div class="note">イヤホン・ヘッドホンでは、音が鳴っている方向から聞こえます</div></div>
+      <div class="sub">環境音</div>
+      <div id="envOn"></div>
+      <div class="empty" id="envNone">いま鳴らしている環境音はありません</div>
+      <details class="more" id="envMore"><summary id="envMoreSum">ほかの環境音</summary><div id="envOff"></div></details>
+      <div class="sub" id="seasonSub">季節の音</div>
+      <div id="envSeason"></div>
+      <div id="envSfx"></div>
+    </div>
   </section>
-  <section class="acc" id="secSeason">
-    <h2 id="seasonH"><button type="button" class="acch" aria-expanded="true"><span class="t">季節の音</span><i class="chev"></i></button></h2>
-    <div class="accb"><div id="envSeason"></div></div>
+  <section class="acc" id="secVideo">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">映像</span><span class="sum" id="sumVideo"></span><i class="chev"></i></button></h2>
+    <div class="accb">
+      <div id="slVideo"></div>
+      <div class="row" id="grassRow"><label><span>草の量</span></label><div class="seg" id="grassSeg"></div></div>
+      <div class="sw"><label class="chk"><span class="lb">ゆっくり見回す</span><input type="checkbox" id="lookAround"></label></div>
+      <div class="row" id="lookRow" style="display:none"><label><span>1周の速さ</span></label><div class="seg" id="lookSeg"></div></div>
+      <div class="sw"><label class="chk"><span class="lb"><span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</span><input type="checkbox" id="videoOff"></label></div>
+    </div>
+  </section>
+  <section class="acc" id="secOther">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">その他</span><span class="sum" id="sumOther"></span><i class="chev"></i></button></h2>
+    <div class="accb">
+      <div class="sw" id="wakeRow" style="display:none"><label class="chk"><span class="lb">画面をつけたままにする</span><input type="checkbox" id="keepAwake"></label></div>
+      <div class="sw"><button type="button" class="btn" id="resetBtn">設定を初期値に戻す</button></div>
+    </div>
   </section>
   <div class="hint"><span class="pc">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。ドラッグで視点を少し回せます。</span><span class="sp">タップで薪をくべます。画面の上端と下端をタップすると操作が表示されます。設定は下のつまみを引き上げて開きます。</span></div>
   </div>
@@ -230,31 +280,35 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function 
 var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
 
 /* ---------- 設定 ---------- */
-var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'', keepAwake:false, lookAround:false, lookSpeed:'normal' };
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'', keepAwake:false, lookAround:false, lookSpeed:'normal', audioOut:'headphones' };
+var PCT = function (v) { return Math.round(v * 100) + '%'; };
+// [キー, ラベル, 最小, 最大, 刻み, 表示の整形, 置き場所の id, 補足（省略可）]。同じ置き場所の中では、この並びで出る
 var SLIDERS = [
-  ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
-  ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
-  ['crackSize','パチパチの大きさ',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
-  ['roar','燃焼音（ゴー）の音量',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
-  ['master','全体音量',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
-  ['speed','燃える速さ',0.2,3,0.05,function(v){return '×'+v.toFixed(2);}]
+  ['speed','燃える速さ',0.2,3,0.05,function(v){return '×'+v.toFixed(2);},'slFire'],
+  ['crackFreq','パチパチの頻度',0,1,0.01,PCT,'slFire'],
+  ['crackSize','パチパチの大きさ',0,1,0.01,PCT,'slFire'],
+  ['roar','燃える音',0,1,0.01,PCT,'slFire','ゴーという低い音の大きさ'],
+  ['master','全体の音量',0,1,0.01,PCT,'slSound'],
+  ['brightness','明るさ',0.3,1.6,0.01,PCT,'slVideo']
 ];
+var AUDIO_OUTS = ['headphones', 'speakers', 'mono'], OUT_JA = { headphones: 'イヤホン・ヘッドホン', speakers: 'スピーカー', mono: 'モノラル' }, OUT_SHORT = { headphones: 'ヘッドホン', speakers: 'スピーカー', mono: 'モノラル' };
 var GRASS = ['many', 'normal', 'few', 'none'], GRASS_JA = { many: '多い', normal: 'ふつう', few: '少ない', none: 'なし' };
 var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
 var SEAS_JA = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
+// scope: 'all' は季節に関係なく出す。季節名はその季節だけ出す。group 'sfx' は「音」の区分の末尾に単独で置く。note は行の下に出す補足
 var ENV = [
   { id: 'wave', label: 'さざ波', scope: 'all' }, { id: 'insect', label: '虫の声', scope: 'all' },
   { id: 'frog', label: '蛙の声', scope: 'all' },
   { id: 'rain', label: '雨', scope: 'all' }, { id: 'wind', label: '風', scope: 'all' },
   { id: 'bamboo', label: '竹のささやき', scope: 'all' },
   { id: 'owl', label: 'フクロウ', scope: 'all' },
-  { id: 'scenesfx', label: 'シーンの効果音（水音・鹿威し）', scope: 'all' },
-  { id: 'river', label: '川の流れ', scope: 'all' }, { id: 'cavewind', label: '洞窟の風（入口から）', scope: 'all' },
+  { id: 'scenesfx', label: 'シーンの効果音', scope: 'all', group: 'sfx', note: '水音・鹿威しなど' },
+  { id: 'river', label: '川の流れ', scope: 'all' }, { id: 'cavewind', label: '洞窟の風', scope: 'all', note: '入口から吹く風' },
   { id: 'brook', label: 'せせらぎ', scope: 'spring' },
   { id: 'chime', label: '風鈴', scope: 'summer' }, { id: 'fw', label: '遠くの花火', scope: 'summer' },
   { id: 'leaves', label: '落ち葉のカサカサ', scope: 'autumn' },
   { id: 'kettle', label: 'やかんのしゅんしゅん', scope: 'winter' },
-  { id: 'snowq', label: '雪の静けさ（音がこもる）', scope: 'winter', noVol: true }
+  { id: 'snowq', label: '雪の静けさ', scope: 'winter', noVol: true, note: '音がこもります' }
 ];
 (function () {
   var m = new Date().getMonth() + 1;
@@ -280,6 +334,7 @@ var S = {};
         else if (k === 'scene' && typeof o[k] === 'string' && /^[a-z0-9_-]{1,32}$/.test(o[k])) S[k] = o[k];
         else if (k === 'grass' && GRASS.indexOf(o[k]) >= 0) S[k] = o[k];
         else if (k === 'lookSpeed' && LOOK_SPEEDS.indexOf(o[k]) >= 0) S[k] = o[k];
+        else if (k === 'audioOut' && AUDIO_OUTS.indexOf(o[k]) >= 0) S[k] = o[k];
         else if (k === 'grassAuto' && (o[k] === '' || GRASS.indexOf(o[k]) >= 0)) S[k] = o[k];
       }
     }
@@ -288,12 +343,15 @@ var S = {};
 })();
 // シーンの音の連動で自動オンにした環境音は、保存しない（次回起動時に「元の状態」が分からなくなるため）
 var autoApplied = [];
+var resetting = false;   // 「設定を初期値に戻す」の読み込み直しの間は、保存しない（消した設定を書き戻さないため）
 function save() {
+  if (resetting) return;
   try {
     var c = {}, k; for (k in S) c[k] = S[k];
     autoApplied.forEach(function (id) { c['on_' + id] = false; });
     localStorage.setItem(STORE_KEY, JSON.stringify(c));
   } catch (e) {}
+  refreshSummaries();
   audioSettingsChanged();
 }
 // ホタルは季節の初期値（夏だけオン）に従う。ユーザーが手で変えたら、その値を優先する
@@ -386,7 +444,7 @@ function updateFuelUI() {
   fuelTxt.textContent = fuel < 0.05 ? '熾火' : fuel.toFixed(1) + '本';
 }
 
-var slidersEl = document.getElementById('sliders');
+var uiReady = false;   // 設定パネルの組み立てが終わるまで、区分の要約は更新しない
 SLIDERS.forEach(function (d) {
   var key = d[0], row = document.createElement('div');
   row.className = 'row';
@@ -398,7 +456,9 @@ SLIDERS.forEach(function (d) {
   inp.addEventListener('input', function () {
     S[key] = parseFloat(inp.value); out.textContent = d[5](S[key]); save();
   });
-  row.appendChild(lab); row.appendChild(inp); slidersEl.appendChild(row);
+  row.appendChild(lab); row.appendChild(inp);
+  if (d[7]) { var sn = document.createElement('div'); sn.className = 'note'; sn.textContent = d[7]; row.appendChild(sn); }
+  document.getElementById(d[6]).appendChild(row);
 });
 var autoEl = document.getElementById('autoFeed'), vidEl = document.getElementById('videoOff');
 autoEl.checked = S.autoFeed; vidEl.checked = S.videoOff;
@@ -421,6 +481,18 @@ LOOK_SPEEDS.forEach(function (l) {
 lookEl.addEventListener('change', function () { S.lookAround = lookEl.checked; save(); refreshLookUI(); applyLook(); });
 refreshLookUI();
 
+/* 音の聞き方（イヤホン・ヘッドホン / スピーカー / モノラル）。実際の切り替えは音の側の setAudioOutput が行う（無ければ設定の保存だけ） */
+var outSegEl = document.getElementById('outSeg');
+function applyAudioOut() { try { if (window.TAKIBI && window.TAKIBI.setAudioOutput) window.TAKIBI.setAudioOutput(S.audioOut); } catch (e) { console.error(e); } }
+function refreshOutUI() { Array.prototype.forEach.call(outSegEl.children, function (b) { b.classList.toggle('on', b.dataset.o === S.audioOut); }); }
+AUDIO_OUTS.forEach(function (o) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.dataset.o = o; b.textContent = OUT_JA[o];
+  b.addEventListener('click', function () { S.audioOut = o; save(); refreshOutUI(); applyAudioOut(); });
+  outSegEl.appendChild(b);
+});
+refreshOutUI();
+
 var segEl = document.getElementById('seasonSeg'), fxEl = document.getElementById('seasonFx');
 SEASONS.forEach(function (sn) {
   var b = document.createElement('button');
@@ -434,22 +506,26 @@ var ffEl = document.getElementById('fireflies'), skyEl = document.getElementById
 ffEl.addEventListener('change', function () { S.fireflies = ffEl.checked; S.firefliesManual = true; save(); });
 skyEl.checked = S.nightSky;
 skyEl.addEventListener('change', function () { S.nightSky = skyEl.checked; save(); });
+
+/* 環境音: オンのものを上、オフのものは畳める「ほかの環境音」に。季節の音とシーンの効果音は、それぞれ別の場所に置く */
 var envRows = {};
 ENV.forEach(function (e) {
   var row = document.createElement('div'); row.className = 'row';
   var head = document.createElement('div'); head.className = 'ehead';
-  var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!S['on_' + e.id];
-  var nm = document.createElement('span'); nm.textContent = e.label;
+  var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!S['on_' + e.id]; chk.setAttribute('aria-label', e.label);
+  var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = e.label;
+  var tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'シーンの音'; nm.appendChild(tag);
   var out = document.createElement('output');
-  head.appendChild(chk); head.appendChild(nm); head.appendChild(out);
+  head.appendChild(nm); head.appendChild(out); head.appendChild(chk);
   row.appendChild(head);
   chk.addEventListener('change', function () {
     var ai = autoApplied.indexOf(e.id); if (ai >= 0) autoApplied.splice(ai, 1);   // 手で変えたら、シーンを離れても戻さない
-    S['on_' + e.id] = chk.checked; save();
+    S['on_' + e.id] = chk.checked; save(); refreshEnvUI(); refreshSummaries();
   });
   var rng = null;
   if (!e.noVol) {
     rng = document.createElement('input'); rng.type = 'range'; rng.min = 0; rng.max = 1; rng.step = 0.01;
+    rng.setAttribute('aria-label', e.label + 'の音量');
     rng.value = S['vol_' + e.id]; out.textContent = Math.round(S['vol_' + e.id] * 100) + '%';
     rng.addEventListener('input', function () {
       S['vol_' + e.id] = parseFloat(rng.value); out.textContent = Math.round(S['vol_' + e.id] * 100) + '%'; save();
@@ -460,26 +536,73 @@ ENV.forEach(function (e) {
   if (e.id === 'insect' || e.id === 'frog') {
     note = document.createElement('div'); note.className = 'note'; note.textContent = e.id === 'frog' ? '冬は蛙が鳴きません' : '冬は虫が鳴きません'; note.style.display = 'none';
     row.appendChild(note);
+  } else if (e.note) {
+    var sn2 = document.createElement('div'); sn2.className = 'note'; sn2.textContent = e.note; row.appendChild(sn2);
   }
-  document.getElementById(e.scope === 'all' ? 'envAll' : 'envSeason').appendChild(row);
-  envRows[e.id] = { row: row, chk: chk, rng: rng, note: note, scope: e.scope };
+  envRows[e.id] = { row: row, chk: chk, rng: rng, note: note, tag: tag, scope: e.scope, sfx: e.group === 'sfx' };
 });
-function refreshSeasonUI() {
-  var winter = S.season === 'winter';
-  Array.prototype.forEach.call(segEl.children, function (b) { b.classList.toggle('on', b.dataset.s === S.season); });
-  document.querySelector('#seasonH .t').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
+function placeRows(box, rows) {   // すでにその並びなら触らない（操作中の要素を動かして、フォーカスやドラッグを途切れさせないため）
+  var cur = Array.prototype.slice.call(box.children);
+  if (cur.length === rows.length && rows.every(function (r, i) { return cur[i] === r; })) return;
+  rows.forEach(function (r) { box.appendChild(r); });
+}
+function refreshEnvUI() {
+  var winter = S.season === 'winter', on = [], off = [], seas = [], sfx = [];
   ENV.forEach(function (e) {
     var r = envRows[e.id];
-    r.row.style.display = (r.scope === 'all' || r.scope === S.season || autoApplied.indexOf(e.id) >= 0) ? '' : 'none';
+    r.tag.classList.toggle('on', autoApplied.indexOf(e.id) >= 0);
     if (e.id === 'insect' || e.id === 'frog') {
       r.row.classList.toggle('off', winter); r.chk.disabled = winter;
       if (r.rng) r.rng.disabled = winter;
       r.note.style.display = winter ? '' : 'none';
     }
+    if (r.sfx) { r.row.style.display = ''; sfx.push(r.row); }
+    else if (r.scope !== 'all') {
+      r.row.style.display = (r.scope === S.season || autoApplied.indexOf(e.id) >= 0) ? '' : 'none';
+      seas.push(r.row);
+    } else {
+      r.row.style.display = '';
+      (S['on_' + e.id] ? on : off).push(r.row);
+    }
   });
-  ffEl.checked = firefliesOn();
+  placeRows(document.getElementById('envOn'), on);
+  placeRows(document.getElementById('envOff'), off);
+  placeRows(document.getElementById('envSeason'), seas);
+  placeRows(document.getElementById('envSfx'), sfx);
+  document.getElementById('envNone').style.display = on.length ? 'none' : '';
+  document.getElementById('envMore').style.display = off.length ? '' : 'none';
+  document.getElementById('envMoreSum').textContent = (on.length ? 'ほかの環境音' : 'すべての環境音') + '（' + off.length + '）';
 }
+
+/* 各区分の見出しの横に出す、閉じていても分かる短い要約 */
+var sumEls = { scene: document.getElementById('sumScene'), fire: document.getElementById('sumFire'), sound: document.getElementById('sumSound'),
+  video: document.getElementById('sumVideo'), other: document.getElementById('sumOther') };
+function refreshSummaries() {
+  if (!uiReady) return;
+  var sl = SCENE_LABELS && SCENE_LABELS[S.scene];
+  sumEls.scene.textContent = (sl ? sl + '・' : '') + SEAS_JA[S.season];
+  sumEls.fire.textContent = (S.autoFeed ? '自動くべ' : '手でくべる') + '・×' + S.speed.toFixed(1);
+  var n = 0;
+  ENV.forEach(function (e) { var r = envRows[e.id]; if (S['on_' + e.id] && r.row.style.display !== 'none' && !r.chk.disabled) n++; });
+  sumEls.sound.textContent = '音量' + Math.round(S.master * 100) + '%・' + OUT_SHORT[S.audioOut] + (n ? '・環境音' + n : '');
+  sumEls.video.textContent = S.videoOff ? '映像オフ（音だけ）' : '草' + GRASS_JA[grassLevel()] + (S.lookAround ? '・見回す' : '');
+  sumEls.other.textContent = ('wakeLock' in navigator) && S.keepAwake ? '画面つけたまま' : '';
+}
+function refreshSeasonUI() {   // 季節・シーンの音の連動が変わったときに呼ぶ。季節に関わる表示と、環境音の並びと、要約をまとめて直す
+  Array.prototype.forEach.call(segEl.children, function (b) { b.classList.toggle('on', b.dataset.s === S.season); });
+  document.getElementById('seasonSub').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
+  refreshEnvUI();
+  ffEl.checked = firefliesOn();
+  refreshSummaries();
+}
+uiReady = true;
 refreshSeasonUI();
+document.getElementById('resetBtn').addEventListener('click', function () {
+  if (!window.confirm('設定をすべて初期値に戻して、読み込み直します。よろしいですか？')) return;
+  resetting = true;
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  location.reload();
+});
 function applyVideoMode() {
   document.body.classList.toggle('video-off', S.videoOff);
   if (S.videoOff) visualQ.length = 0;
@@ -575,10 +698,18 @@ function setSheet(st, instant) {
 /* アコーディオン（スマホのみ）。畳んだ状態は覚えておく */
 var ACC_KEY = 'takibi.ui.v1', accState = {};
 try { accState = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {}; } catch (e) { accState = {}; }
+(function () {   // 「ほかの環境音」の開閉も覚えておく
+  var d = document.getElementById('envMore');
+  d.open = !!accState.envMore;
+  d.addEventListener('toggle', function () {
+    accState.envMore = d.open;
+    try { localStorage.setItem(ACC_KEY, JSON.stringify(accState)); } catch (e) {}
+  });
+})();
 var acchEls = [];
 Array.prototype.forEach.call(document.querySelectorAll('.acc'), function (sec) {
   var btn = sec.querySelector('.acch'), id = sec.id;
-  var shut = id in accState ? !!accState[id] : (id === 'secEnv' || id === 'secSeason');   // 初期は上2つだけ開く
+  var shut = id in accState ? !!accState[id] : !(id === 'secScene' || id === 'secFire');   // 初期は「シーン」と「焚火」だけ開く
   function apply() { sec.classList.toggle('shut', shut); btn.setAttribute('aria-expanded', shut ? 'false' : 'true'); }
   apply(); acchEls.push(btn);
   btn.addEventListener('click', function () {
@@ -656,6 +787,202 @@ var nextCrackle = 0, nextAccent = 0;
 var LOOK = 1.5;               // 先読み秒数（背景タブでタイマーが1秒に間引かれても途切れない）
 var visualQ = [];
 
+/* ---------- 立体音響: 聞き手（カメラ）の位置と向き・音源の位置・出力の聞き方 ----------
+   1 unit = 1 m。聞き手（AudioContext の listener）は映像のカメラに合わせ、音源は PannerNode に置く。
+   PannerNode は CPU を使うので、数を絞って使い回す（全部で34個。シーンを替えても増えず、位置だけ動かす）:
+     固定の位置: 焚火の本体1・やかん1・包まれる音の輪5・川3・さざ波3・せせらぎ1・洞窟の風2・蛙3・風鈴1・長く続く水音1
+     使い回し  : パチパチ用6（1発ごとに焚火の中で位置をずらす）・雫や落ち葉のような短い音用4・効果音とフクロウ用3（鳴らす時刻に位置を替える）
+   出力: 'headphones' は HRTF / 'speakers' は equalpower と左右を少し混ぜる / 'mono' は左右を完全に混ぜる */
+var spOut = 'headphones';                          // 'headphones' | 'speakers' | 'mono'
+var LIS0 = { pos: [0, 1.03, 2.5], fwd: [0, 0, -1], up: [0, 1, 0] };   // 初期の視点（映像が無い・オフのとき、書き出しのとき）
+var lisV = null;                                   // 映像（scene3d.js）から受け取った視点
+var lisCur = { pos: [0, 1.03, 2.5], fwd: [0, 0, -1], up: [0, 1, 0] };   // 聞き手に渡している値
+var SP = null;                                     // 立体音響の部品一式（buildGraph ごとに作る）
+var curSources = {}, sceneRnd = {};                // シーンが指定した音の場所 / 指定が無い音のための、シーンごとの乱数の場所
+var OUT_MIX = { headphones: 0, speakers: 0.35, mono: 1 };   // 左右のクロス量（0 = そのまま、1 = 完全に混ぜる）
+var PROF_FIRE = { ref: 1.5, rf: 0.9, nom: 2.5 };   // 距離減衰（'inverse'）: 焚火は近いほど大きく、離れるとゆるやかに小さく
+var PROF_NEAR = { ref: 3, rf: 0.45, nom: 5 };      // それ以外（nom はこの距離で元の音量になるよう補正する）
+var RING = (function () {                          // 聞き手のまわりの「包まれる音」の位置（聞き手からの相対。半径 7.5m）
+  var az = [20, 95, 165, 235, 305], dy = [0.5, 1.5, 0.8, 1.7, 1.0], o = [];
+  for (var i = 0; i < az.length; i++) { var a = az[i] * Math.PI / 180; o.push([Math.sin(a) * 7.5, dy[i], -Math.cos(a) * 7.5]); }
+  return o;
+})();
+var DEFY = { river: 0.15, wave: 0.1, brook: 0.3, cavewind: 1.5, frog: 0.15, chime: 2.2, owl: 4 };   // 場所に y が無いときの高さ
+function profGain(p, d) { d = Math.max(d, p.ref); return p.ref / (p.ref + p.rf * (d - p.ref)); }
+function normOut(m) { return m === 'speakers' || m === 'mono' ? m : 'headphones'; }
+function lis() { return rendering ? LIS0 : lisCur; }
+function v3(a, d) {
+  if (!a) return d.slice();
+  if (a.length === 3) return [+a[0] || 0, +a[1] || 0, +a[2] || 0];
+  return [+a.x || 0, +a.y || 0, +a.z || 0];
+}
+function pt3(p, y0) { return { x: +p.x || 0, y: p.y == null ? y0 : +p.y, z: +p.z || 0 }; }
+function mkSP(prof, nom) {
+  var pn = ac.createPanner();
+  pn.panningModel = spOut === 'headphones' ? 'HRTF' : 'equalpower';
+  pn.distanceModel = 'inverse'; pn.refDistance = prof.ref; pn.rolloffFactor = prof.rf;
+  var g = ac.createGain(), mk = 1 / profGain(prof, nom || prof.nom);
+  g.gain.value = mk; g.connect(pn); pn.connect(bus);
+  var r = { pn: pn, g: g, mk: mk, rel: null };
+  SP.all.push(r);
+  return r;
+}
+// 位置を置く。t が無ければ即座に、t があれば t の時刻に切り替える（tc があればそこへなめらかに寄せる）
+function pset(r, x, y, z, t, tc) {
+  var pn = r.pn;
+  if (!pn.positionX) { pn.setPosition(x, y, z); return; }
+  var ps = [pn.positionX, pn.positionY, pn.positionZ], vs = [x, y, z];
+  for (var i = 0; i < 3; i++) {
+    if (t == null) ps[i].value = vs[i];
+    else if (tc && !rendering) ps[i].setTargetAtTime(vs[i], t, tc);
+    else ps[i].setValueAtTime(vs[i], t);
+  }
+}
+function mkPool(n, prof) { var s = []; for (var i = 0; i < n; i++) s.push(mkSP(prof)); return { s: s, i: 0 }; }
+// 使い回しのパンナーを1つ取って、時刻 t に位置と音量を替える。戻り値は、音をつなぐ入口のノード
+function poolSlot(pool, t, x, y, z, vol) {
+  var r = pool.s[pool.i++ % pool.s.length], tt = Math.max(0, t - 0.003);
+  pset(r, x, y, z, tt);
+  r.g.gain.setValueAtTime(r.mk * vol, tt);
+  return r.g;
+}
+function fireSlot(t, vol) { return poolSlot(SP.fireP, t, rnd(-0.3, 0.3), rnd(0.2, 0.5), rnd(-0.3, 0.3), vol == null ? 1 : vol); }
+// 聞き手のまわりのランダムな位置 [x, y, z]
+function around(rMin, rMax, yMin, yMax) {
+  var p = lis().pos, a = Math.random() * 6.2832, r = rMin + (rMax - rMin) * Math.sqrt(Math.random());
+  return [p[0] + Math.sin(a) * r, rnd(yMin, yMax), p[2] - Math.cos(a) * r];
+}
+function placeList(key) {
+  var a = curSources[key] || sceneRnd[key];
+  return a && a.length ? a.map(function (p) { return pt3(p, DEFY[key] || 0.3); }) : null;
+}
+// シーンの指定（または乱数の場所）のうち1点をランダムに選ぶ（少しずらす）。指定が無ければ聞き手のまわり
+function evPoint(key, rMin, rMax, yLo, yHi) {
+  var l = placeList(key);
+  if (!l) return around(rMin, rMax, yLo, yHi);
+  var p = l[Math.floor(Math.random() * l.length)];
+  return [p.x + rnd(-0.3, 0.3), p.y, p.z + rnd(-0.3, 0.3)];
+}
+function rollSceneRnd() {   // 場所の指定が無い風鈴・蛙のための、シーンごとの固定の位置（一度決めたら、シーンを替えるまで同じ）
+  var a = Math.random() * 6.2832, r = rnd(4, 7);
+  sceneRnd.chime = [{ x: Math.sin(a) * r, y: rnd(2, 2.6), z: -Math.cos(a) * r }];
+  sceneRnd.frog = [];
+  var a0 = Math.random() * 6.2832;
+  for (var i = 0; i < 3; i++) { var af = a0 + i * 2.1 + rnd(-0.4, 0.4), rf = rnd(5, 9); sceneRnd.frog.push({ x: Math.sin(af) * rf, y: 0.15, z: -Math.cos(af) * rf }); }
+}
+rollSceneRnd();
+// 場所のある層（川・波・せせらぎ・洞窟の風・蛙・風鈴）のパンナーを置く。指定が無い層は、聞き手のまわりの輪の位置（聞き手について動く）
+var PL_KEYS = ['river', 'wave', 'brook', 'cavewind', 'frog', 'chime'], PL_OFF = { river: 0, wave: 1, brook: 2, cavewind: 3, frog: 4, chime: 0 };
+function placeAll(snap) {
+  var now = snap || rendering ? null : ac.currentTime, tc = snap || rendering ? 0 : 0.4;
+  PL_KEYS.forEach(function (key) {
+    var recs = key === 'chime' ? [SP.chime] : SP[key], src = placeList(key);
+    recs.forEach(function (r, i) {
+      if (src) {
+        var p = src[Math.floor(i * src.length / recs.length) % src.length];
+        r.rel = null; pset(r, p.x, p.y, p.z, now, tc);
+      } else r.rel = RING[(i * 2 + PL_OFF[key]) % RING.length];
+    });
+  });
+  relPlace(snap);
+}
+function relPlace(snap) {
+  var p = lis().pos, now = snap || rendering ? null : ac.currentTime;
+  SP.all.forEach(function (r) { if (r.rel) pset(r, p[0] + r.rel[0], p[1] + r.rel[1], p[2] + r.rel[2], now, 0.06); });
+}
+function lisApply(snap) {
+  var p = lis(), l = ac.listener, vs = [p.pos[0], p.pos[1], p.pos[2], p.fwd[0], p.fwd[1], p.fwd[2], p.up[0], p.up[1], p.up[2]];
+  if (l.positionX) {
+    var ps = [l.positionX, l.positionY, l.positionZ, l.forwardX, l.forwardY, l.forwardZ, l.upX, l.upY, l.upZ], t = ac.currentTime;
+    for (var i = 0; i < 9; i++) { if (snap || rendering) ps[i].value = vs[i]; else ps[i].setTargetAtTime(vs[i], t, 0.05); }
+  } else { l.setPosition(vs[0], vs[1], vs[2]); l.setOrientation(vs[3], vs[4], vs[5], vs[6], vs[7], vs[8]); }
+}
+// 50ms ごとに呼ぶ: 映像のカメラの位置と向きが変わっていたら聞き手に反映する（映像オフ・映像なしのときは初期の視点に固定）
+function updateListener() {
+  if (!ac || !SP || rendering) return;
+  var s = !S.videoOff && lisV ? lisV : LIS0, p = lisCur, d = 0, i;
+  for (i = 0; i < 3; i++) d += Math.abs(s.pos[i] - p.pos[i]) + Math.abs(s.fwd[i] - p.fwd[i]) + Math.abs(s.up[i] - p.up[i]);
+  if (d < 1e-4) return;
+  var moved = Math.abs(s.pos[0] - p.pos[0]) + Math.abs(s.pos[1] - p.pos[1]) + Math.abs(s.pos[2] - p.pos[2]);
+  lisCur = { pos: s.pos.slice(), fwd: s.fwd.slice(), up: s.up.slice() };
+  lisApply(false);
+  if (moved > 0.02) relPlace(false);
+}
+function setListener(v) {
+  if (!v) return;
+  lisV = { pos: v3(v.pos, LIS0.pos), fwd: v3(v.forward || v.fwd, LIS0.fwd), up: v3(v.up, LIS0.up) };
+}
+// 左右のクロス量を出力モードに合わせる。c: 0 = そのまま / 1 = 左右を完全に混ぜる。独立した音のパワーが変わらないよう 1/√(1+c²) で正規化
+function outMix(snap) {
+  var c = OUT_MIX[spOut], n = Math.sqrt(1 + c * c), a = 1 / n, b = c / n, t = ac.currentTime, m = SP.mx;
+  [[m.ll, a], [m.rr, a], [m.lr, b], [m.rl, b]].forEach(function (x) {
+    if (snap || rendering) x[0].gain.value = x[1]; else x[0].gain.setTargetAtTime(x[1], t, 0.08);
+  });
+}
+var swTok = 0;
+function setAudioOutput(mode) {
+  mode = normOut(mode);
+  spOut = mode;
+  if (!ac || !SP) return;
+  outMix(false);
+  var sp = SP, tok = ++swTok;
+  function want() { return spOut === 'headphones' ? 'HRTF' : 'equalpower'; }
+  if (sp.model !== want()) {
+    // パンニングモデルの切り替えは瞬間なので、ほんの一瞬だけ絞ってから替える（プツッと鳴らさない）
+    var t = ac.currentTime;
+    sp.duck.gain.cancelScheduledValues(t); sp.duck.gain.setTargetAtTime(0, t, 0.015);
+    setTimeout(function () {
+      if (tok !== swTok || SP !== sp) return;
+      var m = want();
+      sp.all.forEach(function (r) { r.pn.panningModel = m; }); sp.model = m;
+      var t2 = ac.currentTime; sp.duck.gain.cancelScheduledValues(t2); sp.duck.gain.setTargetAtTime(1, t2, 0.04);
+    }, 120);
+  } else { var t3 = ac.currentTime; sp.duck.gain.cancelScheduledValues(t3); sp.duck.gain.setTargetAtTime(1, t3, 0.04); }
+  audioSettingsChanged();
+}
+// 層ごとの音量。層の出力（vg）は、必要なときだけパンナーにつなぐ（鳴らしていない層のぶんのパンナーの計算を省く）
+function layVg(id, rec) {
+  var vg = ac.createGain(); vg.gain.value = 0;
+  (SP.LAY[id] = SP.LAY[id] || []).push({ vg: vg, to: rec });
+  return vg;
+}
+function layerSet(id, v, t) {
+  var a = SP.LAY[id];
+  if (!a) return;
+  var st = SP.ST[id] || (SP.ST[id] = { on: false, off: 0 });
+  if (v > 0) {
+    st.off = 0;
+    if (!st.on) { st.on = true; a.forEach(function (it) { it.vg.connect(it.to.g); }); }
+  } else if (st.on && !rendering) {
+    if (!st.off) st.off = t;
+    else if (t - st.off > 3.5) { st.on = false; a.forEach(function (it) { try { it.vg.disconnect(); } catch (e) {} }); }
+  }
+  for (var i = 0; i < a.length; i++) tgt(a[i].vg.gain, v, t, 0.6);
+}
+function initSpatial() {
+  SP = { all: [], LAY: {}, ST: {}, model: spOut === 'headphones' ? 'HRTF' : 'equalpower', swTok: 0 };
+  // 出力の段: 左右のクロス（ヘッドホン 0 / スピーカー 少し / モノラル 完全）と、パンニングモデル切り替え用の duck
+  var si = ac.createGain(); si.channelCount = 2; si.channelCountMode = 'explicit';
+  var sp = ac.createChannelSplitter(2), mg = ac.createChannelMerger(2);
+  var mx = SP.mx = { ll: ac.createGain(), rl: ac.createGain(), rr: ac.createGain(), lr: ac.createGain() };
+  comp.connect(si); si.connect(sp);
+  sp.connect(mx.ll, 0); sp.connect(mx.lr, 0); sp.connect(mx.rl, 1); sp.connect(mx.rr, 1);
+  mx.ll.connect(mg, 0, 0); mx.rl.connect(mg, 0, 0); mx.rr.connect(mg, 0, 1); mx.lr.connect(mg, 0, 1);
+  SP.duck = ac.createGain(); mg.connect(SP.duck); SP.duck.connect(outGain);
+  outMix(true);
+  var i;
+  SP.fireBed = mkSP(PROF_FIRE); pset(SP.fireBed, 0, 0.35, 0);
+  SP.fireP = mkPool(6, PROF_FIRE);
+  SP.kettle = mkSP(PROF_FIRE); pset(SP.kettle, 0.75, 0.5, -0.35);
+  SP.ring = []; for (i = 0; i < RING.length; i++) { var rr = mkSP(PROF_NEAR, 7.5); rr.rel = RING[i]; SP.ring.push(rr); }
+  var N = { river: 3, wave: 3, brook: 1, cavewind: 2, frog: 3 };
+  for (var k in N) { SP[k] = []; for (i = 0; i < N[k]; i++) SP[k].push(mkSP(PROF_NEAR)); }
+  SP.chime = mkSP(PROF_NEAR); SP.long = mkSP(PROF_NEAR);
+  SP.dropP = mkPool(4, PROF_NEAR); SP.spotP = mkPool(3, PROF_NEAR);
+  placeAll(true);
+  lisApply(true);
+}
+
 /* ---- 残響: インパルス応答をコードで作る（減衰するステレオのノイズ） ---- */
 var curReverb = null;
 function makeImpulse(seconds, decay) {
@@ -708,6 +1035,7 @@ function loopSrc(buf, rate) {
 function initAudio() {
   var AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
+  spOut = normOut(S.audioOut);       // 火をつけたとき、設定の「音の聞き方」を反映する
   buildGraph(new AC());
   ac.onstatechange = onAcState;
 }
@@ -726,13 +1054,14 @@ function buildGraph(ctx) {
   bus.connect(snowLP); snowLP.connect(revDry); revDry.connect(master);
   snowLP.connect(revConv); revConv.connect(revWet); revWet.connect(master);
   outGain = ac.createGain(); outGain.gain.value = 1;   // 録音ループとのクロスフェード用
-  master.connect(comp); comp.connect(outGain); outGain.connect(ac.destination);
+  master.connect(comp); outGain.connect(ac.destination);
+  initSpatial();          // 立体音響の出力の段（comp → 左右のクロス → outGain）と、音源のパンナー
   makeBuffers();
 
   function chain(src, type, freq, q, gainVal) {
     var f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
     var gn = ac.createGain(); gn.gain.value = gainVal;
-    src.connect(f); f.connect(gn); gn.connect(bus);
+    src.connect(f); f.connect(gn); gn.connect(SP.fireBed.g);
     return { f: f, g: gn };
   }
   roarA = chain(loopSrc(brownBuf, 1), 'lowpass', 500, 0.7, 0);     // 「ゴー」本体
@@ -764,94 +1093,122 @@ function mkF(type, f, q, dest) {
 }
 function mkOsc(type, f, dest) { var o = ac.createOscillator(); o.type = type; o.frequency.value = f; if (dest) o.connect(dest); o.start(); return o; }
 function initEnv() {
-  ENV.forEach(function (e) { if (!e.noVol) L[e.id] = mkG(0, bus); });
-  var src;
-  // さざ波: 白色ノイズ→ローパス→ゲインを数秒周期で寄せ/引き
-  waveN = { lp: mkF('lowpass', 500, 0.7), g: mkG(0.05) };
-  src = loopSrc(whiteBuf, 1); src.connect(waveN.lp); waveN.lp.connect(waveN.g); waveN.g.connect(L.wave);
-  // 虫（夏）: 6.2kHz帯ノイズを 48Hz で振幅変調した連続音「ジー」
-  gSu = mkG(0, L.insect);
-  var amSu = mkG(0.5, gSu);
-  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 6200, 5, amSu));
-  mkOsc('sine', 48, mkG(0.4, amSu.gain));
-  // 虫（春）: 低め控えめの 1.25kHz を 7Hz で揺らす
-  gSp = mkG(0, L.insect);
-  var amSp = mkG(0.5, gSp);
-  mkOsc('sine', 1250, amSp); mkOsc('sine', 7, mkG(0.45, amSp.gain));
-  // 虫（秋・鈴虫）: 4.5kHz を 16Hz で振幅変調、ゲートで「リーン」を区切る
-  gAu = mkG(0, L.insect);
-  suzuGate = mkG(0, gAu);
-  var amAu = mkG(0.5, suzuGate);
-  mkOsc('sine', 4500, amAu); mkOsc('sine', 16, mkG(0.5, amAu.gain));
-  // 雨: 細かい帯域ノイズ（雫は個別にスケジュール）
-  src = loopSrc(whiteBuf, 1); src.connect(mkF('bandpass', 3800, 0.35, mkG(0.06, L.rain)));   // 連続ノイズはごく小さな背景。主役は一粒ずつの雫
+  ENV.forEach(function (e) { if (!e.noVol) L[e.id] = true; });   // 層ごとの音量は SP.LAY の vg（layerSet）が持つ。L[id] は「その層がある」印
+  var src, ring = SP.ring;
+  // 包まれる音・場所のある音: recs の各パンナーに、少しずつ違う（乱数の開始位置・周波数）複製を1つずつ置く。複製の数で割って全体の音量を保つ
+  function copies(id, recs, build) {
+    var s = 1 / Math.sqrt(recs.length);
+    recs.forEach(function (r, k) { build(mkG(s, layVg(id, r)), k); });
+  }
+  // さざ波: 白色ノイズ→ローパス→ゲインを数秒周期で寄せ/引き（海岸に沿った複数の点で、時間をずらして寄せる）
+  waveN = [];
+  copies('wave', SP.wave, function (d, k) {
+    var w = { lp: mkF('lowpass', 500, 0.7), g: mkG(0.05, d) };
+    var s = loopSrc(whiteBuf, 1); s.connect(w.lp); w.lp.connect(w.g); waveN.push(w);
+  });
+  // 虫: 夏は 6.2kHz帯ノイズを 48Hz で振幅変調した連続音「ジー」、春は低めの 1.25kHz を 7Hz で揺らす、秋・鈴虫は 4.5kHz を 16Hz で変調してゲートで「リーン」を区切る
+  gSu = []; gSp = []; gAu = []; suzuGate = [];
+  copies('insect', [ring[1], ring[2], ring[3], ring[4]], function (d, k) {
+    var f = 1 + 0.012 * k, su = mkG(0, d), sp = mkG(0, d), au = mkG(0, d);
+    gSu.push(su); gSp.push(sp); gAu.push(au);
+    var amSu = mkG(0.5, su);
+    var s = loopSrc(whiteBuf, 1); s.connect(mkF('bandpass', 6200 * f, 5, amSu));
+    mkOsc('sine', 48 * (1 + 0.02 * k), mkG(0.4, amSu.gain));
+    var amSp = mkG(0.5, sp);
+    mkOsc('sine', 1250 * f, amSp); mkOsc('sine', 7 * (1 + 0.07 * k), mkG(0.45, amSp.gain));
+    var gate = mkG(0, au); suzuGate.push(gate);
+    var amAu = mkG(0.5, gate);
+    mkOsc('sine', 4500 * f, amAu); mkOsc('sine', 16 * (1 + 0.03 * k), mkG(0.5, amAu.gain));
+  });
+  // 雨: 細かい帯域ノイズ（雫は個別にスケジュール）。連続ノイズはごく小さな背景。主役は一粒ずつの雫
+  copies('rain', [ring[0], ring[2], ring[3]], function (d) {
+    var s = loopSrc(whiteBuf, 1); s.connect(mkF('bandpass', 3800, 0.35, mkG(0.06, d)));
+  });
   // 風: ブラウンノイズ→BP。中心周波数と音量を非同期の低速LFOで揺らす
-  var wbp = mkF('bandpass', 500, 1.4), wg = mkG(1.2, L.wind);
-  src = loopSrc(brownBuf, 1); src.connect(wbp); wbp.connect(wg);
-  mkOsc('sine', 0.09, mkG(220, wbp.frequency)); mkOsc('sine', 0.23, mkG(120, wbp.frequency));
-  mkOsc('sine', 0.13, mkG(0.5, wg.gain));
+  copies('wind', ring, function (d, k) {
+    var wbp = mkF('bandpass', 500, 1.4), wg = mkG(1.2, d);
+    var s = loopSrc(brownBuf, 1); s.connect(wbp); wbp.connect(wg);
+    mkOsc('sine', 0.09 * (1 + 0.17 * k), mkG(220, wbp.frequency)); mkOsc('sine', 0.23 * (1 + 0.11 * k), mkG(120, wbp.frequency));
+    mkOsc('sine', 0.13 * (1 + 0.19 * k), mkG(0.5, wg.gain));
+  });
   // せせらぎ: 2つの高域BPを緩くゆらす
-  var bg1 = mkG(0.45, L.brook), bf1 = mkF('bandpass', 2400, 0.9, bg1), bf2 = mkF('bandpass', 1200, 1.5, bg1);
-  src = loopSrc(whiteBuf, 1); src.connect(bf1); src.connect(bf2);
-  mkOsc('sine', 0.6, mkG(500, bf1.frequency)); mkOsc('sine', 0.9, mkG(250, bf2.frequency));
+  copies('brook', SP.brook, function (d, k) {
+    var bg1 = mkG(0.45, d), bf1 = mkF('bandpass', 2400, 0.9, bg1), bf2 = mkF('bandpass', 1200, 1.5, bg1);
+    var s = loopSrc(whiteBuf, 1); s.connect(bf1); s.connect(bf2);
+    mkOsc('sine', 0.6 * (1 + 0.1 * k), mkG(500, bf1.frequency)); mkOsc('sine', 0.9 * (1 + 0.1 * k), mkG(250, bf2.frequency));
+  });
   // 竹のささやき: 高域の帯域ノイズ。風に合わせた数秒の強弱と、細かいサラサラのゆらぎ
-  var bbp = mkF('bandpass', 4200, 0.8), bgn = mkG(0.17, L.bamboo);
-  src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 2400, 0.7, bbp)); bbp.connect(bgn);
-  mkOsc('sine', 0.11, mkG(0.09, bgn.gain)); mkOsc('sine', 0.29, mkG(0.05, bgn.gain)); mkOsc('sine', 5.3, mkG(0.03, bgn.gain));
-  mkOsc('sine', 0.17, mkG(900, bbp.frequency));
-  // 川の流れ（せせらぎより太く低い水音）: 帯域を分けたノイズを、ゆっくりした揺らぎで重ねる
-  var rvLow = mkG(0.55, L.river), rvMid = mkG(0.34, L.river), rvHi = mkG(0.12, L.river);
-  src = loopSrc(brownBuf, 0.8); src.connect(mkF('lowpass', 260, 0.7, rvLow));
-  mkOsc('sine', 0.07, mkG(0.2, rvLow.gain)); mkOsc('sine', 0.16, mkG(0.1, rvLow.gain));
-  var rm1 = mkF('bandpass', 420, 0.8, rvMid), rm2 = mkF('bandpass', 900, 1.1, rvMid);
-  src = loopSrc(whiteBuf, 1); src.connect(rm1); src.connect(rm2);
-  mkOsc('sine', 0.19, mkG(140, rm1.frequency)); mkOsc('sine', 0.31, mkG(300, rm2.frequency));
-  mkOsc('sine', 0.11, mkG(0.12, rvMid.gain)); mkOsc('sine', 0.27, mkG(0.07, rvMid.gain));
-  var rvh = mkF('bandpass', 2600, 0.6, rvHi);
-  src = loopSrc(whiteBuf, 1.3); src.connect(rvh);
-  mkOsc('sine', 0.23, mkG(900, rvh.frequency)); mkOsc('sine', 0.13, mkG(0.05, rvHi.gain));
+  copies('bamboo', [ring[0], ring[1], ring[2], ring[4]], function (d, k) {
+    var bbp = mkF('bandpass', 4200, 0.8), bgn = mkG(0.17, d);
+    var s = loopSrc(whiteBuf, 1); s.connect(mkF('highpass', 2400, 0.7, bbp)); bbp.connect(bgn);
+    mkOsc('sine', 0.11 * (1 + 0.15 * k), mkG(0.09, bgn.gain)); mkOsc('sine', 0.29 * (1 + 0.1 * k), mkG(0.05, bgn.gain)); mkOsc('sine', 5.3 * (1 + 0.05 * k), mkG(0.03, bgn.gain));
+    mkOsc('sine', 0.17 * (1 + 0.12 * k), mkG(900, bbp.frequency));
+  });
+  // 川の流れ（せせらぎより太く低い水音）: 帯域を分けたノイズを、ゆっくりした揺らぎで重ねる。川の帯に沿った複数の点から
+  copies('river', SP.river, function (d, k) {
+    var q = 1 + 0.13 * k, rvLow = mkG(0.55, d), rvMid = mkG(0.34, d), rvHi = mkG(0.12, d), s;
+    s = loopSrc(brownBuf, 0.8); s.connect(mkF('lowpass', 260, 0.7, rvLow));
+    mkOsc('sine', 0.07 * q, mkG(0.2, rvLow.gain)); mkOsc('sine', 0.16 * q, mkG(0.1, rvLow.gain));
+    var rm1 = mkF('bandpass', 420, 0.8, rvMid), rm2 = mkF('bandpass', 900, 1.1, rvMid);
+    s = loopSrc(whiteBuf, 1); s.connect(rm1); s.connect(rm2);
+    mkOsc('sine', 0.19 * q, mkG(140, rm1.frequency)); mkOsc('sine', 0.31 * q, mkG(300, rm2.frequency));
+    mkOsc('sine', 0.11 * q, mkG(0.12, rvMid.gain)); mkOsc('sine', 0.27 * q, mkG(0.07, rvMid.gain));
+    var rvh = mkF('bandpass', 2600, 0.6, rvHi);
+    s = loopSrc(whiteBuf, 1.3); s.connect(rvh);
+    mkOsc('sine', 0.23 * q, mkG(900, rvh.frequency)); mkOsc('sine', 0.13 * q, mkG(0.05, rvHi.gain));
+  });
   // 洞窟の風: 入口から入る低い風。ブラウンノイズを狭い帯域で通し、数秒かけて音程と強さが揺れる
-  var cwG = mkG(0.5, L.cavewind), cwF = mkF('bandpass', 360, 3.2, cwG), cwF2 = mkF('bandpass', 140, 1.2, cwG);
-  src = loopSrc(brownBuf, 1); src.connect(cwF); src.connect(cwF2);
-  mkOsc('sine', 0.06, mkG(110, cwF.frequency)); mkOsc('sine', 0.17, mkG(60, cwF.frequency));
-  mkOsc('sine', 0.09, mkG(0.28, cwG.gain)); mkOsc('sine', 0.21, mkG(0.12, cwG.gain));
-  // やかん: 高域の細いシュー音を緩く揺らす
-  var kg = mkG(0.35, L.kettle);
-  src = loopSrc(whiteBuf, 1); src.connect(mkF('highpass', 4500, 0.7, mkF('bandpass', 7000, 1.5, kg)));
-  mkOsc('sine', 0.3, mkG(0.15, kg.gain));
+  copies('cavewind', SP.cavewind, function (d, k) {
+    var q = 1 + 0.15 * k, cwG = mkG(0.5, d), cwF = mkF('bandpass', 360, 3.2, cwG), cwF2 = mkF('bandpass', 140, 1.2, cwG);
+    var s = loopSrc(brownBuf, 1); s.connect(cwF); s.connect(cwF2);
+    mkOsc('sine', 0.06 * q, mkG(110, cwF.frequency)); mkOsc('sine', 0.17 * q, mkG(60, cwF.frequency));
+    mkOsc('sine', 0.09 * q, mkG(0.28, cwG.gain)); mkOsc('sine', 0.21 * q, mkG(0.12, cwG.gain));
+  });
+  // やかん: 高域の細いシュー音を緩く揺らす（焚火のそばの1点）
+  copies('kettle', [SP.kettle], function (d) {
+    var kg = mkG(0.35, d), s = loopSrc(whiteBuf, 1); s.connect(mkF('highpass', 4500, 0.7, mkF('bandpass', 7000, 1.5, kg)));
+    mkOsc('sine', 0.3, mkG(0.15, kg.gain));
+  });
+  // 音を送る先だけの層（音は1回ずつ鳴らす）: 蛙（個体ごとの場所）・風鈴・遠くの花火（輪の位置）・効果音の長い水音
+  SP.fvg = SP.frog.map(function (r) { return layVg('frog', r); });
+  SP.cvg = layVg('chime', SP.chime);
+  SP.fwvg = ring.map(function (r) { return layVg('fw', r); });
+  SP.longVg = layVg('scenesfx', SP.long);
 }
 function playWave(t) {
-  var a = rnd(2.2, 3.8), b = rnd(3, 5.5), pk = rnd(0.6, 1);
-  waveN.g.gain.setValueAtTime(0.05, t);
-  waveN.g.gain.linearRampToValueAtTime(pk, t + a);
-  waveN.g.gain.linearRampToValueAtTime(0.05, t + a + b);
-  waveN.lp.frequency.setValueAtTime(450, t);
-  waveN.lp.frequency.linearRampToValueAtTime(1500, t + a);
-  waveN.lp.frequency.linearRampToValueAtTime(400, t + a + b);
+  var a = rnd(2.2, 3.8), b = rnd(3, 5.5), pk = rnd(0.6, 1), n = waveN.length, dir = Math.random() < 0.5 ? 1 : -1, lag = rnd(0.25, 0.6);
+  waveN.forEach(function (w, k) {
+    var tk = t + (dir > 0 ? k : n - 1 - k) * lag, p = pk * rnd(0.85, 1);   // 波は海岸に沿って、片側から順に寄せる
+    w.g.gain.setValueAtTime(0.05, tk);
+    w.g.gain.linearRampToValueAtTime(p, tk + a);
+    w.g.gain.linearRampToValueAtTime(0.05, tk + a + b);
+    w.lp.frequency.setValueAtTime(450, tk);
+    w.lp.frequency.linearRampToValueAtTime(1500, tk + a);
+    w.lp.frequency.linearRampToValueAtTime(400, tk + a + b);
+  });
   queueEnvEvent({ kind: 'wave', t: t, rise: a, fall: b, peak: pk });   // 映像（海シーン）の波が、寄せる・砕ける・引く時刻を合わせる
-  return a + b + rnd(0, 1.2);
+  return a + b + (n - 1) * lag + rnd(0, 1.2);
 }
 /* フクロウ（遠くで「ホーホー」）: 低いサイン波2音に、わずかな息のノイズ。ときどき遠くの別の個体が小さく応える。数十秒〜数分に1回 */
-function owlNote(t, f0, f1, dur, pk, pan) {
+function owlNote(t, f0, f1, dur, pk, p) {
   var o = ac.createOscillator(), g = ac.createGain(), vb = ac.createOscillator(), vg = mkG(f0 * 0.012);
   o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f1, t + dur);
   vb.frequency.value = 5.5; vb.connect(vg); vg.connect(o.frequency);
   g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(pk, t + 0.07);
   g.gain.setValueAtTime(pk, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  var pn = null, dest = L.owl;
-  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = pan; pn.connect(L.owl); dest = pn; }
+  var dest = poolSlot(SP.spotP, t, p[0], p[1], p[2], lvl('owl'));
   o.connect(g); g.connect(dest); o.start(t); vb.start(t); o.stop(t + dur + 0.05); vb.stop(t + dur + 0.05);
-  o.onended = function () { try { o.disconnect(); g.disconnect(); vb.disconnect(); vg.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+  o.onended = function () { try { o.disconnect(); g.disconnect(); vb.disconnect(); vg.disconnect(); } catch (e) {} };
   noiseEnv(t, 0.06, dur * 0.6, 'bandpass', f0 * 1.6, 1.2, pk * 0.12, dest);   // 息
 }
-function owlCall(t, f, pk, pan) {
-  owlNote(t, f * 1.05, f, 0.42, pk, pan);
-  owlNote(t + 0.62, f * 0.97, f * 0.9, 0.7, pk * 0.9, pan);
+function owlCall(t, f, pk, p) {
+  owlNote(t, f * 1.05, f, 0.42, pk, p);
+  owlNote(t + 0.62, f * 0.97, f * 0.9, 0.7, pk * 0.9, p);
 }
 function playOwl(t) {
-  var pan = rnd(-0.7, 0.7), f = rnd(330, 400);
-  owlCall(t, f, 0.28, pan);
-  if (Math.random() < 0.4) owlCall(t + rnd(3.5, 6), f * rnd(1.12, 1.25), 0.1, -pan);   // 遠くで別の個体が応える
+  var p = evPoint('owl', 18, 32, 2.5, 7), f = rnd(330, 400);   // 森の奥（遠く）のランダムな位置
+  owlCall(t, f, 0.28, p);
+  if (Math.random() < 0.4) owlCall(t + rnd(3.5, 6), f * rnd(1.12, 1.25), 0.1, evPoint('owl', 18, 32, 2.5, 7));   // 遠くで別の個体が応える
   return rnd(40, 160);
 }
 /* 雨: 一粒ずつの雫をポアソン過程で鳴らす（毎秒40〜80粒。音量スライダーで密度も少し変わる）。雨足には数十秒周期の強弱を付ける */
@@ -859,77 +1216,81 @@ function rainIntensity(t) {
   return 0.85 + 0.25 * Math.sin(t * 6.2832 / 47) + 0.15 * Math.sin(t * 6.2832 / 23 + 1);
 }
 function rainRate(t) { return (40 + 40 * S.vol_rain) * rainIntensity(t); }
-function dropBurst(t, decay, type, freq, q, peak, pan) {
+function dropBurst(t, decay, type, freq, q, peak, dest) {
   var src = ac.createBufferSource();
   src.buffer = whiteBuf;
   var f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
   var gn = ac.createGain();
   gn.gain.setValueAtTime(peak, t);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-  src.connect(f); f.connect(gn);
-  var pn = null;
-  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); pn.connect(L.rain); }
-  else gn.connect(L.rain);
+  src.connect(f); f.connect(gn); gn.connect(dest);
   src.start(t, Math.random() * 1.5, decay * 1.3 + 0.01);
-  src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+  src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); } catch (e) {} };
 }
 function playRain(t) {
-  var pan = rnd(-0.8, 0.8), r = Math.random();
-  if (r < 0.58) dropBurst(t, rnd(0.002, 0.006), 'bandpass', rnd(3000, 8000), 1.5, rnd(0.05, 0.24), pan);          // 葉に当たる高く軽い音
-  else if (r < 0.9) dropBurst(t, rnd(0.008, 0.026), 'bandpass', rnd(400, 1200), 1.4, rnd(0.07, 0.22), pan);       // 地面に当たる低めで鈍い音
+  var r = Math.random(), lv = lvl('rain'), c, o, gn;
+  // 雫は1粒ずつ、聞き手のまわりのランダムな位置（半径1.2〜8m）から。高さは、葉・地面・水たまりで変える
+  if (r < 0.58) { c = around(1.2, 8, 0.8, 3.5); dropBurst(t, rnd(0.002, 0.006), 'bandpass', rnd(3000, 8000), 1.5, rnd(0.05, 0.24), poolSlot(SP.dropP, t, c[0], c[1], c[2], lv)); }          // 葉に当たる高く軽い音
+  else if (r < 0.9) { c = around(1.2, 8, 0, 0.3); dropBurst(t, rnd(0.008, 0.026), 'bandpass', rnd(400, 1200), 1.4, rnd(0.07, 0.22), poolSlot(SP.dropP, t, c[0], c[1], c[2], lv)); }       // 地面に当たる低めで鈍い音
   else if (r < 0.985) {                                                                                           // 水たまりの「ポツッ」
-    var o = ac.createOscillator(), gn = ac.createGain(), f0 = rnd(500, 1400);
+    c = around(1.2, 8, 0, 0.1);
+    o = ac.createOscillator(); gn = ac.createGain();
+    var f0 = rnd(500, 1400);
     o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.7, t + 0.04);
     gn.gain.setValueAtTime(rnd(0.05, 0.12), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
-    o.connect(gn);
-    if (ac.createStereoPanner) { var pn = ac.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); pn.connect(L.rain); o.onended = function () { try { o.disconnect(); gn.disconnect(); pn.disconnect(); } catch (e) {} }; }
-    else { gn.connect(L.rain); o.onended = function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} }; }
+    o.connect(gn); gn.connect(poolSlot(SP.dropP, t, c[0], c[1], c[2], lv));
+    o.onended = function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} };
     o.start(t); o.stop(t + 0.08);
   } else if (flame > 0.6 && Math.random() < 0.5) {                                                                // 焚火に落ちる「ジュッ」: 炎が強いときだけ、まれに
-    dropBurst(t, rnd(0.09, 0.16), 'bandpass', rnd(4000, 9000), 0.9, rnd(0.1, 0.18), rnd(-0.15, 0.15));
+    dropBurst(t, rnd(0.09, 0.16), 'bandpass', rnd(4000, 9000), 0.9, rnd(0.1, 0.18), fireSlot(t, lv));
   }
   return expSample(rainRate(t));
 }
 function playSuzu(t) {
-  var d = rnd(0.8, 1.6);
-  suzuGate.gain.setValueAtTime(0, t);
-  suzuGate.gain.linearRampToValueAtTime(1, t + 0.08);
-  suzuGate.gain.setValueAtTime(1, t + d - 0.1);
-  suzuGate.gain.linearRampToValueAtTime(0, t + d);
-  return d + rnd(0.6, 2);
+  var dm = 0;
+  suzuGate.forEach(function (g) {   // 個体（輪の位置）ごとに、少しずらして鳴らす
+    var d = rnd(0.8, 1.6), t0 = t + rnd(0, 0.5);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(1, t0 + 0.08);
+    g.gain.setValueAtTime(1, t0 + d - 0.1);
+    g.gain.linearRampToValueAtTime(0, t0 + d);
+    dm = Math.max(dm, d);
+  });
+  return dm + 0.5 + rnd(0.6, 2);
 }
 function playCricket(t) {
-  var n = 2 + Math.floor(Math.random() * 3), tc = t;
+  var n = 2 + Math.floor(Math.random() * 3), tc = t, c = around(2, 8, 0.05, 0.4), lv = lvl('insect');
   for (var i = 0; i < n; i++, tc += 0.05) {
     var o = ac.createOscillator(), gn = ac.createGain();
     o.type = 'sine'; o.frequency.value = 4000 + rnd(-60, 60);
     gn.gain.setValueAtTime(0.0001, tc);
     gn.gain.exponentialRampToValueAtTime(0.35, tc + 0.004);
     gn.gain.exponentialRampToValueAtTime(0.0001, tc + 0.03);
-    o.connect(gn); gn.connect(L.insect); o.start(tc); o.stop(tc + 0.04);
+    o.connect(gn); gn.connect(poolSlot(SP.dropP, tc, c[0], c[1], c[2], lv)); o.start(tc); o.stop(tc + 0.04);
     o.onended = function () { try { this.disconnect(); } catch (e) {} };
   }
   return rnd(0.5, 2.2);
 }
 function playBubble(t) {
-  var o = ac.createOscillator(), gn = ac.createGain(), f0 = rnd(500, 1400);
+  var o = ac.createOscillator(), gn = ac.createGain(), f0 = rnd(500, 1400), c = evPoint('brook', 2, 7, 0, 0.3);
   o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.8, t + 0.04);
   gn.gain.setValueAtTime(rnd(0.03, 0.09), t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
-  o.connect(gn); gn.connect(L.brook); o.start(t); o.stop(t + 0.08);
+  o.connect(gn); gn.connect(poolSlot(SP.dropP, t, c[0], c[1], c[2], lvl('brook'))); o.start(t); o.stop(t + 0.08);
   o.onended = function () { try { this.disconnect(); } catch (e) {} };
   return expSample(14);
 }
 /* 川: 石に当たる水の「ちょろっ」。短く上がる水音を1〜3回 */
 function playChoro(t) {
   var n = 1 + Math.floor(Math.random() * 3), tc = t, f0 = rnd(380, 760);
+  var dest = SP.LAY.river[Math.floor(Math.random() * SP.LAY.river.length)].vg;   // 川の帯に沿った点のどれか
   for (var i = 0; i < n; i++, tc += rnd(0.05, 0.11)) {
     var o = ac.createOscillator(), gn = ac.createGain(), f = f0 * rnd(0.85, 1.4);
     o.type = 'sine'; o.frequency.setValueAtTime(f, tc); o.frequency.exponentialRampToValueAtTime(f * 1.9, tc + 0.05);
     gn.gain.setValueAtTime(rnd(0.03, 0.07), tc); gn.gain.exponentialRampToValueAtTime(0.0001, tc + 0.09);
-    o.connect(gn); gn.connect(L.river); o.start(tc); o.stop(tc + 0.1);
+    o.connect(gn); gn.connect(dest); o.start(tc); o.stop(tc + 0.1);
     o.onended = function () { try { this.disconnect(); } catch (e) {} };
   }
-  noiseBurst(t, 0.12, 'bandpass', rnd(900, 1800), 1.2, 0.05, L.river);
+  noiseBurst(t, 0.12, 'bandpass', rnd(900, 1800), 1.2, 0.05, dest);
   return rnd(0.5, 3.2);
 }
 function bell(t, base, pk) {
@@ -938,7 +1299,7 @@ function bell(t, base, pk) {
     var o = ac.createOscillator(), gn = ac.createGain();
     o.type = 'sine'; o.frequency.value = base * ratios[i] * rnd(0.998, 1.002);
     gn.gain.setValueAtTime(pk * amps[i], t); gn.gain.exponentialRampToValueAtTime(0.0001, t + dec[i]);
-    o.connect(gn); gn.connect(L.chime); o.start(t); o.stop(t + dec[i] + 0.05);
+    o.connect(gn); gn.connect(SP.cvg); o.start(t); o.stop(t + dec[i] + 0.05);
     o.onended = function () { try { this.disconnect(); } catch (e) {} };
   }
 }
@@ -951,27 +1312,28 @@ function playChime(t) {
 }
 function playFireworks(t) {
   queueEnvEvent({ kind: 'fw', t: t - 1.0 });   // 映像（海シーン）は、音の1秒前に打ち上げる
-  noiseBurst(t, 0.5, 'lowpass', 150, 0.7, 1.0, L.fw);
-  noiseBurst(t, 1.5, 'lowpass', 90, 0.7, 0.4, L.fw);
+  var n = SP.fwvg.length, a = Math.floor(Math.random() * n), b = (a + 2) % n;   // 遠くの花火の轟音と残響は、輪の位置のどれかから（2つに分けて広げる）
+  noiseBurst(t, 0.5, 'lowpass', 150, 0.7, 1.0, SP.fwvg[a]);
+  noiseBurst(t, 1.5, 'lowpass', 90, 0.7, 0.4, SP.fwvg[b]);
   var o = ac.createOscillator(), gn = ac.createGain();
   o.type = 'sine'; o.frequency.setValueAtTime(65, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
   gn.gain.setValueAtTime(0.8, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
-  o.connect(gn); gn.connect(L.fw); o.start(t); o.stop(t + 0.75);
+  o.connect(gn); gn.connect(SP.fwvg[a]); o.start(t); o.stop(t + 0.75);
   o.onended = function () { try { this.disconnect(); } catch (e) {} };
-  noiseBurst(t + 0.35, 0.4, 'lowpass', 110, 0.7, 0.35, L.fw);
+  noiseBurst(t + 0.35, 0.4, 'lowpass', 110, 0.7, 0.35, SP.fwvg[b]);
   return rnd(25, 70);
 }
 function playLeaves(t) {
-  var n = Math.random() < 0.08 ? 12 + Math.floor(Math.random() * 7) : 2 + Math.floor(Math.random() * 5), tc = t;
+  var n = Math.random() < 0.08 ? 12 + Math.floor(Math.random() * 7) : 2 + Math.floor(Math.random() * 5), tc = t, c = around(2, 7, 0.05, 0.5), lv = lvl('leaves');
   for (var i = 0; i < n; i++) {
-    noiseBurst(tc, rnd(0.015, 0.05), 'bandpass', rnd(3000, 7500), 0.9, rnd(0.05, 0.22), L.leaves);
+    noiseBurst(tc, rnd(0.015, 0.05), 'bandpass', rnd(3000, 7500), 0.9, rnd(0.05, 0.22), poolSlot(SP.dropP, tc, c[0] + rnd(-0.4, 0.4), c[1], c[2] + rnd(-0.4, 0.4), lv));
     tc += rnd(0.01, 0.07);
   }
   return expSample(1.2);
 }
 function playKnock(t) {
-  var n = 2 + Math.floor(Math.random() * 3), tc = t;
-  for (var i = 0; i < n; i++, tc += rnd(0.12, 0.22)) noiseBurst(tc, 0.07, 'bandpass', rnd(300, 600), 3, 0.5, L.kettle);
+  var n = 2 + Math.floor(Math.random() * 3), tc = t, dest = SP.LAY.kettle[0].vg;
+  for (var i = 0; i < n; i++, tc += rnd(0.12, 0.22)) noiseBurst(tc, 0.07, 'bandpass', rnd(300, 600), 3, 0.5, dest);
   return rnd(1.5, 4);
 }
 /* ---- 蛙の声: 個体ごとに高さ・リズム・場所が違い、互いに鳴き交わす。
@@ -991,7 +1353,7 @@ function queueEnvEvent(ev) {
   while (k > 0 && envEvents[k - 1].t > ev.t) k--;
   envEvents.splice(k, 0, ev);
 }
-function frogSyl(t, v, dur, f0m, bpm, sweep, pk) {
+function frogSyl(t, v, dur, f0m, bpm, sweep, pk, vi) {
   var o = ac.createOscillator(); o.type = 'sawtooth';
   o.frequency.setValueAtTime(v.f0 * f0m * (1 + sweep), t); o.frequency.exponentialRampToValueAtTime(v.f0 * f0m, t + dur);
   var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = v.q;
@@ -1002,11 +1364,9 @@ function frogSyl(t, v, dur, f0m, bpm, sweep, pk) {
   var env = ac.createGain();
   env.gain.setValueAtTime(0.0001, t); env.gain.linearRampToValueAtTime(pk, t + 0.012);
   env.gain.setValueAtTime(pk, t + dur * 0.55); env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  var pn = null, dest = L.frog;
-  if (ac.createStereoPanner) { pn = ac.createStereoPanner(); pn.pan.value = v.pan; pn.connect(L.frog); dest = pn; }
-  o.connect(bp); bp.connect(am); am.connect(env); env.connect(dest);
+  o.connect(bp); bp.connect(am); am.connect(env); env.connect(SP.fvg[vi]);   // 個体ごとに、池のまわりの決まった場所から
   o.start(t); lfo.start(t); o.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
-  o.onended = function () { try { o.disconnect(); bp.disconnect(); am.disconnect(); lfo.disconnect(); ld.disconnect(); env.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+  o.onended = function () { try { o.disconnect(); bp.disconnect(); am.disconnect(); lfo.disconnect(); ld.disconnect(); env.disconnect(); } catch (e) {} };
 }
 function playFrog(t) {
   var nv = frogVoices(), cand = [], i;
@@ -1021,12 +1381,12 @@ function playFrog(t) {
     var n = 2 + Math.floor(Math.random() * 3);
     for (i = 0; i < n; i++) {
       var d = rnd(0.09, 0.14);
-      frogSyl(t + off, v, d, i % 2 ? 0.88 : 1.12, i % 2 ? 0.9 : 1.1, 0.06, pk);
+      frogSyl(t + off, v, d, i % 2 ? 0.88 : 1.12, i % 2 ? 0.9 : 1.1, 0.06, pk, pick);
       syl.push([off, d]); off += d + rnd(0.03, 0.07);
     }
   } else {
     call = 'gwa';
-    frogSyl(t, v, 0.3, 0.8, 0.85, 0.5, pk * 1.1);
+    frogSyl(t, v, 0.3, 0.8, 0.85, 0.5, pk * 1.1, pick);
     syl.push([0, 0.3]); off = 0.3;
   }
   frogBusy[pick] = t + off + 0.6;
@@ -1126,12 +1486,16 @@ var SFX = {
 function playSfx(name, o) {
   o = o || {};
   var fn = SFX[name];
-  if (!fn || !ac || !audioReady || !started || ac.state !== 'running' || !L.scenesfx || lvl('scenesfx') <= 0) return null;
-  var delay = Math.max(0, o.delay || 0), t = ac.currentTime + 0.005 + Math.max(0, delay - outLatency()), dest = L.scenesfx;   // delay は「映像でその瞬間が来るまで」の秒数。出力遅延ぶん早めに予約して、耳に届く時刻を映像に合わせる
-  if (o.pan && ac.createStereoPanner) {
-    var pn = ac.createStereoPanner(); pn.pan.value = Math.max(-1, Math.min(1, o.pan)); pn.connect(L.scenesfx); dest = pn;
-    setTimeout(function () { try { pn.disconnect(); } catch (e) {} }, (delay + (o.dur || 0) + 4) * 1000);
-  }
+  if (!fn || !ac || !audioReady || !started || ac.state !== 'running' || !SP || lvl('scenesfx') <= 0) return null;
+  var delay = Math.max(0, o.delay || 0), t = ac.currentTime + 0.005 + Math.max(0, delay - outLatency());   // delay は「映像でその瞬間が来るまで」の秒数。出力遅延ぶん早めに予約して、耳に届く時刻を映像に合わせる
+  // 鳴る場所: o.pos か o.x/y/z（1 unit = 1 m）。無ければ、旧来の pan（左右 -1..1）を正面の位置に直す。どちらも無ければ聞き手のまわり
+  var p = o.pos || (o.x != null || o.z != null ? o : null), c;
+  if (p) c = [+p.x || 0, p.y == null ? 0.3 : +p.y, +p.z || 0];
+  else if (o.pan) c = [Math.max(-1, Math.min(1, o.pan)) * 6, 0.3, -5];
+  else c = around(3, 7, 0.1, 1.5);
+  var dest;
+  if (name === 'trickle') { pset(SP.long, c[0], c[1], c[2], t); dest = SP.longVg; }   // 長く続く音は、専用のパンナーに置く
+  else dest = poolSlot(SP.spotP, t, c[0], c[1], c[2], lvl('scenesfx'));
   try { return fn(t, o.vol == null ? 1 : o.vol, dest, o) || { stop: function () {} }; } catch (e) { console.error(e); return null; }
 }
 var SCH = {
@@ -1149,11 +1513,11 @@ var SCH = {
   kettle:  { on: function () { return lvl('kettle') > 0; }, init: function () { return rnd(0.5, 2); }, fn: playKnock, next: 0 }
 };
 function envTick(t) {
-  ENV.forEach(function (e) { if (!e.noVol) tgt(L[e.id].gain, lvl(e.id), t, 0.6); });   // 2秒前後でフェード
+  ENV.forEach(function (e) { if (!e.noVol) layerSet(e.id, lvl(e.id), t); });   // 2秒前後でフェード
   var se = S.season;
-  tgt(gSp.gain, se === 'spring' ? 0.5 : 0, t, 0.6);
-  tgt(gSu.gain, se === 'summer' ? 0.7 : 0, t, 0.6);
-  tgt(gAu.gain, se === 'autumn' ? 1 : 0, t, 0.6);
+  gSp.forEach(function (g) { tgt(g.gain, se === 'spring' ? 0.5 : 0, t, 0.6); });
+  gSu.forEach(function (g) { tgt(g.gain, se === 'summer' ? 0.7 : 0, t, 0.6); });
+  gAu.forEach(function (g) { tgt(g.gain, se === 'autumn' ? 1 : 0, t, 0.6); });
   tgt(snowLP.frequency, se === 'winter' && S.on_snowq ? 900 : Math.min(20000, ac.sampleRate / 2), t, 0.8);
 }
 function schedEnv(t) {
@@ -1173,7 +1537,7 @@ function noiseBurst(t, decay, type, freq, q, peak, dest) {
   var gn = ac.createGain();
   gn.gain.setValueAtTime(peak, t);
   gn.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-  src.connect(f); f.connect(gn); gn.connect(dest || bus);
+  src.connect(f); f.connect(gn); gn.connect(dest);
   src.start(t, Math.random() * 1.5, decay * 1.3 + 0.01);
   src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); } catch (e) {} };
 }
@@ -1182,7 +1546,7 @@ function playCrackle(t, lv) {
   var amp = (0.3 + 0.7 * Math.min(1, lv)) * mult;
   var f = 1500 * Math.pow(4, Math.random());        // 1.5k〜6kHz
   var peak = (0.12 + 0.55 * Math.pow(Math.random(), 2)) * amp * 2;
-  noiseBurst(t, rnd(0.004, 0.03), 'bandpass', f, rnd(1.2, 3), peak);
+  noiseBurst(t, rnd(0.004, 0.03), 'bandpass', f, rnd(1.2, 3), peak, fireSlot(t));   // 1発ごとに、焚火の中で位置をずらす
   return peak / (amp * 2);
 }
 /* アクセントの「バチッ」: ときどき鳴る、はっきり目立つ一発。鋭い広帯域のアタック + ごく短い低い「ドン」、30%で小さな2発目 */
@@ -1196,11 +1560,11 @@ function accentHit(t, scale) {
   var src = ac.createBufferSource(); src.buffer = whiteBuf;
   var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700; hp.Q.value = 0.7;
   var bp = ac.createBiquadFilter(); bp.type = 'peaking'; bp.frequency.value = rnd(1800, 4500); bp.Q.value = 0.8; bp.gain.value = 9;
-  var gn = ac.createGain(), dec = rnd(0.02, 0.06);
+  var gn = ac.createGain(), dec = rnd(0.02, 0.06), fs = fireSlot(t);
   gn.gain.setValueAtTime(0.0001, t);
   gn.gain.linearRampToValueAtTime(pk, t + rnd(0.001, 0.003));
   gn.gain.exponentialRampToValueAtTime(0.0001, t + dec);
-  src.connect(hp); hp.connect(bp); bp.connect(gn); gn.connect(bus);
+  src.connect(hp); hp.connect(bp); bp.connect(gn); gn.connect(fs);
   src.start(t, Math.random() * 1.5, dec + 0.02);
   src.onended = function () { try { src.disconnect(); hp.disconnect(); bp.disconnect(); gn.disconnect(); } catch (e) {} };
   var o = ac.createOscillator(), og = ac.createGain();
@@ -1208,7 +1572,7 @@ function accentHit(t, scale) {
   og.gain.setValueAtTime(0.0001, t);
   og.gain.linearRampToValueAtTime(0.5 * mult * scale, t + 0.002);
   og.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-  o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.04);
+  o.connect(og); og.connect(fs); o.start(t); o.stop(t + 0.04);
   o.onended = function () { try { o.disconnect(); og.disconnect(); } catch (e) {} };
 }
 function playAccent(t) {
@@ -1229,21 +1593,23 @@ function accentTick(t, fl) {
 function playPop(t, lv) {
   var mult = 0.25 + 1.75 * S.crackSize;
   var amp = (0.4 + 0.6 * Math.min(1, lv)) * mult;
-  noiseBurst(t, rnd(0.07, 0.13), 'bandpass', rnd(260, 700), 0.8, 1.1 * amp);
-  noiseBurst(t, 0.02, 'bandpass', rnd(2500, 4500), 1, 0.5 * amp);
+  var fs = fireSlot(t);
+  noiseBurst(t, rnd(0.07, 0.13), 'bandpass', rnd(260, 700), 0.8, 1.1 * amp, fs);
+  noiseBurst(t, 0.02, 'bandpass', rnd(2500, 4500), 1, 0.5 * amp, fs);
 }
 function playThud() {
-  var t = ac.currentTime + 0.005;
-  noiseBurst(t, 0.2, 'lowpass', 220, 0.7, 0.9);
+  var t = ac.currentTime + 0.005, fs = fireSlot(t);
+  noiseBurst(t, 0.2, 'lowpass', 220, 0.7, 0.9, fs);
   var o = ac.createOscillator(), gn = ac.createGain();
   o.type = 'sine';
   o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
   gn.gain.setValueAtTime(0.5, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-  o.connect(gn); gn.connect(bus); o.start(t); o.stop(t + 0.2);
+  o.connect(gn); gn.connect(fs); o.start(t); o.stop(t + 0.2);
   o.onended = function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} };
 }
 function playClack() {
-  noiseBurst(ac.currentTime + 0.005, 0.03, 'bandpass', 900, 1.5, 0.25);
+  var t = ac.currentTime + 0.005;
+  noiseBurst(t, 0.03, 'bandpass', 900, 1.5, 0.25, fireSlot(t));
 }
 function expSample(rate) { return -Math.log(1 - Math.random()) / rate; }
 
@@ -1381,6 +1747,9 @@ window.TAKIBI = {
   },
   addLog: tapFeed,                    // 画面のタップ用（スマホでは上端・下端の帯のタップは薪をくべず、UI表示になる）。tapFeed({x,y}) と座標を渡してもよい
   playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle creak
+  setListener: setListener,           // 聞き手（カメラ）の位置と向き。setListener({pos:[x,y,z], forward:[x,y,z], up:[x,y,z]})。映像オフ・映像なしのときは初期の視点に固定
+  setAudioOutput: setAudioOutput,     // 音の聞き方: 'headphones'（HRTF）| 'speakers'（左右を少し混ぜる）| 'mono'。再生中でも途切れず切り替わる
+  getAudioOutput: function () { return spOut; },
   onEnvEvent: function (cb) { return subscribe(envCbs, cb); },       // {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]} 蛙の声の予約時刻に同期（喉の動き用）
   applySceneAudio: applySceneAudio,   // シーンが切り替わったとき、audio 指定（autoOn / reverb）を渡す
   reportSlow: reportSlow,             // 3D側が「5秒平均が20fps未満」を検知したときに呼ぶ
@@ -1401,6 +1770,9 @@ function applySceneAudio(a) {
   });
   curReverb = a.reverb || null;
   applyReverb();
+  curSources = a.sources || {};         // シーンが指定した音の場所（川の帯・波打ち際・蛙の位置など）
+  rollSceneRnd();
+  if (ac && SP) placeAll(false);
   refreshSeasonUI();
   audioSettingsChanged();
 }
@@ -1435,6 +1807,7 @@ function refreshGrassUI() {
   var cur = grassLevel();
   Array.prototype.forEach.call(grassSegEl.children, function (b) { b.classList.toggle('on', b.dataset.g === cur); b.disabled = !videoOK; });
   document.getElementById('grassRow').classList.toggle('off', !videoOK);
+  refreshSummaries();
 }
 
 /* ---------- 映像の起動（3D のみ） ---------- */
@@ -1466,7 +1839,7 @@ function boot3d() {
     list.forEach(function (s) {
       var o = document.createElement('option'); o.value = s.id; o.textContent = s.label; sel.appendChild(o); SCENE_LABELS[s.id] = s.label;
     });
-    sel.value = S.scene; updateMediaMeta();
+    sel.value = S.scene; updateMediaMeta(); refreshSummaries();
     sel.addEventListener('change', function () { S.scene = sel.value; save(); updateMediaMeta(); });
     document.getElementById('sceneRow').style.display = '';
     refreshGrassUI();
@@ -1659,7 +2032,7 @@ function unlockAudio() {
 
 /* ---- ループの書き出し ---- */
 function audioKey() {
-  var k = [S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb)];
+  var k = [S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb), spOut, JSON.stringify(curSources), JSON.stringify(sceneRnd)];
   ENV.forEach(function (e) { k.push(S['on_' + e.id] ? 1 : 0, S['vol_' + e.id]); });
   return k.join('|');
 }
@@ -1678,13 +2051,13 @@ function scheduleLoopRender(ms) {
 function takeG() {
   var n = {}, k; for (k in SCH) n[k] = SCH[k].next;
   return { ac: ac, audioReady: audioReady, master: master, comp: comp, bus: bus, outGain: outGain, whiteBuf: whiteBuf, brownBuf: brownBuf,
-    revConv: revConv, revWet: revWet, revDry: revDry, roarA: roarA, roarB: roarB, roarC: roarC, snowLP: snowLP, L: L, waveN: waveN,
+    revConv: revConv, revWet: revWet, revDry: revDry, roarA: roarA, roarB: roarB, roarC: roarC, snowLP: snowLP, L: L, waveN: waveN, SP: SP,
     gSp: gSp, gSu: gSu, gAu: gAu, suzuGate: suzuGate, nextCrackle: nextCrackle, nextAccent: nextAccent, boost: boost, flame: flame,
     frogBusy: frogBusy, frogLastVoice: frogLastVoice, rendering: rendering, S: S, sch: n };
 }
 function putG(g) {
   ac = g.ac; audioReady = g.audioReady; master = g.master; comp = g.comp; bus = g.bus; outGain = g.outGain; whiteBuf = g.whiteBuf; brownBuf = g.brownBuf;
-  revConv = g.revConv; revWet = g.revWet; revDry = g.revDry; roarA = g.roarA; roarB = g.roarB; roarC = g.roarC; snowLP = g.snowLP; L = g.L; waveN = g.waveN;
+  revConv = g.revConv; revWet = g.revWet; revDry = g.revDry; roarA = g.roarA; roarB = g.roarB; roarC = g.roarC; snowLP = g.snowLP; L = g.L; waveN = g.waveN; SP = g.SP;
   gSp = g.gSp; gSu = g.gSu; gAu = g.gAu; suzuGate = g.suzuGate; nextCrackle = g.nextCrackle; nextAccent = g.nextAccent; boost = g.boost; flame = g.flame;
   frogBusy = g.frogBusy; frogLastVoice = g.frogLastVoice; rendering = g.rendering; S = g.S;
   for (var k in SCH) SCH[k].next = g.sch[k] || 0;
@@ -1705,7 +2078,7 @@ function startLoopRender() {
   } catch (e) { return; }
   total = dur + xf;
   var snap = {}, k; for (k in S) snap[k] = S[k];
-  var g = { S: snap, flame: offFlame(), boost: 0, rendering: true, nextCrackle: 0, nextAccent: 0, frogBusy: [0, 0, 0], frogLastVoice: -1, sch: {}, L: {}, ac: null, audioReady: false };
+  var g = { S: snap, flame: offFlame(), boost: 0, rendering: true, nextCrackle: 0, nextAccent: 0, frogBusy: [0, 0, 0], frogLastVoice: -1, sch: {}, L: {}, SP: null, ac: null, audioReady: false };
   try { inG(g, function () { buildGraph(off); master.gain.value = S.master * S.master; }); } catch (e) { console.error(e); return; }
   var tNext = 0, CH = 6;
   function sched(limit) { inG(g, function () { for (; tNext < limit; tNext += 1) audioTick(tNext); }); }
@@ -1783,7 +2156,7 @@ updateFuelUI();
 refreshGrassUI();
 boot3d();
 // rAFに依存しないタイマー: シミュレーション更新と音の先読みスケジュール
-setInterval(function () { step(); audioTick(); pumpCrackle(); }, 50);
+setInterval(function () { step(); audioTick(); pumpCrackle(); updateListener(); }, 50);
 
 })();
 </script>

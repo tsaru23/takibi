@@ -31,7 +31,8 @@ const SLOW_FPS = 20, SLOW_WINDOW_MS = 5000;   // 5秒間の平均がこれを下
 const GAP_MS = 250;                  // これを超えるフレーム間隔は「止まっていた」とみなして計測に含めない
 const FOV = 55;
 const EYE_Y = 1.03, AIM_Y = 0.68;    // 焚火の前に座った人の目線（目の高さ 約1.03m）と、見つめる焚火の中心の高さ
-const CAM_R = 2.5;                   // 初期の、焚火からの水平距離(m)
+const lisFwd = new THREE.Vector3(), lisUp = new THREE.Vector3();   // 聞き手（立体音響）の向きの計算用
+const CAM_R = 2.5;                  // 初期の、焚火からの水平距離(m)
 const DIST_MIN = 1.6, DIST_MAX = 4.0;   // ホイール・ピンチで変えられる範囲
 const PITCH_MIN = -0.16, PITCH_MAX = 0.75;   // 上下: 初期の向きからの増減(rad)。-0.16 = さらに約9°見下ろす、+0.75 = 夜空を見上げて約 +35°（初期は約 -8°）
 const TAP_PX = 10, TAP_MS = 400, DBL_MS = 320;   // タップの判定（これ未満の移動・時間）と、ダブルタップの間隔
@@ -763,6 +764,11 @@ export async function start(opts) {
     camera.position.set(cx, EYE_Y, cz);
     const cp = Math.cos(pit);
     camera.lookAt(cx - Math.sin(a) * cp, EYE_Y + Math.sin(pit), cz - Math.cos(a) * cp);
+    // 音の聞き手（立体音響）をカメラの位置と向きに合わせる（index.html が setTargetAtTime でなめらかに追う）
+    if (api.setListener) {
+      camera.getWorldDirection(lisFwd); lisUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+      api.setListener({ pos: [cx, EYE_Y, cz], forward: [lisFwd.x, lisFwd.y, lisFwd.z], up: [lisUp.x, lisUp.y, lisUp.z] });
+    }
   }
 
   /* 描画ループ（30fps。タブ非表示 / 映像オフの間は止める） */
