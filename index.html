@@ -57,6 +57,8 @@
   input[type=range] { width:100%; accent-color:var(--accent); margin:0; }
   /* スイッチ（チェックボックス）: 設定パネルのオン・オフはすべてこの見た目にそろえる。ラベルが左、スイッチが右 */
   .sw { margin:10px 0; }
+  .credit { margin:14px 0 2px; font-size:11px; line-height:1.5; color:var(--dim); opacity:.75; }
+  .credit a { color:inherit; text-decoration:underline; }
   .chk { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0; cursor:pointer; color:var(--fg); }
   .chk .lb { flex:1; min-width:0; }
   #panel input[type=checkbox] { -webkit-appearance:none; appearance:none; flex:none; position:relative; width:36px; height:20px; margin:0; border-radius:999px;
@@ -247,6 +249,7 @@
     <div class="accb">
       <div class="sw" id="wakeRow" style="display:none"><label class="chk"><span class="lb">画面をつけたままにする</span><input type="checkbox" id="keepAwake"></label></div>
       <div class="sw"><button type="button" class="btn" id="resetBtn">設定を初期値に戻す</button></div>
+      <div class="credit"><a href="https://github.com/tsaru23/takibi/blob/main/assets/audio/CREDITS.md" target="_blank" rel="noopener">音源: Freesound（出典の一覧）</a></div>
     </div>
   </section>
   <div class="hint"><span class="pc">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。ドラッグで視点を少し回せます。</span><span class="sp">タップで薪をくべます。画面の上端と下端をタップすると操作が表示されます。設定は下のつまみを引き上げて開きます。</span></div>
@@ -819,7 +822,7 @@ function v3(a, d) {
 function pt3(p, y0) { return { x: +p.x || 0, y: p.y == null ? y0 : +p.y, z: +p.z || 0 }; }
 function mkSP(prof, nom) {
   var pn = ac.createPanner();
-  pn.panningModel = spOut === 'headphones' ? 'HRTF' : 'equalpower';
+  pn.panningModel = spOut === 'headphones' && !rendering ? 'HRTF' : 'equalpower';   // 書き出しのときは equalpower（HRTF は書き出しが約2倍かかり、スマホで重い。書き出しは画面を見ていないときにしか流れない）
   pn.distanceModel = 'inverse'; pn.refDistance = prof.ref; pn.rolloffFactor = prof.rf;
   var g = ac.createGain(), mk = 1 / profGain(prof, nom || prof.nom);
   g.gain.value = mk;
@@ -961,7 +964,7 @@ function layerSet(id, v, t) {
   for (var i = 0; i < a.length; i++) tgt(a[i].vg.gain, v, t, 0.6);
 }
 function initSpatial() {
-  SP = { all: [], LAY: {}, ST: {}, model: spOut === 'headphones' ? 'HRTF' : 'equalpower', swTok: 0 };
+  SP = { all: [], LAY: {}, ST: {}, SW: {}, RL: [], model: spOut === 'headphones' && !rendering ? 'HRTF' : 'equalpower', swTok: 0 };
   // 出力の段: 左右のクロス（ヘッドホン 0 / スピーカー 少し / モノラル 完全）と、パンニングモデル切り替え用の duck
   var si = ac.createGain(); si.channelCount = 2; si.channelCountMode = 'explicit';
   var sp = ac.createChannelSplitter(2), mg = ac.createChannelMerger(2);
@@ -1099,7 +1102,11 @@ function initEnv() {
   // 包まれる音・場所のある音: recs の各パンナーに、少しずつ違う（乱数の開始位置・周波数）複製を1つずつ置く。複製の数で割って全体の音量を保つ
   function copies(id, recs, build) {
     var s = 1 / Math.sqrt(recs.length);
-    recs.forEach(function (r, k) { build(mkG(s, layVg(id, r)), k); });
+    recs.forEach(function (r, k) {
+      var vg = layVg(id, r), sw = mkG(1, vg);      // sw: 合成音の出入り口（録音が鳴っている間は閉じて、計算も止める）
+      (SP.SW[id] = SP.SW[id] || []).push({ sw: sw, vg: vg, conn: true, off: -1 });
+      build(mkG(s, sw), k);
+    });
   }
   // さざ波: 白色ノイズ→ローパス→ゲインを数秒周期で寄せ/引き（海岸に沿った複数の点で、時間をずらして寄せる）
   waveN = [];
@@ -1175,7 +1182,351 @@ function initEnv() {
   SP.cvg = layVg('chime', SP.chime);
   SP.fwvg = ring.map(function (r) { return layVg('fw', r); });
   SP.longVg = layVg('scenesfx', SP.long);
+  initRecLayers();
 }
+/* ---------- 録音（Freesound。assets/audio/、出典は CREDITS.md） ----------
+   焚火の音と、洞窟の風・雪の静けさは合成のまま。ほかの環境音は録音を使い、録音が使えない間（読み込み中・失敗）は今までの合成音が鳴る。
+   録音は、使う層がオンになったときに fetch して decodeAudioData でデコードし、使わなくなって12秒たったら捨てる（デコード後は1本十数MBになる）。
+   ループは毎回ランダムな位置から、再生速度（±3%程度）と音量をゆっくり揺らして、包まれる音は位置をずらした複数の点から鳴らす。
+   単発は候補からランダムに選び（続けて同じものは選ばない）、速さと音量を少し変える。 */
+var REC_URL = 'assets/audio/';
+var REC = { meta: null, metaP: null, buf: {}, info: {}, st: {}, failT: {}, gain: {}, unw: {}, last: {}, lastChk: 0, lastDrip: -99 };
+var REC_SKIP = { creak_2: 1 };                     // ノイズが強いので使わない
+// 層ごとの音量の補正（dB）。録音を LUFS で -23 にそろえたうえで、層だけを書き出した出力（RMS）を測って、合成音と釣り合うように決めた。leaves と wind は録音のヒスが目立つので控えめ
+var REC_TRIM = { owl: 3, frog_chorus: -4, frog_call: -2, insects_autumn: 13, insects_summer: 12, waves: 1, brook: 6, river: 5, rain: -1, wind: -1, bamboo: 4, leaves: -3, kettle: 2,
+  shishiodoshi: 3, shishiodoshi_water: -6, koi_splash: -4, cave_drip: -19, furin: -3, fireworks: -2, creak: -10 };
+var SCENE_SFX = { pond: ['koi_splash'], garden: ['shishiodoshi', 'shishiodoshi_water'], cave: ['cave_drip'], cabin: ['creak'] };
+function recGroup(s) { return s.id.indexOf('_water') > 0 ? s.group + '_water' : s.group; }
+function recMeta() {
+  if (REC.metaP) return REC.metaP;
+  REC.metaP = fetch(REC_URL + 'sounds.json').then(function (r) { if (!r.ok) throw new Error('sounds.json ' + r.status); return r.json(); }).then(function (j) {
+    var by = {}, g;
+    j.sounds.forEach(function (s) { if (REC_SKIP[s.id]) return; (by[recGroup(s)] = by[recGroup(s)] || []).push(s); });
+    for (g in by) {
+      var list = by[g], mean = 0;
+      list.forEach(function (s) { mean += s.lufs; }); mean /= list.length;
+      list.forEach(function (s) {
+        var eff = s.kind === 'loop' ? s.lufs : mean + 0.5 * (s.lufs - mean);   // 単発は、録音ごとの大小を半分だけ残す（大きな水音と小さな水音）
+        REC.gain[s.id] = Math.pow(10, (-23 - eff + (REC_TRIM[g] || 0)) / 20);
+      });
+    }
+    REC.meta = by; return by;
+  }, function (e) { REC.metaP = null; throw e; });
+  return REC.metaP;
+}
+function recOK(g) { var st = REC.st[g]; return !!(st && st.ready); }
+function recWanted() {
+  var w = {}, se = S.season;
+  if (lvl('frog') > 0 && frogVoices() > 0) { w.frog_call = 1; if (se !== 'autumn') w.frog_chorus = 1; }
+  if (lvl('owl') > 0) w.owl = 1;
+  if (lvl('insect') > 0) w[se === 'autumn' ? 'insects_autumn' : 'insects_summer'] = 1;
+  [['wave', 'waves'], ['brook', 'brook'], ['river', 'river'], ['rain', 'rain'], ['wind', 'wind'], ['bamboo', 'bamboo'], ['leaves', 'leaves'], ['kettle', 'kettle'], ['chime', 'furin'], ['fw', 'fireworks']].forEach(function (p) {
+    if (lvl(p[0]) > 0) w[p[1]] = 1;
+  });
+  if (lvl('scenesfx') > 0) (SCENE_SFX[S.scene] || []).forEach(function (g) { w[g] = 1; });
+  return w;
+}
+function recManage() {
+  var now = performance.now();
+  if (!ac || rendering || now - REC.lastChk < 400) return;
+  REC.lastChk = now;
+  var w = recWanted(), g;
+  for (g in w) { delete REC.unw[g]; recLoad(g); }
+  for (g in REC.st) {
+    if (w[g]) continue;
+    if (!REC.unw[g]) REC.unw[g] = now;
+    else if (now - REC.unw[g] > 12000) recRelease(g);
+  }
+}
+function recLoad(g) {
+  if (REC.st[g] || (REC.failT[g] && performance.now() - REC.failT[g] < 60000)) return;
+  var st = REC.st[g] = { ready: false }, c = ac;
+  function dec(ab) { return new Promise(function (res, rej) { var p = c.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); }); }
+  recMeta().then(function (by) {
+    var list = by[g]; if (!list) throw new Error('no group ' + g);
+    return Promise.all(list.map(function (s) {
+      return fetch(REC_URL + s.file).then(function (r) { if (!r.ok) throw new Error(s.file + ' ' + r.status); return r.arrayBuffer(); }).then(dec);
+    })).then(function (bufs) {
+      if (REC.st[g] !== st) return;                  // 読み込み中に捨てられた
+      list.forEach(function (s, i) { REC.buf[s.id] = recPost(s, bufs[i]); });
+      st.ready = true;
+      audioSettingsChanged();                         // 背景用のループにも録音を入れ直す
+    });
+  }).catch(function (e) {
+    if (REC.st[g] === st) delete REC.st[g];
+    REC.failT[g] = performance.now();                 // 失敗: 合成音のまま。60秒後にまた試す
+    console.warn('録音を読み込めませんでした（合成音で鳴らします）:', g, e && e.message);
+  });
+}
+function recRelease(g) {
+  var list = REC.meta && REC.meta[g];
+  if (list) list.forEach(function (s) { delete REC.buf[s.id]; delete REC.info[s.id]; });
+  delete REC.st[g]; delete REC.unw[g];
+  audioSettingsChanged();
+}
+// デコード直後に1度だけ: 音の頭の位置（onset）、蛙の鳴き声の区切り、波のうねりの位置を調べる
+function recPost(meta, b) {
+  var id = meta.id;
+  if (meta.kind === 'loop') b = loopSeam(b);
+  var sr = b.sampleRate, n = b.length, nc = b.numberOfChannels, ch = [], c, i, j, k, pk = 0, info = { onset: 0 }, isWave = id.indexOf('waves') === 0;
+  for (c = 0; c < nc; c++) ch.push(b.getChannelData(c));
+  for (c = 0; c < nc; c++) for (i = 0; i < n; i++) { var a = ch[c][i]; if (a < 0) a = -a; if (a > pk) pk = a; }
+  var hop = Math.max(1, Math.round(sr * (isWave ? 0.05 : 0.005))), m = Math.floor(n / hop), e = new Float32Array(m), emax = 0, hs = hop / sr;
+  if (!isWave && pk > 0 && n < sr * 8) {                               // 単発: 最初に大きくなるところ（音が鳴る瞬間）
+    var on = 1e9;
+    for (c = 0; c < nc; c++) for (i = 0; i < n; i++) { var v = ch[c][i]; if ((v < 0 ? -v : v) > 0.1 * pk) { if (i / sr < on) on = i / sr; break; } }
+    info.onset = on < 1e9 ? Math.max(0, on - 0.004) : 0;
+  }
+  if (isWave || id.indexOf('frog_call') === 0) {
+    for (i = 0; i < m; i++) {
+      var s = 0; for (c = 0; c < nc; c++) { var d = ch[c]; for (j = i * hop; j < (i + 1) * hop; j++) s += d[j] * d[j]; }
+      e[i] = Math.sqrt(s / (hop * nc)); if (e[i] > emax) emax = e[i];
+    }
+  }
+  if (id.indexOf('frog_call') === 0) {                                 // 蛙の喉の動き用: 声が出ている区間（秒）
+    var sm = new Float32Array(m), smax = 0, thr, syl = [], st0 = -1;
+    for (i = 0; i < m; i++) { var q = 0, cnt = 0; for (k = -3; k <= 3; k++) if (i + k >= 0 && i + k < m) { q += e[i + k]; cnt++; } sm[i] = q / cnt; if (sm[i] > smax) smax = sm[i]; }
+    thr = 0.22 * smax;
+    for (i = 0; i <= m; i++) {
+      var hi = i < m && sm[i] > thr;
+      if (hi && st0 < 0) st0 = i;
+      else if (!hi && st0 >= 0) {
+        var s0 = st0 * hs, d0 = (i - st0) * hs, lastS = syl[syl.length - 1]; st0 = -1;
+        if (lastS && s0 - (lastS[0] + lastS[1]) < 0.04) lastS[1] = s0 + d0 - lastS[0];
+        else syl.push([s0, d0]);
+      }
+    }
+    info.syl = syl.filter(function (x) { return x[1] > 0.03; }).map(function (x) { return [Math.max(0, x[0] - info.onset), x[1]]; });
+    if (!info.syl.length) info.syl = [[0, Math.min(0.4, b.duration - info.onset)]];
+  }
+  if (isWave) {                                                         // 波のうねり: 1秒の移動平均（輪になっている）の山と、その寄せ始め・引き終わり
+    var W = 10, sm2 = new Float32Array(m), mn = 1e9, mx = 0, sw = [], NB = Math.round(2.5 / hs);
+    for (i = 0; i < m; i++) { var q2 = 0; for (k = -W; k <= W; k++) q2 += e[(i + k + m) % m]; sm2[i] = q2 / (2 * W + 1); if (sm2[i] < mn) mn = sm2[i]; if (sm2[i] > mx) mx = sm2[i]; }
+    for (i = 0; i < m; i++) {
+      var isMax = sm2[i] > mn + 0.3 * (mx - mn);
+      for (k = -NB; k <= NB && isMax; k++) if (k && sm2[(i + k + m) % m] > sm2[i]) isMax = false;
+      if (!isMax) continue;
+      var lv = mn + 0.3 * (sm2[i] - mn), a0 = 0, b0 = 0;
+      while (a0 < 6 / hs && sm2[(i - a0 + m) % m] > lv) a0++;
+      while (b0 < 8 / hs && sm2[(i + b0) % m] > lv) b0++;
+      sw.push({ p: (i * hs) % b.duration, rise: Math.min(4.5, Math.max(1.5, a0 * hs)), fall: Math.min(6.5, Math.max(2.5, b0 * hs)), pk: Math.min(1, 0.6 + 0.4 * (sm2[i] - mn) / ((mx - mn) || 1)) });
+    }
+    info.swells = sw;
+  }
+  REC.info[id] = info;
+  return b;
+}
+// ループの継ぎ目: デコードした録音は、末尾と頭の値が離れていて、つなぐとプツッと鳴ることがある。末尾の0.04秒を頭にクロスフェード（等パワー）で重ね、そのぶん短くする
+function loopSeam(b) {
+  var sr = b.sampleRate, xf = Math.round(sr * 0.04), n = b.length - xf, c, i;
+  if (n < xf * 4) return b;
+  var nb = ac.createBuffer(b.numberOfChannels, n, sr);
+  for (c = 0; c < b.numberOfChannels; c++) {
+    var o = b.getChannelData(c), d = nb.getChannelData(c);
+    d.set(o.subarray(0, n));
+    for (i = 0; i < xf; i++) { var x = i / xf; d[i] = o[i] * Math.sin(x * Math.PI / 2) + o[n + i] * Math.cos(x * Math.PI / 2); }
+  }
+  return nb;
+}
+function recPick(g, wf) {
+  if (!recOK(g)) return null;
+  var ids = REC.meta[g].map(function (s) { return s.id; }).filter(function (id) { return REC.buf[id]; });
+  if (!ids.length) return null;
+  if (ids.length > 1) ids = ids.filter(function (id) { return id !== REC.last[g]; });   // 続けて同じものは選ばない
+  var w = ids.map(function (id) { return wf ? wf(id) : 1; }), tot = 0, i;
+  w.forEach(function (x) { tot += x; });
+  var r = Math.random() * tot;
+  for (i = 0; i < ids.length - 1; i++) { r -= w[i]; if (r <= 0) break; }
+  REC.last[g] = ids[i];
+  return ids[i];
+}
+// 単発を鳴らす。音が鳴る瞬間（onset）が時刻 t に来るよう、頭の無音を飛ばして始める
+function recShot(id, t, dest, vol, rate, lpHz) {
+  var b = id && REC.buf[id], inf = id && REC.info[id];
+  if (!b || !inf) return null;
+  var src = ac.createBufferSource(), g = ac.createGain(), lp = null;
+  src.buffer = b; src.playbackRate.value = rate;
+  g.gain.value = vol * REC.gain[id]; g.channelCount = 1; g.channelCountMode = 'explicit';   // 1点の音源として置く（パンナーが方向を付ける）
+  if (rendering && !lpHz) lpHz = 9500;                       // 書き出しは 22kHz なので、折り返しの雑音を落とす
+  if (lpHz) { lp = mkF('lowpass', lpHz, 0.7); src.connect(lp); lp.connect(g); } else src.connect(g);
+  g.connect(dest);
+  src.start(t, inf.onset);
+  src.onended = function () { try { src.disconnect(); g.disconnect(); if (lp) lp.disconnect(); } catch (e) {} };
+  return { id: id, dur: Math.max(0.1, (b.duration - inf.onset) / rate), stop: function () { try { src.stop(); } catch (e) {} } };
+}
+
+/* ---- ループの層 ---- */
+function mkRL(key, layer, grp, recs, o) {
+  var rl = { key: key, layer: layer, grp: grp, recs: recs, rg: [], v: null, offT: -1, want: o.want, mul: o.mul || null, still: !!o.still, base: 0, T0: 0, omax: 0 };
+  recs.forEach(function (r) {
+    var g = mkG(0, layVg(layer, r)); g.channelCount = 1; g.channelCountMode = 'explicit';
+    rl.rg.push(g);
+  });
+  SP.RL.push(rl);
+  return rl;
+}
+function rlBuf(rl) {
+  var l = REC.meta && REC.meta[rl.grp];
+  return l && recOK(rl.grp) ? REC.buf[l[0].id] || null : null;
+}
+function startLoop(rl, buf, t0) {
+  var n = rl.rg.length, D = buf.duration, ts = rendering ? t0 : t0 + 0.05, base = Math.random() * D, lag = rnd(0.25, 0.6), dir = Math.random() < 0.5 ? 1 : -1;
+  var v = { src: [], vo: [], nodes: [], osc: [] }, id = REC.meta[rl.grp][0].id;
+  rl.base = REC.gain[id] / Math.sqrt(n); rl.T0 = ts;
+  for (var k = 0; k < n; k++) {
+    var off = rl.still ? (base + (dir > 0 ? k : n - 1 - k) * lag) % D : (base + (k + rnd(0.1, 0.9)) / n * D) % D;
+    if (rl.still && ((dir > 0 && k === n - 1) || (dir < 0 && k === 0))) rl.omax = off;   // いちばん先に波が寄せる点
+    var src = ac.createBufferSource(), vm = mkG(1), vo = mkG(rendering ? 1 : 0), lp = null, o1, o2, d1, d2;
+    src.buffer = buf; src.loop = true; src.playbackRate.value = rl.still ? 1 : rnd(0.992, 1.008);
+    if (rendering) { lp = mkF('lowpass', 9500, 0.7); src.connect(lp); lp.connect(vm); v.nodes.push(lp); } else src.connect(vm);
+    vm.connect(vo); vo.connect(rl.rg[k]);
+    if (!rl.still) {                                    // 再生速度を ±2.6% ほどゆっくり揺らす（周期 15〜40 秒）
+      o1 = ac.createOscillator(); o1.frequency.value = rnd(0.025, 0.07); d1 = mkG(rnd(25, 44) * (k % 2 ? -1 : 1)); o1.connect(d1); d1.connect(src.detune); o1.start(ts);
+      v.osc.push(o1); v.nodes.push(d1);
+    }
+    o2 = ac.createOscillator(); o2.frequency.value = rnd(0.04, 0.11); d2 = mkG(rl.still ? 0.06 : 0.14); o2.connect(d2); d2.connect(vm.gain); o2.start(ts);   // 音量をゆっくり揺らす
+    v.osc.push(o2); v.nodes.push(d2, vm);
+    if (!rendering) { vo.gain.setValueAtTime(0, ts); vo.gain.linearRampToValueAtTime(1, ts + 1.2); }
+    src.start(ts, off);
+    v.src.push(src); v.vo.push(vo); v.nodes.push(vo);
+  }
+  rl.v = v;
+}
+function stopLoop(rl, t) {
+  var v = rl.v; rl.v = null;
+  if (!v) return;
+  var end = rendering ? t : t + 1.8;
+  v.vo.forEach(function (g) { if (!rendering) { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0, t, 0.25); } });
+  v.osc.forEach(function (o) { try { o.stop(end); } catch (e) {} });
+  v.src.forEach(function (s, i) {
+    try { s.stop(end); } catch (e) {}
+    if (i === 0) s.onended = function () { try { v.src.forEach(function (x) { x.disconnect(); }); v.nodes.forEach(function (x) { x.disconnect(); }); v.osc.forEach(function (x) { x.disconnect(); }); } catch (e) {} };
+  });
+}
+function swSet(list, synthOn, t) {
+  list.forEach(function (it) {
+    if (synthOn) {
+      if (!it.conn) { it.sw.connect(it.vg); it.conn = true; }
+      tgt(it.sw.gain, 1, t, 0.5); it.off = -1;
+    } else {
+      tgt(it.sw.gain, 0, t, 0.5);
+      if (it.off < 0) it.off = t;
+      if (it.conn && (rendering || t - it.off > 2.5)) { try { it.sw.disconnect(); } catch (e) {} it.conn = false; }   // 閉じた合成音は計算しない
+    }
+  });
+}
+// 毎ティック: 録音がそろっていて層がオンならループを鳴らし、そうでなければ止める。鳴っている間は合成音の出入り口を閉じる
+function recSync(t) {
+  if (!SP) return;
+  var lay = {};
+  SP.RL.forEach(function (rl) {
+    var buf = rlBuf(rl), on = rl.want();
+    if (on) rl.offT = -1; else if (rl.offT < 0) rl.offT = t;
+    var keep = buf && (on || (rl.offT >= 0 && t - rl.offT < 5));
+    if (keep && !rl.v) startLoop(rl, buf, t);
+    else if (!keep && rl.v) stopLoop(rl, t);
+    if (rl.v) {
+      var m = rl.mul ? rl.mul() : 1;
+      rl.rg.forEach(function (g) { tgt(g.gain, rl.base * m, t, 0.5); });
+      if (on) lay[rl.layer] = true;
+    }
+  });
+  for (var k in SP.SW) swSet(SP.SW[k], !lay[k], t);
+}
+function recLive(key) { if (!SP) return false; for (var i = 0; i < SP.RL.length; i++) if (SP.RL[i].key === key) return !!SP.RL[i].v; return false; }
+function recPending() {      // 使いたいのにまだ読み込み中の録音があるか（背景用ループの書き出しを待たせる）
+  var w = recWanted(), g;
+  for (g in w) if (REC.st[g] && !REC.st[g].ready) return true;
+  return false;
+}
+function initRecLayers() {
+  var ring = SP.ring;
+  mkRL('wave', 'wave', 'waves', SP.wave, { want: function () { return lvl('wave') > 0; }, still: true });
+  mkRL('insect_su', 'insect', 'insects_summer', [ring[1], ring[2], ring[3], ring[4]], { want: function () { return lvl('insect') > 0 && S.season !== 'autumn'; }, mul: function () { return S.season === 'spring' ? 0.6 : 1; } });
+  mkRL('insect_au', 'insect', 'insects_autumn', [ring[1], ring[2], ring[3], ring[4]], { want: function () { return lvl('insect') > 0 && S.season === 'autumn'; } });
+  mkRL('rain', 'rain', 'rain', [ring[0], ring[2], ring[3]], { want: function () { return lvl('rain') > 0; } });
+  mkRL('wind', 'wind', 'wind', ring, { want: function () { return lvl('wind') > 0; } });
+  mkRL('brook', 'brook', 'brook', SP.brook, { want: function () { return lvl('brook') > 0; } });
+  mkRL('bamboo', 'bamboo', 'bamboo', [ring[0], ring[1], ring[2], ring[4]], { want: function () { return lvl('bamboo') > 0; } });
+  mkRL('river', 'river', 'river', SP.river, { want: function () { return lvl('river') > 0; } });
+  mkRL('leaves', 'leaves', 'leaves', [ring[0], ring[2], ring[4]], { want: function () { return lvl('leaves') > 0; } });
+  mkRL('kettle', 'kettle', 'kettle', [SP.kettle], { want: function () { return lvl('kettle') > 0; } });
+  mkRL('frog', 'frog', 'frog_chorus', [ring[0], ring[2], ring[4]], { want: function () { return lvl('frog') > 0 && frogVoices() > 0 && S.season !== 'autumn'; } });
+}
+
+/* ---- 録音の単発（SCH から呼ばれる）。録音がそろっていなければ、合成音に切り替わる ---- */
+var FROG_RATE = [1, 1.12, 0.9];
+function playFrogRec(t) {
+  var nv = frogVoices(), cand = [], i;
+  for (i = 0; i < nv; i++) if (frogBusy[i] < t) cand.push(i);
+  if (!cand.length) return 0.25;
+  var pick = cand[Math.floor(Math.random() * cand.length)];
+  if (cand.length > 1 && pick === frogLastVoice) pick = cand[(cand.indexOf(pick) + 1) % cand.length];
+  frogLastVoice = pick;
+  var rate = FROG_RATE[pick] * rnd(0.97, 1.03), shot = recShot(recPick('frog_call'), t, SP.fvg[pick], rnd(0.7, 1), rate);   // 個体ごとに、池のまわりの決まった場所から
+  if (!shot) return playFrog(t);
+  var syl = REC.info[shot.id].syl.map(function (x) { return [x[0] / rate, x[1] / rate]; });
+  frogBusy[pick] = t + shot.dur + 0.6;
+  queueEnvEvent({ kind: 'frog', voice: pick, t: t, dur: shot.dur, call: 'kero', syl: syl });   // 喉の動きを、この声の鳴る時刻に合わせる
+  var quiet = S.season === 'autumn' ? 2.6 : 1;
+  return (Math.random() < 0.25 ? rnd(4, 10) : rnd(0.5, 2.2)) * quiet;
+}
+function playOwlRec(t) {
+  var p = evPoint('owl', 18, 32, 2.5, 7), id = recPick('owl');
+  if (!id) return playOwl(t);
+  recShot(id, t, poolSlot(SP.spotP, t, p[0], p[1], p[2], lvl('owl')), rnd(0.8, 1), rnd(0.95, 1.05), 4000);
+  if (Math.random() < 0.4) {                                // 遠くで別の個体が応える
+    var t2 = t + rnd(3.5, 6), p2 = evPoint('owl', 18, 32, 2.5, 7), id2 = recPick('owl');
+    recShot(id2, t2, poolSlot(SP.spotP, t2, p2[0], p2[1], p2[2], lvl('owl')), rnd(0.3, 0.45), rnd(1.05, 1.18), 3000);
+  }
+  return rnd(40, 160);
+}
+function playChimeRec(t) {
+  var id = recPick('furin', function (x) { return x === 'furin_3' ? 0.15 : 1; });      // furin_3 は長いので、頻度を低く
+  var shot = recShot(id, t, SP.cvg, rnd(0.6, 1), rnd(0.96, 1.05));
+  if (!shot) return playChime(t);
+  if (Math.random() < 0.25) recShot(recPick('furin', function (x) { return x === 'furin_3' ? 0.1 : 1; }), t + rnd(0.2, 0.6), SP.cvg, rnd(0.4, 0.7), rnd(0.94, 1.08));
+  return Math.max(rnd(4, 25), shot.dur + 1);
+}
+function playFireworksRec(t) {
+  var id = recPick('fireworks');
+  if (!id) return playFireworks(t);
+  queueEnvEvent({ kind: 'fw', t: t - 1.0 });                // 映像は、音の1秒前に打ち上げる
+  recShot(id, t, SP.fwvg[Math.floor(Math.random() * SP.fwvg.length)], rnd(0.8, 1), rnd(0.94, 1.06), 5000);
+  return rnd(25, 70);
+}
+// 波: 録音のうねりの山の時刻に、映像の波の合図を出す（波の音は録音のループそのもの。位置をずらした3点から、少しずつ遅れて寄せる）
+function playWaveRec(t) {
+  var rl = null, i;
+  for (i = 0; i < SP.RL.length; i++) if (SP.RL[i].key === 'wave') rl = SP.RL[i];
+  var id = REC.meta && REC.meta.waves && REC.meta.waves[0].id, inf = id && REC.info[id];
+  if (!rl || !rl.v || !inf || !inf.swells || !inf.swells.length) return playWave(t);
+  var D = REC.buf[id].duration, best = 1e9, bs = null;
+  inf.swells.forEach(function (s) {
+    var rel = (((s.p - s.rise - rl.omax) % D) + D) % D, tt = rl.T0 + rel;     // この周回の寄せ始め（音の山の rise 秒前）
+    while (tt < t) tt += D;
+    if (tt < best) { best = tt; bs = s; }
+  });
+  queueEnvEvent({ kind: 'wave', t: best, rise: bs.rise, fall: bs.fall, peak: bs.pk });
+  return best - t + 0.5;
+}
+// シーンの効果音（録音）。鳴らせなければ null を返し、playSfx が合成音を鳴らす
+var SFXR = {
+  kakon: function (t, v, d) { return recShot(recPick('shishiodoshi'), t, d, v * rnd(0.85, 1), rnd(0.97, 1.04)); },
+  pour: function (t, v, d) { return recShot(recPick('shishiodoshi_water'), t, d, v * rnd(0.8, 1), rnd(0.95, 1.05)); },
+  plop: function (t, v, d) { return recShot(recPick('koi_splash', function (x) { return x === 'koi_splash_1' ? 0.4 : 1; }), t, d, v * rnd(0.7, 1), rnd(0.92, 1.1)); },
+  splash: function (t, v, d) { return recShot(recPick('koi_splash'), t, d, v * rnd(0.8, 1), rnd(0.92, 1.1)); },
+  plip: function (t, v, d) { return recShot(recPick('koi_splash', function (x) { return x === 'koi_splash_1' ? 0.1 : 1; }), t, d, v * rnd(0.35, 0.55), rnd(1.1, 1.3)); },
+  drip: function (t, v, d, o) {
+    if (S.scene !== 'cave') return null;                      // 庭の石鉢の一滴は合成のまま
+    if (t - REC.lastDrip < 3.5) { o.vol = v * 0.5; return null; }   // 残響が長いので、3.5秒以内に続くときは録音を重ねず、小さな合成音にする
+    var s = recShot(recPick('cave_drip'), t, d, v * rnd(0.8, 1), rnd(0.96, 1.04));
+    if (s) REC.lastDrip = t;
+    return s;
+  },
+  creak: function (t, v, d) { return recShot(recPick('creak'), t, d, v * rnd(0.8, 1), rnd(0.92, 1.08)); }
+};
+
 function playWave(t) {
   var a = rnd(2.2, 3.8), b = rnd(3, 5.5), pk = rnd(0.6, 1), n = waveN.length, dir = Math.random() < 0.5 ? 1 : -1, lag = rnd(0.25, 0.6);
   waveN.forEach(function (w, k) {
@@ -1216,7 +1567,7 @@ function playOwl(t) {
 function rainIntensity(t) {
   return 0.85 + 0.25 * Math.sin(t * 6.2832 / 47) + 0.15 * Math.sin(t * 6.2832 / 23 + 1);
 }
-function rainRate(t) { return (40 + 40 * S.vol_rain) * rainIntensity(t); }
+function rainRate(t) { return (40 + 40 * S.vol_rain) * rainIntensity(t) * (recLive('rain') ? 0.35 : 1); }   // 録音の雨があるときは、雫を少量だけ重ねる
 function dropBurst(t, decay, type, freq, q, peak, dest) {
   var src = ac.createBufferSource();
   src.buffer = whiteBuf;
@@ -1229,7 +1580,7 @@ function dropBurst(t, decay, type, freq, q, peak, dest) {
   src.onended = function () { try { src.disconnect(); f.disconnect(); gn.disconnect(); } catch (e) {} };
 }
 function playRain(t) {
-  var r = Math.random(), lv = lvl('rain'), c, o, gn;
+  var r = Math.random(), lv = lvl('rain') * (recLive('rain') ? 0.6 : 1), c, o, gn;
   // 雫は1粒ずつ、聞き手のまわりのランダムな位置（半径1.2〜8m）から。高さは、葉・地面・水たまりで変える
   if (r < 0.58) { c = around(1.2, 8, 0.8, 3.5); dropBurst(t, rnd(0.002, 0.006), 'bandpass', rnd(3000, 8000), 1.5, rnd(0.05, 0.24), poolSlot(SP.dropP, t, c[0], c[1], c[2], lv)); }          // 葉に当たる高く軽い音
   else if (r < 0.9) { c = around(1.2, 8, 0, 0.3); dropBurst(t, rnd(0.008, 0.026), 'bandpass', rnd(400, 1200), 1.4, rnd(0.07, 0.22), poolSlot(SP.dropP, t, c[0], c[1], c[2], lv)); }       // 地面に当たる低めで鈍い音
@@ -1497,23 +1848,25 @@ function playSfx(name, o) {
   var dest;
   if (name === 'trickle') { wake(SP.long); pset(SP.long, c[0], c[1], c[2], t); dest = SP.longVg; }   // 長く続く音は、専用のパンナーに置く
   else dest = poolSlot(SP.spotP, t, c[0], c[1], c[2], lvl('scenesfx'));
+  if (SFXR[name]) { var rs = null; try { rs = SFXR[name](t, o.vol == null ? 1 : o.vol, dest, o); } catch (e) { console.error(e); } if (rs) return rs; }   // 録音が使えるときは録音、なければ合成音
   try { return fn(t, o.vol == null ? 1 : o.vol, dest, o) || { stop: function () {} }; } catch (e) { console.error(e); return null; }
 }
 var SCH = {
-  frog:    { on: function () { return lvl('frog') > 0 && frogVoices() > 0; }, init: function () { return rnd(0.3, 1.5); }, fn: playFrog, next: 0 },
-  wave:    { on: function () { return lvl('wave') > 0; }, init: function () { return 0.1; }, fn: playWave, next: 0 },
+  frog:    { on: function () { return lvl('frog') > 0 && frogVoices() > 0; }, init: function () { return rnd(0.3, 1.5); }, fn: function (t) { return recOK('frog_call') ? playFrogRec(t) : playFrog(t); }, next: 0 },
+  wave:    { on: function () { return lvl('wave') > 0; }, init: function () { return 0.1; }, fn: function (t) { return recLive('wave') ? playWaveRec(t) : playWave(t); }, next: 0 },
   rain:    { on: function () { return lvl('rain') > 0; }, init: function () { return 0.1; }, fn: playRain, next: 0 },
-  suzu:    { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playSuzu, next: 0 },
-  cricket: { on: function () { return lvl('insect') > 0 && S.season === 'autumn'; }, init: function () { return rnd(0.1, 1); }, fn: playCricket, next: 0 },
-  brook:   { on: function () { return lvl('brook') > 0; }, init: function () { return 0.1; }, fn: playBubble, next: 0 },
-  river:   { on: function () { return lvl('river') > 0; }, init: function () { return rnd(0.2, 1.5); }, fn: playChoro, next: 0 },
-  chime:   { on: function () { return lvl('chime') > 0; }, init: function () { return rnd(1, 4); }, fn: playChime, next: 0 },
-  fw:      { on: function () { return lvl('fw') > 0; }, init: function () { return rnd(6, 20); }, fn: playFireworks, next: 0 },
-  leaves:  { on: function () { return lvl('leaves') > 0; }, init: function () { return rnd(0.1, 1); }, fn: playLeaves, next: 0 },
-  owl:     { on: function () { return lvl('owl') > 0; }, init: function () { return rnd(5, 18); }, fn: playOwl, next: 0 },
+  suzu:    { on: function () { return lvl('insect') > 0 && S.season === 'autumn' && !recLive('insect_au'); }, init: function () { return rnd(0.1, 1); }, fn: playSuzu, next: 0 },
+  cricket: { on: function () { return lvl('insect') > 0 && S.season === 'autumn' && !recLive('insect_au'); }, init: function () { return rnd(0.1, 1); }, fn: playCricket, next: 0 },
+  brook:   { on: function () { return lvl('brook') > 0 && !recLive('brook'); }, init: function () { return 0.1; }, fn: playBubble, next: 0 },
+  river:   { on: function () { return lvl('river') > 0 && !recLive('river'); }, init: function () { return rnd(0.2, 1.5); }, fn: playChoro, next: 0 },
+  chime:   { on: function () { return lvl('chime') > 0; }, init: function () { return rnd(1, 4); }, fn: function (t) { return recOK('furin') ? playChimeRec(t) : playChime(t); }, next: 0 },
+  fw:      { on: function () { return lvl('fw') > 0; }, init: function () { return rnd(6, 20); }, fn: function (t) { return recOK('fireworks') ? playFireworksRec(t) : playFireworks(t); }, next: 0 },
+  leaves:  { on: function () { return lvl('leaves') > 0 && !recLive('leaves'); }, init: function () { return rnd(0.1, 1); }, fn: playLeaves, next: 0 },
+  owl:     { on: function () { return lvl('owl') > 0; }, init: function () { return rnd(5, 18); }, fn: function (t) { return recOK('owl') ? playOwlRec(t) : playOwl(t); }, next: 0 },
   kettle:  { on: function () { return lvl('kettle') > 0; }, init: function () { return rnd(0.5, 2); }, fn: playKnock, next: 0 }
 };
 function envTick(t) {
+  recSync(t);
   ENV.forEach(function (e) { if (!e.noVol) layerSet(e.id, lvl(e.id), t); });   // 2秒前後でフェード
   var se = S.season;
   gSp.forEach(function (g) { tgt(g.gain, se === 'spring' ? 0.5 : 0, t, 0.6); });
@@ -1621,6 +1974,7 @@ function audioTick(ot) {
   if (!ac || !audioReady) return;
   var off = ot != null;
   if (!off && mode === 'loop' && document.hidden) return;   // 録音ループで鳴らしている間は、聞こえない Web Audio を動かさない（電池）
+  if (!off) recManage();
   var t = off ? ot : ac.currentTime;
   var tt = off ? ot : performance.now() / 1000;
   var lfo = 0.5 * Math.sin(tt * 0.7) + 0.3 * Math.sin(tt * 1.9 + 1) + 0.2 * Math.sin(tt * 4.3 + 2);
@@ -1795,7 +2149,7 @@ function reportSlow() {
   if (autoDrops >= 2 || i >= GRASS.length - 1) return;   // 自動で下げるのは1セッション2段階まで
   autoDrops++;
   S.grassAuto = GRASS[i + 1]; save(); refreshGrassUI();
-  showToast('重いため草を減らしました');
+  showToast('動作の最適化のため草を減らしました');
 }
 var grassSegEl = document.getElementById('grassSeg');
 GRASS.forEach(function (g) {
@@ -1890,7 +2244,7 @@ var sawBgSuspend = false;     // パソコンでも、裏に回って Web Audio 
 var userPaused = false;       // ロック画面などから一時停止された
 var mode = 'web', modeTok = 0;   // 'web'（Web Audio で鳴らす）か 'loop'（録音ループで鳴らす）
 var loopEl = null, SILENT_URL = '', elUrl = '', volOK = false;
-var LOOP = { sawHidden: false, sr: 22050, dur: 180, xf: 5, key: '', job: 0, timer: 0, ready: false, url: '', flame: 0, dirty: false, ms: 0 };
+var LOOP = { sawHidden: false, sr: 22050, dur: 180, xf: 5, key: '', job: 0, timer: 0, ready: false, url: '', flame: 0, dirty: false, ms: 0, wait: 0 };
 var SCENE_LABELS = {};
 function loopWanted() { return LOOP_ENV || sawBgSuspend; }
 
@@ -2033,7 +2387,7 @@ function unlockAudio() {
 
 /* ---- ループの書き出し ---- */
 function audioKey() {
-  var k = [S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb), spOut, JSON.stringify(curSources), JSON.stringify(sceneRnd)];
+  var k = [Object.keys(REC.buf).sort().join(','), S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb), spOut, JSON.stringify(curSources), JSON.stringify(sceneRnd)];
   ENV.forEach(function (e) { k.push(S['on_' + e.id] ? 1 : 0, S['vol_' + e.id]); });
   return k.join('|');
 }
@@ -2070,6 +2424,8 @@ function inG(g, fn) {
 function startLoopRender() {
   if (!started || !loopWanted() || !ac || typeof OfflineAudioContext === 'undefined') return;
   if (document.hidden) { LOOP.dirty = true; return; }
+  if (recPending() && LOOP.wait++ < 30) { scheduleLoopRender(1000); return; }   // 録音を読み込み中なら、そろうのを待つ（最大30秒）
+  LOOP.wait = 0;
   LOOP.dirty = false; LOOP.sawHidden = false;
   var token = ++LOOP.job, t0 = performance.now(), key = audioKey();
   var sr = LOOP.sr, xf = LOOP.xf, dur = LOOP.dur, total, off;
