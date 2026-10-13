@@ -1,0 +1,737 @@
+{
+ "sounds": [
+  {
+   "id": "owl_1",
+   "group": "owl",
+   "file": "owl_1.m4a",
+   "kind": "oneshot",
+   "duration": 2.4,
+   "lufs": -13.8,
+   "peak": -3.4,
+   "source": {
+    "title": "Tawny owl hooting",
+    "author": "Patrick_Corra",
+    "url": "https://freesound.org/people/Patrick_Corra/sounds/745208/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    5.3,
+    7.7
+   ]
+  },
+  {
+   "id": "owl_2",
+   "group": "owl",
+   "file": "owl_2.m4a",
+   "kind": "oneshot",
+   "duration": 2.35,
+   "lufs": -14.2,
+   "peak": -3.0,
+   "source": {
+    "title": "Tawny owl hooting",
+    "author": "Patrick_Corra",
+    "url": "https://freesound.org/people/Patrick_Corra/sounds/745208/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    16.55,
+    18.9
+   ]
+  },
+  {
+   "id": "owl_3",
+   "group": "owl",
+   "file": "owl_3.m4a",
+   "kind": "oneshot",
+   "duration": 2.3,
+   "lufs": -13.4,
+   "peak": -3.3,
+   "source": {
+    "title": "Tawny owl hooting",
+    "author": "Patrick_Corra",
+    "url": "https://freesound.org/people/Patrick_Corra/sounds/745208/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    26.5,
+    28.8
+   ]
+  },
+  {
+   "id": "owl_4",
+   "group": "owl",
+   "file": "owl_4.m4a",
+   "kind": "oneshot",
+   "duration": 2.5,
+   "lufs": -15.9,
+   "peak": -3.4,
+   "source": {
+    "title": "Tawny owl hooting",
+    "author": "Patrick_Corra",
+    "url": "https://freesound.org/people/Patrick_Corra/sounds/745208/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    35.3,
+    37.8
+   ]
+  },
+  {
+   "id": "frog_chorus",
+   "group": "frog_chorus",
+   "file": "frog_chorus.m4a",
+   "kind": "loop",
+   "duration": 50.8,
+   "lufs": -21.2,
+   "peak": -5.2,
+   "source": {
+    "title": "wood_frogs",
+    "author": "noisymichael",
+    "url": "https://freesound.org/people/noisymichael/sounds/798895/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0,
+    53.8
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "frog_call_1",
+   "group": "frog_call",
+   "file": "frog_call_1.m4a",
+   "kind": "oneshot",
+   "duration": 1.22,
+   "lufs": -24.7,
+   "peak": -3.3,
+   "source": {
+    "title": "Frogs on a summer night 3.MP3",
+    "author": "macdaddyno1",
+    "url": "https://freesound.org/people/macdaddyno1/sounds/396490/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    1.28,
+    2.5
+   ]
+  },
+  {
+   "id": "frog_call_2",
+   "group": "frog_call",
+   "file": "frog_call_2.m4a",
+   "kind": "oneshot",
+   "duration": 0.96,
+   "lufs": -22.8,
+   "peak": -3.3,
+   "source": {
+    "title": "Frogs on a summer night 2.MP3",
+    "author": "macdaddyno1",
+    "url": "https://freesound.org/people/macdaddyno1/sounds/396491/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.04,
+    1.0
+   ]
+  },
+  {
+   "id": "frog_call_3",
+   "group": "frog_call",
+   "file": "frog_call_3.m4a",
+   "kind": "oneshot",
+   "duration": 1.14,
+   "lufs": -24.6,
+   "peak": -3.6,
+   "source": {
+    "title": "Frogs on a summer night 2.MP3",
+    "author": "macdaddyno1",
+    "url": "https://freesound.org/people/macdaddyno1/sounds/396491/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    2.38,
+    3.52
+   ]
+  },
+  {
+   "id": "insects_autumn",
+   "group": "insects_autumn",
+   "file": "insects_autumn.m4a",
+   "kind": "loop",
+   "duration": 35.0,
+   "lufs": -22.0,
+   "peak": -11.3,
+   "source": {
+    "title": "Japan_Kashiwa_Insects_Far_and_Upclose.wav",
+    "author": "RutgerMuller",
+    "url": "https://freesound.org/people/RutgerMuller/sounds/365257/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    28.5,
+    66.5
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "insects_summer",
+   "group": "insects_summer",
+   "file": "insects_summer.m4a",
+   "kind": "loop",
+   "duration": 63.0,
+   "lufs": -22.2,
+   "peak": -13.0,
+   "source": {
+    "title": "Japan_Ina_Night_Fields_Farm_Crickets_Bugs_TAKE2_24bit_96KHz.wav",
+    "author": "RutgerMuller",
+    "url": "https://freesound.org/people/RutgerMuller/sounds/361875/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    130,
+    196
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "waves",
+   "group": "waves",
+   "file": "waves.m4a",
+   "kind": "loop",
+   "duration": 20.2,
+   "lufs": -20.9,
+   "peak": -1.7,
+   "source": {
+    "title": "Gentle Ocean Waves Loop",
+    "author": "kkenny101",
+    "url": "https://freesound.org/people/kkenny101/sounds/852826/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.03,
+    21.73
+   ],
+   "crossfade": 1.5
+  },
+  {
+   "id": "brook",
+   "group": "brook",
+   "file": "brook.m4a",
+   "kind": "loop",
+   "duration": 47.0,
+   "lufs": -22.3,
+   "peak": -1.9,
+   "source": {
+    "title": "Small stream in forest",
+    "author": "Cinetony",
+    "url": "https://freesound.org/people/Cinetony/sounds/559955/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    8,
+    58
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "river",
+   "group": "river",
+   "file": "river.m4a",
+   "kind": "loop",
+   "duration": 63.0,
+   "lufs": -20.4,
+   "peak": -2.1,
+   "source": {
+    "title": "River Flow Loop",
+    "author": "EminYILDIRIM",
+    "url": "https://freesound.org/people/EminYILDIRIM/sounds/608141/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    2,
+    68
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "rain",
+   "group": "rain",
+   "file": "rain.m4a",
+   "kind": "loop",
+   "duration": 60.0,
+   "lufs": -23.8,
+   "peak": -1.4,
+   "source": {
+    "title": "Light Rain on Woodland Floor and Running Stream.wav",
+    "author": "thinkingfish",
+    "url": "https://freesound.org/people/thinkingfish/sounds/695571/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    20,
+    83
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "wind",
+   "group": "wind",
+   "file": "wind.m4a",
+   "kind": "loop",
+   "duration": 14.4,
+   "lufs": -24.0,
+   "peak": -14.2,
+   "source": {
+    "title": "the rush in the trees",
+    "author": "37735i6",
+    "url": "https://freesound.org/people/37735i6/sounds/706661/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.2,
+    16.1
+   ],
+   "crossfade": 1.5
+  },
+  {
+   "id": "bamboo",
+   "group": "bamboo",
+   "file": "bamboo.m4a",
+   "kind": "loop",
+   "duration": 52.0,
+   "lufs": -22.5,
+   "peak": -8.5,
+   "source": {
+    "title": "Wind in the bamboo grove.mp3",
+    "author": "azdipu",
+    "url": "https://freesound.org/people/azdipu/sounds/339331/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    80,
+    135
+   ],
+   "crossfade": 3
+  },
+  {
+   "id": "shishiodoshi_1",
+   "group": "shishiodoshi",
+   "file": "shishiodoshi_1.m4a",
+   "kind": "oneshot",
+   "duration": 0.98,
+   "lufs": -18.4,
+   "peak": -3.2,
+   "source": {
+    "title": "deerchaser.mp3",
+    "author": "morgantj",
+    "url": "https://freesound.org/people/morgantj/sounds/58569/",
+    "license": "CC BY 4.0"
+   },
+   "srcRange": [
+    1.88,
+    2.86
+   ]
+  },
+  {
+   "id": "shishiodoshi_2",
+   "group": "shishiodoshi",
+   "file": "shishiodoshi_2.m4a",
+   "kind": "oneshot",
+   "duration": 1.38,
+   "lufs": -18.5,
+   "peak": -2.3,
+   "source": {
+    "title": "deerchaser.mp3",
+    "author": "morgantj",
+    "url": "https://freesound.org/people/morgantj/sounds/58569/",
+    "license": "CC BY 4.0"
+   },
+   "srcRange": [
+    15.62,
+    17.0
+   ]
+  },
+  {
+   "id": "shishiodoshi_water_1",
+   "group": "shishiodoshi",
+   "file": "shishiodoshi_water_1.m4a",
+   "kind": "oneshot",
+   "duration": 1.65,
+   "lufs": -25.6,
+   "peak": -3.5,
+   "source": {
+    "title": "deerchaser.mp3",
+    "author": "morgantj",
+    "url": "https://freesound.org/people/morgantj/sounds/58569/",
+    "license": "CC BY 4.0"
+   },
+   "srcRange": [
+    0.2,
+    1.85
+   ]
+  },
+  {
+   "id": "koi_splash_1",
+   "group": "koi_splash",
+   "file": "koi_splash_1.m4a",
+   "kind": "oneshot",
+   "duration": 1.4,
+   "lufs": -17.8,
+   "peak": -3.3,
+   "source": {
+    "title": "Fish Splashing Pond.wav",
+    "author": "kylecutsfilms",
+    "url": "https://freesound.org/people/kylecutsfilms/sounds/443380/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    1.2,
+    2.6
+   ]
+  },
+  {
+   "id": "koi_splash_2",
+   "group": "koi_splash",
+   "file": "koi_splash_2.m4a",
+   "kind": "oneshot",
+   "duration": 0.95,
+   "lufs": -30.0,
+   "peak": -3.3,
+   "source": {
+    "title": "Fish Splashing Pond.wav",
+    "author": "kylecutsfilms",
+    "url": "https://freesound.org/people/kylecutsfilms/sounds/443380/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    4.95,
+    5.9
+   ]
+  },
+  {
+   "id": "koi_splash_3",
+   "group": "koi_splash",
+   "file": "koi_splash_3.m4a",
+   "kind": "oneshot",
+   "duration": 1.0,
+   "lufs": -28.5,
+   "peak": -3.4,
+   "source": {
+    "title": "Fish Splashing Pond.wav",
+    "author": "kylecutsfilms",
+    "url": "https://freesound.org/people/kylecutsfilms/sounds/443380/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    7.6,
+    8.6
+   ]
+  },
+  {
+   "id": "koi_splash_4",
+   "group": "koi_splash",
+   "file": "koi_splash_4.m4a",
+   "kind": "oneshot",
+   "duration": 1.2,
+   "lufs": -27.9,
+   "peak": -4.6,
+   "source": {
+    "title": "Fish Splashing Pond.wav",
+    "author": "kylecutsfilms",
+    "url": "https://freesound.org/people/kylecutsfilms/sounds/443380/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    25.1,
+    26.3
+   ]
+  },
+  {
+   "id": "cave_drip_1",
+   "group": "cave_drip",
+   "file": "cave_drip_1.m4a",
+   "kind": "oneshot",
+   "duration": 3.5,
+   "lufs": -36.7,
+   "peak": -3.3,
+   "source": {
+    "title": "Water Dripping in Cave.wav",
+    "author": "Sclolex",
+    "url": "https://freesound.org/people/Sclolex/sounds/177958/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    25.1,
+    28.6
+   ]
+  },
+  {
+   "id": "cave_drip_2",
+   "group": "cave_drip",
+   "file": "cave_drip_2.m4a",
+   "kind": "oneshot",
+   "duration": 3.66,
+   "lufs": -40.9,
+   "peak": -3.9,
+   "source": {
+    "title": "Water Dripping in Cave.wav",
+    "author": "Sclolex",
+    "url": "https://freesound.org/people/Sclolex/sounds/177958/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    34.84,
+    38.5
+   ]
+  },
+  {
+   "id": "cave_drip_3",
+   "group": "cave_drip",
+   "file": "cave_drip_3.m4a",
+   "kind": "oneshot",
+   "duration": 3.08,
+   "lufs": -41.9,
+   "peak": -3.4,
+   "source": {
+    "title": "Water Dripping in Cave.wav",
+    "author": "Sclolex",
+    "url": "https://freesound.org/people/Sclolex/sounds/177958/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    56.72,
+    59.8
+   ]
+  },
+  {
+   "id": "cave_drip_4",
+   "group": "cave_drip",
+   "file": "cave_drip_4.m4a",
+   "kind": "oneshot",
+   "duration": 2.41,
+   "lufs": -28.7,
+   "peak": -3.5,
+   "source": {
+    "title": "Water Dripping in Cave.wav",
+    "author": "Sclolex",
+    "url": "https://freesound.org/people/Sclolex/sounds/177958/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    66.44,
+    68.85
+   ]
+  },
+  {
+   "id": "cave_drip_5",
+   "group": "cave_drip",
+   "file": "cave_drip_5.m4a",
+   "kind": "oneshot",
+   "duration": 2.42,
+   "lufs": -34.9,
+   "peak": -3.4,
+   "source": {
+    "title": "Water Dripping in Cave.wav",
+    "author": "Sclolex",
+    "url": "https://freesound.org/people/Sclolex/sounds/177958/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    71.23,
+    73.65
+   ]
+  },
+  {
+   "id": "furin_1",
+   "group": "furin",
+   "file": "furin_1.m4a",
+   "kind": "oneshot",
+   "duration": 1.6,
+   "lufs": -21.2,
+   "peak": -3.4,
+   "source": {
+    "title": "Furin japanese wind chime.wav",
+    "author": "ayustat2001",
+    "url": "https://freesound.org/people/ayustat2001/sounds/501168/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.4,
+    2.0
+   ]
+  },
+  {
+   "id": "furin_2",
+   "group": "furin",
+   "file": "furin_2.m4a",
+   "kind": "oneshot",
+   "duration": 1.49,
+   "lufs": -20.9,
+   "peak": -3.6,
+   "source": {
+    "title": "Furin japanese wind chime.wav",
+    "author": "ayustat2001",
+    "url": "https://freesound.org/people/ayustat2001/sounds/501168/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    2.78,
+    4.27
+   ]
+  },
+  {
+   "id": "furin_3",
+   "group": "furin",
+   "file": "furin_3.m4a",
+   "kind": "oneshot",
+   "duration": 3.87,
+   "lufs": -22.9,
+   "peak": -3.4,
+   "source": {
+    "title": "Furin japanese wind chime.wav",
+    "author": "ayustat2001",
+    "url": "https://freesound.org/people/ayustat2001/sounds/501168/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.4,
+    4.27
+   ]
+  },
+  {
+   "id": "fireworks_1",
+   "group": "fireworks",
+   "file": "fireworks_1.m4a",
+   "kind": "oneshot",
+   "duration": 3.1,
+   "lufs": -28.9,
+   "peak": -3.4,
+   "source": {
+    "title": "Japanese fireworks (Hanabi) ( Festival Circle of Light 2018, Moscow)",
+    "author": "Walking.With.Microphones",
+    "url": "https://freesound.org/people/Walking.With.Microphones/sounds/556083/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    10.9,
+    14.0
+   ]
+  },
+  {
+   "id": "fireworks_2",
+   "group": "fireworks",
+   "file": "fireworks_2.m4a",
+   "kind": "oneshot",
+   "duration": 3.15,
+   "lufs": -30.3,
+   "peak": -3.2,
+   "source": {
+    "title": "Japanese fireworks (Hanabi) ( Festival Circle of Light 2018, Moscow)",
+    "author": "Walking.With.Microphones",
+    "url": "https://freesound.org/people/Walking.With.Microphones/sounds/556083/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    33.25,
+    36.4
+   ]
+  },
+  {
+   "id": "fireworks_3",
+   "group": "fireworks",
+   "file": "fireworks_3.m4a",
+   "kind": "oneshot",
+   "duration": 2.6,
+   "lufs": -33.0,
+   "peak": -3.3,
+   "source": {
+    "title": "Japanese fireworks (Hanabi) ( Festival Circle of Light 2018, Moscow)",
+    "author": "Walking.With.Microphones",
+    "url": "https://freesound.org/people/Walking.With.Microphones/sounds/556083/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    23.6,
+    26.2
+   ]
+  },
+  {
+   "id": "kettle",
+   "group": "kettle",
+   "file": "kettle.m4a",
+   "kind": "loop",
+   "duration": 29.5,
+   "lufs": -23.1,
+   "peak": -11.0,
+   "source": {
+    "title": "tea_kettle_heating_whistle.wav",
+    "author": "leo153",
+    "url": "https://freesound.org/people/leo153/sounds/500545/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    40,
+    72
+   ],
+   "crossfade": 2.5
+  },
+  {
+   "id": "creak_1",
+   "group": "creak",
+   "file": "creak_1.m4a",
+   "kind": "oneshot",
+   "duration": 1.08,
+   "lufs": -17.6,
+   "peak": -3.6,
+   "source": {
+    "title": "Creaking in Room 6.wav",
+    "author": "Greg_Surr",
+    "url": "https://freesound.org/people/Greg_Surr/sounds/590169/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    0.0,
+    1.08
+   ]
+  },
+  {
+   "id": "creak_2",
+   "group": "creak",
+   "file": "creak_2.m4a",
+   "kind": "oneshot",
+   "duration": 0.97,
+   "lufs": -24.9,
+   "peak": -4.0,
+   "source": {
+    "title": "Creaking in Room 6.wav",
+    "author": "Greg_Surr",
+    "url": "https://freesound.org/people/Greg_Surr/sounds/590169/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    1.08,
+    2.05
+   ]
+  },
+  {
+   "id": "leaves",
+   "group": "leaves",
+   "file": "leaves.m4a",
+   "kind": "loop",
+   "duration": 36.5,
+   "lufs": -22.4,
+   "peak": -8.8,
+   "source": {
+    "title": "Autumn wind and dry leaves.wav",
+    "author": "Stek59",
+    "url": "https://freesound.org/people/Stek59/sounds/457318/",
+    "license": "CC0 1.0"
+   },
+   "srcRange": [
+    1.5,
+    40.0
+   ],
+   "crossfade": 2
+  }
+ ]
+}
