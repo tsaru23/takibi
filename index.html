@@ -186,6 +186,8 @@
       <div id="sliders"></div>
       <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
       <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
+      <label class="chk"><input type="checkbox" id="lookAround"> ゆっくり見回す</label>
+      <div class="row" id="lookRow" style="display:none"><label><span>1周の速さ</span></label><div class="seg" id="lookSeg"></div></div>
       <label class="chk" id="wakeRow" style="display:none"><input type="checkbox" id="keepAwake"> 画面をつけたままにする</label>
     </div>
   </section>
@@ -228,7 +230,7 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function 
 var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
 
 /* ---------- 設定 ---------- */
-var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'', keepAwake:false };
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'', keepAwake:false, lookAround:false, lookSpeed:'normal' };
 var SLIDERS = [
   ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
   ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
@@ -260,6 +262,7 @@ var ENV = [
   DEFAULTS.seasonFx = true;
   ENV.forEach(function (e) { DEFAULTS['on_' + e.id] = false; DEFAULTS['vol_' + e.id] = 0.7; });
 })();
+var LOOK_SPEEDS = ['slow', 'normal', 'fast'], LOOK_JA = { slow: 'ゆっくり（8分）', normal: 'ふつう（4分）', fast: 'はやめ（2分）' }, LOOK_SEC = { slow: 480, normal: 240, fast: 120 };
 var STORE_KEY = 'takibi.settings.v1';
 var S = {};
 (function load() {
@@ -276,6 +279,7 @@ var S = {};
         else if (k === 'season' && SEASONS.indexOf(o[k]) >= 0) S[k] = o[k];
         else if (k === 'scene' && typeof o[k] === 'string' && /^[a-z0-9_-]{1,32}$/.test(o[k])) S[k] = o[k];
         else if (k === 'grass' && GRASS.indexOf(o[k]) >= 0) S[k] = o[k];
+        else if (k === 'lookSpeed' && LOOK_SPEEDS.indexOf(o[k]) >= 0) S[k] = o[k];
         else if (k === 'grassAuto' && (o[k] === '' || GRASS.indexOf(o[k]) >= 0)) S[k] = o[k];
       }
     }
@@ -400,6 +404,22 @@ var autoEl = document.getElementById('autoFeed'), vidEl = document.getElementByI
 autoEl.checked = S.autoFeed; vidEl.checked = S.videoOff;
 autoEl.addEventListener('change', function () { S.autoFeed = autoEl.checked; save(); });
 vidEl.addEventListener('change', function () { S.videoOff = vidEl.checked; save(); applyVideoMode(); });
+
+var lookEl = document.getElementById('lookAround'), lookSegEl = document.getElementById('lookSeg'), lookRowEl = document.getElementById('lookRow');
+var scene3dMod = null;   // 読み込み済みの scene3d.js（読み込み前に設定を変えても、読み込み後に applyLook で反映する）
+function applyLook() { if (scene3dMod) scene3dMod.setCameraAuto(S.lookAround, LOOK_SEC[S.lookSpeed]); }
+function refreshLookUI() {
+  lookEl.checked = S.lookAround; lookRowEl.style.display = S.lookAround ? '' : 'none';
+  Array.prototype.forEach.call(lookSegEl.children, function (b) { b.classList.toggle('on', b.dataset.l === S.lookSpeed); });
+}
+LOOK_SPEEDS.forEach(function (l) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.dataset.l = l; b.textContent = LOOK_JA[l];
+  b.addEventListener('click', function () { S.lookSpeed = l; save(); refreshLookUI(); applyLook(); });
+  lookSegEl.appendChild(b);
+});
+lookEl.addEventListener('change', function () { S.lookAround = lookEl.checked; save(); refreshLookUI(); applyLook(); });
+refreshLookUI();
 
 var segEl = document.getElementById('seasonSeg'), fxEl = document.getElementById('seasonFx');
 SEASONS.forEach(function (sn) {
@@ -1450,7 +1470,8 @@ function boot3d() {
     sel.addEventListener('change', function () { S.scene = sel.value; save(); updateMediaMeta(); });
     document.getElementById('sceneRow').style.display = '';
     refreshGrassUI();
-    return m.start({ canvas: cv3, api: window.TAKIBI });
+    scene3dMod = m;
+    return Promise.resolve(m.start({ canvas: cv3, api: window.TAKIBI })).then(function (r) { applyLook(); return r; });   // ctx は start の中で作られるので、そのあとで反映する
   }).catch(function (e) {
     console.error('映像を開始できませんでした。', e);
     showNoVideo();
