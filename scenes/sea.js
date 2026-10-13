@@ -3,11 +3,19 @@
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, tileNoise, heightToNormalTexture, makePoints } from './util.js';
 import { makeSnowPoints } from './snow.js';
+import { loadFarTrees, surroundPoints } from './farTrees.js';
 
 /* ---------- 浜の形（z は奥がマイナス。焚火は原点、カメラは +Z 側から見る）----------
    z > -3 は平ら（y = 0）。沖へ向かってなだらかに下り、y = Y_WATER と交わる z = Z_BASE が静止時の波打ち際。 */
 const Y_WATER = -0.143, Z_BASE = -5.4;
 const sandY = (z) => { const d = Math.max(-3 - z, 0); return -(0.05 * d + 0.004 * d * d); };
+const smoothS = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+/* 背後の砂丘: 浜（z < 6）はそのまま平らで、その奥（+z）で ゆるやかな起伏になって 5m ほどの高さまで上がる */
+const duneH = (x, z) => {
+  const d = Math.max(0, z - 6), ramp = smoothS(0, 16, d);
+  const rip = 0.9 * Math.sin(x * 0.11 + z * 0.07) + 0.6 * Math.sin(x * 0.23 - z * 0.15 + 1.7) + 0.35 * Math.sin(x * 0.5 + z * 0.3);
+  return Math.max(0, 2.2 * ramp + 3.0 * smoothS(14, 50, d) + rip * ramp * 0.9);
+};
 const NFR = 6;   // 同時に持つ波の線の数（波2つ × 3本）
 const LAYER = { delay: [0, 0.8, 1.8], amp: [1.0, 0.78, 0.52] };
 
@@ -160,12 +168,12 @@ export default {
     };
     const sandMat = own(mats, new THREE.MeshStandardMaterial({ color: 0xc9b48c, roughness: 0.96, metalness: 0, normalMap: sandN, normalScale: new THREE.Vector2(0.7, 0.7) }));
     {
-      const xs = [-160, -80, -40, -20, -10, -5, -2.5, 0, 2.5, 5, 10, 20, 40, 80, 160];
-      const zs = [40, 25, 15, 10, 6, 4, 3];
+      const xh = [0, 2.5, 5, 8, 12, 16, 20, 26, 32, 40, 48, 60, 80, 110, 160], xs = xh.slice(1).reverse().map((x) => -x).concat(xh);
+      const zs = [80, 68, 58, 50, 43, 37, 32, 27, 23, 19.5, 16.5, 14, 11.5, 9.5, 8, 6.8, 5.6, 4.5, 3.5];
       for (let z = 2.5; z > -12; z -= 0.4) zs.push(z);
       for (let z = -12; z >= -30; z -= 1.5) zs.push(z);
       const P = [], UV = [], I = [];
-      for (const z of zs) for (const x of xs) { P.push(x, sandY(z), z); UV.push(x / NS, z / NS); }
+      for (const z of zs) for (const x of xs) { P.push(x, sandY(z) + duneH(x, z), z); UV.push(x / NS, z / NS); }
       const W = xs.length;
       for (let j = 0; j < zs.length - 1; j++) for (let i = 0; i < W - 1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; I.push(a, b, c, b, d, c); }
       const g = own(geos, new THREE.BufferGeometry());
@@ -204,6 +212,17 @@ export default {
     {
       const g = own(geos, new THREE.PlaneGeometry(1800, 288)); g.rotateX(-Math.PI / 2); g.translate(0, Y_WATER, -150);
       const sea = new THREE.Mesh(g, waterMat); sea.renderOrder = 4; sea.frustumCulled = false; root.add(sea);
+    }
+
+    /* --- 背後の砂丘の松林（遠景の針葉樹の流用）。砂丘の上、海の側（z < 9）には置かない --- */
+    let far = null;
+    {
+      const pts = surroundPoints(mulberry32(3131), 230, { front: false, rRing: [22, 34], rRidge: [34, 48], hRing: [7, 11], hRidge: [8, 12], reject: (x, z) => z < 9 })
+        .map((p) => ({ x: p.x, z: p.z, y: duneH(p.x, p.z) - 0.2, h: p.h }));
+      loadFarTrees(ctx, pts, { seed: 61, brightness: 1.15, mix: { fir: 1 } }).then((h) => {
+        if (!h || isStopped()) { if (h) h.dispose(); return; }
+        far = h; root.add(h.group); if (season) h.setSeason(season);
+      }).catch((e) => console.warn('[takibi] far trees:', e));
     }
 
     /* --- 流木（log.glb の流用）・貝殻・小石 --- */
@@ -253,15 +272,16 @@ export default {
     /* --- 季節の演出 --- */
     const petalTex = own(texs, petalTexture());
     const NP = 90;
+    const disc = (R) => { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R; return [Math.cos(a) * r, Math.sin(a) * r]; };   // 焚火を中心にした全周
     const petals = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(0.1, 0.1)), own(mats, new THREE.MeshLambertMaterial({ map: petalTex, transparent: true, alphaTest: 0.05, side: THREE.DoubleSide, depthWrite: false, emissive: 0x2a1520 })), NP);
     petals.frustumCulled = false; petals.visible = false; root.add(petals);
     const pd = []; {
       const cc = new THREE.Color(), cs = [0xffc4d6, 0xffd6e2, 0xf7b0c8];
-      for (let i = 0; i < NP; i++) { pd.push({ x: rnd(-9, 9), z: rnd(-7, 4), y: rnd(0, 5), vy: rnd(0.25, 0.55), ph: rnd(0, 20), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2, 2), tilt: rnd(0.5, 1.1), s: rnd(0.8, 1.4) }); petals.setColorAt(i, cc.setHex(cs[i % 3])); }
+      for (let i = 0; i < NP; i++) { const q0 = disc(9); pd.push({ x: q0[0], z: q0[1], y: rnd(0, 5), vy: rnd(0.25, 0.55), ph: rnd(0, 20), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2, 2), tilt: rnd(0.5, 1.1), s: rnd(0.8, 1.4) }); petals.setColorAt(i, cc.setHex(cs[i % 3])); }
     }
     const NSNOW = 520, snow = makeSnowPoints(NSNOW, uScale);
     snow.points.visible = false; root.add(snow.points);
-    const sd = []; for (let i = 0; i < NSNOW; i++) sd.push({ x: rnd(-14, 14), z: rnd(-16, 5), y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3) });
+    const sd = []; for (let i = 0; i < NSNOW; i++) { const q0 = disc(12); sd.push({ x: q0[0], z: q0[1], y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3) }); }
     // 花火: 遠くの空に開き、水面に光の筋を落とす
     const fwPts = makePoints(260, THREE.AdditiveBlending, 1.5, uScale);
     fwPts.points.visible = false; fwPts.points.renderOrder = 6; root.add(fwPts.points);
@@ -326,7 +346,7 @@ export default {
 
     /* --- 季節 --- */
     function applySeason(s) {
-      season = s; cfg = SEASON[s];
+      season = s; cfg = SEASON[s]; if (far) far.setSeason(s);
       U.uZen.value.setHex(cfg.zen); U.uHor.value.setHex(cfg.hor).multiplyScalar(0.35); U.uDeep.value.setHex(cfg.deep);
       U.uMoonCol.value.setHex(cfg.moon.col); U.uMoonColS.value.setHex(cfg.moon.col);
       U.uMoonDir.value.copy(skyDir(cfg.moon.az, cfg.moon.el));
@@ -360,18 +380,18 @@ export default {
           petals.visible = true;
           for (let i = 0; i < NP; i++) {
             const d = pd[i]; d.y -= d.vy * dt * 0.75; d.x += Math.sin(t * 1.1 + d.ph) * 0.5 * dt + 0.15 * dt; d.z += Math.cos(t * 0.9 + d.ph) * 0.5 * dt;
-            if (d.y < 0.03) { d.y = 5; d.x = rnd(-9, 9); d.z = rnd(-7, 4); }
+            if (d.y < 0.03) { d.y = 5; const q0 = disc(9); d.x = q0[0]; d.z = q0[1]; }
             de.set(Math.sin(t * d.f1 + d.ph) * d.tilt + Math.PI / 2, t * d.spin + d.ph, Math.cos(t * d.f2 + d.ph) * d.tilt); dq.setFromEuler(de);
-            dm.compose(dp.set(d.x, Math.max(d.y, sandY(d.z) + 0.02), d.z), dq, ds.setScalar(d.s)); petals.setMatrixAt(i, dm);
+            dm.compose(dp.set(d.x, Math.max(d.y, sandY(d.z) + duneH(d.x, d.z) + 0.02), d.z), dq, ds.setScalar(d.s)); petals.setMatrixAt(i, dm);
           }
           petals.instanceMatrix.needsUpdate = true;
         } else petals.visible = false;
         if (season === 'winter' && st.seasonFx !== false) {
           const P = snow;
           for (let i = 0; i < NSNOW; i++) {
-            const d = sd[i], o = i * 3, floor = d.z < Z_BASE ? Y_WATER : sandY(d.z);
+            const d = sd[i], o = i * 3, floor = d.z < Z_BASE ? Y_WATER : sandY(d.z) + duneH(d.x, d.z);
             d.y -= d.vy * dt * 0.5; d.x += Math.sin(t * 1.1 + d.ph) * 0.2 * dt; d.z += Math.cos(t * 0.9 + d.ph) * 0.2 * dt;
-            if (d.y < floor) { d.y = 6.5; d.x = rnd(-14, 14); d.z = rnd(-16, 5); }
+            if (d.y < floor) { d.y = 6.5; const q0 = disc(12); d.x = q0[0]; d.z = q0[1]; }
             P.pos[o] = d.x; P.pos[o + 1] = d.y; P.pos[o + 2] = d.z; P.size[i] = 0.032 * d.sz * d.sz;
             P.alp[i] = 0.9 * Math.min(1, (d.y - floor) / 0.35);       // 水面・砂に近づくと、すっと消える
             P.col[o] = 0.93; P.col[o + 1] = 0.96; P.col[o + 2] = 1;
@@ -381,6 +401,7 @@ export default {
       },
       dispose() {
         disposed = true; offEnv();
+        if (far) { far.dispose(); far = null; }
         if (ground) ground.visible = true;
         ctx.fireflies && (ctx.fireflies.value = 1);
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());

@@ -20,10 +20,20 @@ const SEASON = {
   winter: { tint: [0.9, 0.97, 1.08], moss: 0x4a6a58, bamboo: 0x55705e, leaf: 0x4c6a54, snow: 1, groundLeaves: 0, petals: 0, wind: 0.7,
             maple: 0x000000, pine: 0x1f3a2a, ume: 'bare', stoneTone: 1.25 }
 };
-const BAMBOO_N = 110, CLUSTERS = 3;
+const BAMBOO_N = 150, CLUSTERS = 3;
 const ROOT = new URL('../', import.meta.url);
 const BAMBOO_DIR = 'assets/plants/vd-bamboo-b0c4849ceaaf82c4a67b/';
-const BAMBOO_CLUMPS = 30;
+const BAMBOO_CLUMPS = 52;
+const WALL_Z = 7.6;                          // 背後の土塀の位置（庭の外との境）。焚火から +Z へ約 7.6m
+/* 全周の竹藪: 焚火のまわり r 8.5〜14m の輪。背後の土塀（z 5.5〜8.6）の上には立てない（塀のうしろに立つ） */
+function bambooRing(br) {
+  for (let g = 0; g < 40; g++) {
+    const a = br() * Math.PI * 2, r = 8.5 + br() * 5.5, x = Math.sin(a) * r, z = Math.cos(a) * r;
+    if ((z > 5.5 && z < 8.8) || z < -3) continue;   // 前（-Z）は元の奥の帯のまま。初期の構図の夜空を守る
+    return [x, z];
+  }
+  return [-11, -2];
+}
 /* FABOTANIC の竹（竹類A）に掛ける季節の色（材質の色に掛け算。leaf = 葉、stem = 幹）。冬は葉に雪をのせたように白っぽく */
 const BAMBOO_TINT = {
   spring: { leaf: [1.7, 2.2, 1.2], stem: [1.1, 1.3, 0.8], em: [0.05, 0.11, 0.03] },
@@ -183,12 +193,13 @@ export default {
     const origGroundColor = ground ? ground.material.color.clone() : null;
     const mossTex = own(texs, radialTexture(64, [[0, 'rgba(255,255,255,0.95)'], [0.55, 'rgba(255,255,255,0.55)'], [1, 'rgba(255,255,255,0)']]));
     const mossMat = own(mats, new THREE.MeshLambertMaterial({ color: 0x34602c, map: mossTex, transparent: true, opacity: 0.4, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-    const NMOSS = 40, mossGeo = own(geos, new THREE.CircleGeometry(1, 16)); mossGeo.rotateX(-Math.PI / 2);
+    const NMOSS = 70, mossGeo = own(geos, new THREE.CircleGeometry(1, 16)); mossGeo.rotateX(-Math.PI / 2);
     const moss = new THREE.InstancedMesh(mossGeo, mossMat, NMOSS); moss.frustumCulled = false;
     {
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color(), mr = mulberry32(61);
       for (let i = 0; i < NMOSS; i++) {
         let x = (mr() - 0.5) * 11, z = -5 + mr() * 6.6; const s = 0.5 + mr() * 1.1; if (Math.hypot(x, z) < 2.4) { x *= 2.2; z = z * 2.2 - 1; }
+        if (i >= 40) { const a = mr() * 6.28, r = 2.6 + Math.sqrt(mr()) * 6; x = Math.sin(a) * r; z = Math.cos(a) * r; }   // 全周（背後・左右にも）
         q.setFromEuler(e.set(0, mr() * 6, 0)); m4.compose(new THREE.Vector3(x, 0.006 + i * 0.00005, z), q, new THREE.Vector3(s * (1 + mr()), 1, s));
         moss.setMatrixAt(i, m4); moss.setColorAt(i, c.setScalar(0.75 + mr() * 0.5));
       }
@@ -473,9 +484,10 @@ export default {
         let x, z, guard = 0;
         do {
           if (i < 72) { x = -13 + br() * 26; z = -12.5 + br() * 7.2; }                                   // 奥の帯
-          else { x = (br() < 0.5 ? -1 : 1) * (6.2 + br() * 7); z = -6 + br() * 9.5; }                  // 左右の端
+          else if (i < 110) { x = (br() < 0.5 ? -1 : 1) * (6.2 + br() * 7); z = -6 + br() * 9.5; }     // 左右の端
+          else [x, z] = bambooRing(br);                                                                  // 全周の輪（手前・背後も）
           guard++;
-        } while ((Math.abs(Math.atan2(x, z)) < 1.05 && Math.hypot(x, z) < 11) && guard < 30);
+        } while ((i < 110 && Math.abs(Math.atan2(x, z)) < 1.05 && Math.hypot(x, z) < 11) && guard < 30);
         const H = 5.5 + br() * 3, r = 0.055 + br() * 0.03, lean = (br() - 0.5) * 0.06;
         q.setFromEuler(e.set(lean, br() * 6, (br() - 0.5) * 0.06)); m4.compose(new THREE.Vector3(x, -0.05, z), q, new THREE.Vector3(r, H, r));
         stalks.setMatrixAt(i, m4); stalks.setColorAt(i, c.setScalar(0.8 + br() * 0.4));
@@ -508,20 +520,27 @@ export default {
         let x, z, guard = 0;
         do {
           if (i < 20) { x = -13 + br() * 26; z = -12.5 + br() * 7.2; }                                   // 奥の帯
-          else { x = (br() < 0.5 ? -1 : 1) * (7 + br() * 6.5); z = -6 + br() * 6.5; }                  // 左右の端（カメラ側は空ける）
+          else if (i < 30) { x = (br() < 0.5 ? -1 : 1) * (7 + br() * 6.5); z = -6 + br() * 6.5; }      // 左右の端
+          else [x, z] = bambooRing(br);                                                                  // 全周の輪（手前・背後も）
           guard++;
-        } while ((Math.abs(Math.atan2(x, z)) < 1.05 && Math.hypot(x, z) < 11) && guard < 30);
+        } while ((i < 30 && Math.abs(Math.atan2(x, z)) < 1.05 && Math.hypot(x, z) < 11) && guard < 30);
         place.push({ x, z, s: 2.3 + br() * 1.3, yaw: br() * 6.28, k: 0.8 + br() * 0.3, lean: (br() - 0.5) * 0.05 });
       }
       const ims = [], tintMats = [];
+      // 視錐台の外の株を描かないよう、焚火から見た方位 22.5° ずつの扇形ごとに InstancedMesh を分ける（全周に置いても1フレームの描画量が増えない）
+      const NSEC = 16, sec = Array.from({ length: NSEC }, () => []);
+      place.forEach((p) => sec[Math.floor(((Math.atan2(p.x, p.z) + Math.PI) / (Math.PI * 2)) * NSEC) % NSEC].push(p));
       asset.root.traverse((o) => {
         if (!o.isMesh) return;
-        const im = new THREE.InstancedMesh(o.geometry, o.material, place.length);
-        place.forEach((p, i) => {
-          q.setFromEuler(e.set(p.lean, p.yaw, 0)); m4.compose(new THREE.Vector3(p.x, -0.05, p.z), q, new THREE.Vector3(p.s, p.s, p.s)).multiply(o.matrixWorld);
-          im.setMatrixAt(i, m4); im.setColorAt(i, c.setScalar(p.k));
+        sec.forEach((list) => {
+          if (!list.length) return;
+          const im = new THREE.InstancedMesh(o.geometry, o.material, list.length);
+          list.forEach((p, i) => {
+            q.setFromEuler(e.set(p.lean, p.yaw, 0)); m4.compose(new THREE.Vector3(p.x, -0.05, p.z), q, new THREE.Vector3(p.s, p.s, p.s)).multiply(o.matrixWorld);
+            im.setMatrixAt(i, m4); im.setColorAt(i, c.setScalar(p.k));
+          });
+          im.frustumCulled = true; root.add(im); ims.push(im);
         });
-        im.frustumCulled = false; root.add(im); ims.push(im);
         const list = Array.isArray(o.material) ? o.material : [o.material];
         list.forEach((m) => tintMats.push({ m, key: (m.userData && m.userData.verdantMaterial) || m.name || '', base: m.color.clone() }));
       });
@@ -540,6 +559,79 @@ export default {
     }
     const c3 = new THREE.Color();
 
+    /* --- 背後の境: 土塀・木戸・竹垣（庭の外との境）。焚火の背後（+Z）約 7.6m。盆栽・鹿威し・灯籠・枯山水のある側（-Z）の配置は変えない --- */
+    const boundary = new THREE.Group(); boundary.position.set(0, 0, WALL_Z); root.add(boundary);
+    const snowCaps = [];     // 冬だけ見える雪（塀の瓦・門の屋根・竹垣の笠木）
+    {
+      const wc = document.createElement('canvas'); wc.width = 128; wc.height = 64;
+      { const x = wc.getContext('2d'), r = mulberry32(44); x.fillStyle = '#9a8a70'; x.fillRect(0, 0, 128, 64);
+        for (let i = 0; i < 260; i++) { x.fillStyle = r() < 0.5 ? 'rgba(60,45,30,' + (0.05 + r() * 0.12) + ')' : 'rgba(200,185,160,' + (0.05 + r() * 0.12) + ')'; x.fillRect(r() * 128, r() * 64, 2 + r() * 14, 1 + r() * 4); }
+        x.fillStyle = 'rgba(70,55,40,0.22)'; for (let k = 1; k < 4; k++) x.fillRect(0, k * 16, 128, 1.4); }
+      const wallTex = own(texs, new THREE.CanvasTexture(wc)); wallTex.colorSpace = THREE.SRGBColorSpace; wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+      const wallMat = own(mats, new THREE.MeshStandardMaterial({ color: 0xc8b89c, map: wallTex, roughness: 1, emissive: 0x2a241a }));
+      const tileMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x3a3836, roughness: 0.7, emissive: 0x141414 }));
+      const baseMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x5a574f, roughness: 1, flatShading: true }));
+      const doorMat = own(mats, new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.95, emissive: 0x25170b }));
+      const snowM = own(mats, new THREE.MeshLambertMaterial({ color: 0xeef4ff, emissive: 0x1c2630 }));
+      const box = (w, h, d, mat, x, y, z, parent = boundary, rx = 0, ry = 0, rz = 0, uvk = 0) => {
+        const g = own(geos, new THREE.BoxGeometry(w, h, d));
+        if (uvk) { const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / uvk, uv.getY(i) * h / uvk); }
+        const m = new THREE.Mesh(g, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
+      };
+      const snowOn = (m) => { m.visible = false; snowCaps.push(m); return m; };
+      // 土塀: 土台の石・塗り壁・瓦の笠（左右。中央は木戸）
+      const wall = (x0, x1) => {
+        const len = x1 - x0, cx = (x0 + x1) / 2;
+        box(len + 0.04, 0.3, 0.56, baseMat, cx, 0.15, 0);
+        box(len, 1.75, 0.4, wallMat, cx, 0.3 + 0.875, 0, boundary, 0, 0, 0, 2.2);
+        for (const sd of [-1, 1]) box(len + 0.12, 0.06, 0.34, tileMat, cx, 2.18, sd * 0.13, boundary, sd * 0.5, 0, 0);
+        box(len + 0.14, 0.1, 0.14, tileMat, cx, 2.3, 0);
+        snowOn(box(len + 0.1, 0.07, 0.5, snowM, cx, 2.37, 0));
+      };
+      wall(-9, -1.0); wall(1.0, 9);
+      // 木戸: 門柱・貫・小さな切妻屋根・扉（片方を少し開けておく）
+      for (const sd of [-1, 1]) box(0.2, 2.4, 0.24, doorMat, sd * 0.88, 1.2, 0);
+      box(2.1, 0.14, 0.2, doorMat, 0, 2.05, 0);
+      for (const sd of [-1, 1]) box(1.3, 0.05, 1.15, doorMat, sd * 0.55, 2.62, 0, boundary, 0, 0, -sd * 0.42);
+      box(0.1, 0.1, 1.2, doorMat, 0, 2.86, 0);
+      snowOn(box(0.5, 0.06, 1.25, snowM, 0, 2.93, 0));
+      {
+        const lf = new THREE.Group(); lf.position.set(-0.76, 0, 0.06); lf.rotation.y = -0.2; boundary.add(lf);
+        box(0.7, 1.75, 0.05, doorMat, 0.35, 0.95, 0, lf); box(0.7, 0.07, 0.02, wallMat, 0.35, 0.5, 0.035, lf); box(0.7, 0.07, 0.02, wallMat, 0.35, 1.5, 0.035, lf);
+        const rf = new THREE.Group(); rf.position.set(0.76, 0, 0.06); rf.rotation.y = Math.PI + 0.75; boundary.add(rf);
+        box(0.7, 1.75, 0.05, doorMat, 0.35, 0.95, 0, rf); box(0.7, 0.07, 0.02, wallMat, 0.35, 0.5, 0.035, rf); box(0.7, 0.07, 0.02, wallMat, 0.35, 1.5, 0.035, rf);
+      }
+      box(0.9, 0.12, 0.7, baseMat, 0, 0.06, -0.45);   // 沓脱ぎの石
+      // 竹垣（建仁寺垣）: 土塀の端から左右の竹藪へ、ゆるく曲がって続く。竹の割り材（縦）・3段の胴縁・笠木
+      const slatGeo = own(geos, new THREE.CylinderGeometry(0.03, 0.032, 1.7, 5, 1)); slatGeo.translate(0, 0.85, 0);
+      const slatMat = own(mats, new THREE.MeshLambertMaterial({ color: 0xb4a870, emissive: 0x1c1a0e }));
+      const slatM4 = [], railM4 = [], capM4 = [], capSnowM4 = [];
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), fr = mulberry32(606);
+      const Yax = new THREE.Vector3(0, 1, 0);
+      for (const sd of [-1, 1]) {
+        const path = [[9.0, 0], [10.8, -1.2], [12.1, -3.2], [12.8, -5.7], [13.0, -8.4]].map(([x, z]) => [sd * x, WALL_Z + z]);
+        for (let k = 0; k < path.length - 1; k++) {
+          const [ax, az] = path[k], [bx, bz] = path[k + 1], L = Math.hypot(bx - ax, bz - az), yaw = -Math.atan2(bz - az, bx - ax), n = Math.round(L / 0.115);
+          for (let i = 0; i < n; i++) {
+            const t = (i + 0.5) / n, h = 0.96 + fr() * 0.08;
+            q.setFromEuler(e.set((fr() - 0.5) * 0.03, 0, (fr() - 0.5) * 0.03)); v.set(ax + (bx - ax) * t, 0, az + (bz - az) * t); sc.set(1, h, 1);
+            slatM4.push(m4.clone().compose(v, q, sc));
+          }
+          const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+          q.setFromAxisAngle(Yax, yaw);
+          for (const y of [0.3, 0.85, 1.4]) railM4.push(m4.clone().compose(v.set(mx, y, mz), q, sc.set(L + 0.02, 0.045, 0.06)));
+          capM4.push(m4.clone().compose(v.set(mx, 1.74, mz), q, sc.set(L + 0.04, 0.07, 0.11)));
+          capSnowM4.push(m4.clone().compose(v.set(mx, 1.8, mz), q, sc.set(L + 0.04, 0.06, 0.13)));
+        }
+      }
+      const mkI = (geo, mat, list) => { const im = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.frustumCulled = false; root.add(im); return im; };
+      const boxG = own(geos, new THREE.BoxGeometry(1, 1, 1));
+      mkI(slatGeo, slatMat, slatM4); mkI(boxG, own(mats, new THREE.MeshLambertMaterial({ color: 0x4a3a24 })), railM4); mkI(boxG, own(mats, new THREE.MeshLambertMaterial({ color: 0x6a5430 })), capM4);
+      snowOn(mkI(boxG, snowM, capSnowM4));
+    }
+    ctx.camBlockers && ctx.camBlockers.push({ x: SH_POS.x, z: SH_POS.z, r: 0.55 }, { x: LANTERN.x, z: LANTERN.z, r: 0.5 },
+      { x: STAND.x - 0.7, z: STAND.z, r: 0.36 }, { x: STAND.x, z: STAND.z, r: 0.36 }, { x: STAND.x + 0.7, z: STAND.z, r: 0.36 });   // 鹿威し・石灯籠・盆栽の縁台（カメラが頭を突っ込まない）
+
     /* --- 落ち葉（秋）・花びら（春）・雪だまり（冬） --- */
     const NLEAF = 90;
     const leafTexM = own(texs, mapleTex());
@@ -552,13 +644,15 @@ export default {
     {
       const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color(), lr = mulberry32(88);
       for (let i = 0; i < NLEAF; i++) {
-        const x = (lr() - 0.5) * 9, z = -4.5 + lr() * 6.5;
+        let x = (lr() - 0.5) * 9, z = -4.5 + lr() * 6.5;
+        if (i % 2) { const a = lr() * 6.28, r = 1.6 + Math.sqrt(lr()) * 6.5; x = Math.sin(a) * r; z = Math.cos(a) * r; }   // 全周
         if (Math.hypot(x, z) < 1.4) { gLeaf.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0)); continue; }
         q.setFromEuler(e.set((lr() - 0.5) * 0.3, lr() * 6.28, (lr() - 0.5) * 0.3)); m4.compose(new THREE.Vector3(x, 0.02, z), q, new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + lr() * 0.8));
         gLeaf.setMatrixAt(i, m4); gLeaf.setColorAt(i, c.setHex([0xc8471c, 0xe0842a, 0xa02c14, 0xd9a12e][i % 4]).multiplyScalar(0.7));
       }
       for (let i = 0; i < NSNOW; i++) {
-        const x = (lr() - 0.5) * 11, z = -5 + lr() * 6.8;
+        let x = (lr() - 0.5) * 11, z = -5 + lr() * 6.8;
+        if (i % 2) { const a = lr() * 6.28, r = 1.8 + Math.sqrt(lr()) * 6.5; x = Math.sin(a) * r; z = Math.cos(a) * r; }   // 全周
         if (Math.hypot(x, z) < 1.7) { snowPatch.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0)); continue; }
         const s = 0.6 + lr() * 1.2; q.setFromEuler(e.set(0, lr() * 6, 0)); m4.compose(new THREE.Vector3(x, 0.012, z), q, new THREE.Vector3(s * 1.4, 1, s));
         snowPatch.setMatrixAt(i, m4); snowPatch.setColorAt(i, c.setScalar(0.4 + 0.6 * Math.max(0, 1 - Math.hypot(x, z) / 8)));
@@ -582,6 +676,7 @@ export default {
       stoneMat.color.setScalar(cfg.stoneTone); applyLanternTone();
       gLeaf.visible = cfg.groundLeaves > 0; gLeaf.count = cfg.groundLeaves || 1;
       snowPatch.visible = !!cfg.snow; petals.visible = cfg.petals > 0;
+      snowCaps.forEach((m) => { m.visible = !!cfg.snow; });
       lamp.snowCap.forEach((m) => { m.visible = !!cfg.snow; }); standSnow.visible = !!cfg.snow;
       buildAllBonsai();
     }

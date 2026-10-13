@@ -5,19 +5,27 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, tileNoise, heightToNormalTexture, radialTexture, disposeTree } from './util.js';
 import { fbm3, rockNormalMap, noisedRockGeometry } from './rock.js';
 import { buildTrees, leafTexture } from './trees.js';
-import { loadFarTrees } from './farTrees.js';
+import { loadFarTrees, surroundPoints } from './farTrees.js';
 
 /* ---------- 川の形（x が川に沿う。流れは右 +x から左 -x へ）。川幅 4〜6m。両端は絞って霧の中に消える ---------- */
 const Y_WATER = -0.08;
 const FLOW = -1;                                       // 流れの向き（x 方向の符号）
 const smooth = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
-const zc = (x) => -4.6 + 0.5 * Math.sin(0.22 * x + 0.5) + 0.22 * Math.sin(0.51 * x + 2.0);
-const hw = (x) => Math.max(0.05, (2.3 + 0.3 * Math.sin(0.31 * x + 1.2)) * (1 - smooth(15, 24, Math.abs(x))));
-const X_END = 24;
+const BEND0 = 12, BENDK = 0.025;                      // |x| が BEND0 を超えると、川は奥（-z）へ曲がって林と霧の中へ消えていく
+const zc = (x) => { const b = Math.max(Math.abs(x) - BEND0, 0); return -4.6 + 0.5 * Math.sin(0.22 * x + 0.5) + 0.22 * Math.sin(0.51 * x + 2.0) - BENDK * b * b; };
+const hw = (x) => Math.max(0.05, (2.3 + 0.3 * Math.sin(0.31 * x + 1.2)) * (1 - smooth(22, 33, Math.abs(x))));
+const X_END = 34;
 const bedY = (w) => -0.02 - 0.75 * smooth(0, 0.45, w);   // w: 岸 0 → 中央 1
 const bermH = (d) => {                                   // 対岸の土手の高さ（岸からの距離 d）
   const P = [[0, 0.0], [0.5, 0.12], [1.2, 0.28], [2.2, 0.4], [3.5, 0.36], [5.5, 0.2], [8, 0.0]];
   if (d <= 0) return 0; if (d >= 8) return 0;
+  for (let i = 1; i < P.length; i++) if (d <= P[i][0]) { const t = (d - P[i - 1][0]) / (P[i][0] - P[i - 1][0]); return P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t * t * (3 - 2 * t); }
+  return 0;
+};
+
+const backH = (d) => {                                   // 手前（カメラの背後）の土手の高さ（河原の外 z=6 からの距離 d）
+  const P = [[0, 0.0], [2, 0.25], [4, 0.55], [6.5, 0.72], [9, 0.5], [12, 0.18], [15, 0.0]];
+  if (d <= 0 || d >= 15) return 0;
   for (let i = 1; i < P.length; i++) if (d <= P[i][0]) { const t = (d - P[i - 1][0]) / (P[i][0] - P[i - 1][0]); return P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t * t * (3 - 2 * t); }
   return 0;
 };
@@ -61,8 +69,8 @@ uniform vec3 uFire, uMoonDir, uMoonCol, uZen, uHor, uDeep, uShallow;
 uniform vec4 uRock[${ROCKS.length}];
 varying vec3 vW;
 #include <fog_pars_fragment>
-float tkZc(float x) { return -4.6 + 0.5 * sin(0.22 * x + 0.5) + 0.22 * sin(0.51 * x + 2.0); }
-float tkHw(float x) { return max(0.05, (2.3 + 0.3 * sin(0.31 * x + 1.2)) * (1.0 - smoothstep(15.0, 24.0, abs(x)))); }
+float tkZc(float x) { float b = max(abs(x) - ${BEND0.toFixed(1)}, 0.0); return -4.6 + 0.5 * sin(0.22 * x + 0.5) + 0.22 * sin(0.51 * x + 2.0) - ${BENDK.toFixed(4)} * b * b; }
+float tkHw(float x) { return max(0.05, (2.3 + 0.3 * sin(0.31 * x + 1.2)) * (1.0 - smoothstep(22.0, 33.0, abs(x)))); }
 void main() {
   vec2 p = vW.xz;
   float c = tkZc(p.x), h = tkHw(p.x);
@@ -148,7 +156,7 @@ export default {
     const rng = mulberry32(5521);
     const tmp = new THREE.Vector3();
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-    const NX = 100, step = (2 * X_END) / NX;
+    const NX = 140, step = (2 * X_END) / NX;
 
     /* --- 地面に川の穴をあける（地面の形を差し替え、dispose で戻す） --- */
     let origGround = null, holeGeo = null;
@@ -193,6 +201,22 @@ export default {
         cc.setHex(0x4a3a2a).lerp(cc.clone().setHex(0x3c5030), grassy).multiplyScalar(k); C.push(cc.r, cc.g, cc.b);
       }
       for (let j = 0; j < D.length - 1; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; I.push(a, b, c, b, d, c); }
+      const g = own(geos, new THREE.BufferGeometry());
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
+      root.add(new THREE.Mesh(g, bermMat));
+    }
+
+    /* --- 手前の土手（カメラの背後）: 河原の外から、ゆるやかに盛り上がって林へ続く --- */
+    {
+      const D = [0, 2, 4, 6.5, 9, 12, 15], XS = 81, P = [], C = [], I = [], cc = new THREE.Color();
+      for (let j = 0; j < D.length; j++) for (let i = 0; i < XS; i++) {
+        const x = -50 + i * (100 / (XS - 1)), d = D[j];
+        const bump = 0.1 * (fbm3(x * 0.6, d * 0.5, 17, 3) - 0.5) * 2 * Math.min(1, d);
+        P.push(x, Math.max(0.004, backH(d) * (0.8 + 0.4 * fbm3(x * 0.15, 5, 5, 2)) + bump), 6 + d);
+        const k = 0.5 + 0.8 * fbm3(x * 1.1, d * 0.8, 3, 3), grassy = smooth(0.5, 4, d) * (0.4 + 0.6 * fbm3(x * 0.5, d * 0.5, 19, 2));
+        cc.setHex(0x4a3a2a).lerp(cc.clone().setHex(0x3c5030), grassy).multiplyScalar(k); C.push(cc.r, cc.g, cc.b);
+      }
+      for (let j = 0; j < D.length - 1; j++) for (let i = 0; i < XS - 1; i++) { const a = j * XS + i, b = a + 1, c = a + XS, d = c + 1; I.push(a, c, b, b, c, d); }
       const g = own(geos, new THREE.BufferGeometry());
       g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
       root.add(new THREE.Mesh(g, bermMat));
@@ -322,7 +346,9 @@ export default {
       const gr = mulberry32(31);
       for (let i = 0; i < NG; i++) {
         let x, z, y = 0;
-        if (i % 2 === 0) {                              // 対岸の土手
+        if (i % 3 === 2) {                              // 手前の土手（カメラの背後）
+          x = (gr() * 2 - 1) * 15; z = 6 + gr() * 6; y = backH(z - 6) * (0.7 + 0.3 * gr());
+        } else if (i % 3 === 0) {                       // 対岸の土手
           x = (gr() * 2 - 1) * 15; const d = 0.6 + gr() * 6.5; z = zc(x) - hw(x) - d; y = bermH(d);
         } else {                                        // 左右の端（河原の外側）
           const sd = gr() < 0.5 ? -1 : 1; x = sd * (7 + gr() * 6.5); z = -1.5 + gr() * 4.3;
@@ -344,14 +370,14 @@ export default {
         if (Math.abs(az - 0.5) < 0.17) continue;          // 月の前には立てない
         pts.push({ x, z, s: 0.9 + rng() * 1.1, y: bermH(Math.min(d, 8)) - 0.05 });
       }
-      for (let i = 0; i < 8; i++) { const sd = i % 2 ? 1 : -1; pts.push({ x: sd * (14 + rng() * 9), z: -2 - rng() * 8, s: 0.9 + rng() * 0.8, y: -0.05 }); }
       return pts;
     })();
     const trees = buildTrees(treePts, 91, 0.55);   // 仮の木（遠景の木が読めなかったときの代わり）
     root.add(trees.group);
     // FABOTANIC の遠景の木。カメラから10m以上離す。読めたら仮の木と入れ替える
     let far = null;
-    loadFarTrees(ctx, treePts.filter((p) => Math.hypot(p.x, p.z - 2.5) > 10).map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })), { seed: 31, brightness: 0.55 }).then((h) => {
+    const surround = surroundPoints(mulberry32(6001), 280, { reject: (x, z) => Math.abs(z - zc(clamp(x, -X_END, X_END))) < hw(clamp(x, -X_END, X_END)) + 3.5 });   // 全周（川の流れの上と岸には置かない）
+    loadFarTrees(ctx, treePts.filter((p) => Math.hypot(p.x, p.z - 2.5) > 10).map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })).concat(surround), { seed: 31, brightness: 0.8 }).then((h) => {
       if (!h || disposed) { if (h) h.dispose(); return; }
       far = h; root.add(h.group); trees.group.visible = false;
       if (season) h.setSeason(season);

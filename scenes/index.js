@@ -34,6 +34,13 @@
 //   scene3d.js はシーンを離れるとき、dispose のあとに ground（形・色・表示）、hills、ライト・月・ホタル・小物を共通の状態へ戻し、
 //   scene 直下に残った物（共通部分と落下中の薪以外）を外す（外したときは console.warn）。それでも、シーン側の dispose で自分の物は戻す・外すこと
 //   scenes/snow.js : makeSnowPoints(max, uScale) 雪の粒（画面上の大きさが最大 6px。util.makePoints と同じ属性）。カメラに近い雪が大きな玉にならないよう、雪はこれで描く
+//   camBlockers: カメラが入ってはいけない円の配列。シーンが push する {x, z, r}（鹿威し・縁台のような、目の高さにある置物用。シーンを離れると空になる）
+// 視点: カメラは焚火を中心に全周（方位 無制限）・上下は見下ろしから +35°・距離 1.6〜4.0m（初期 2.5m）で動く。シーンの景色は
+//   「初期の視点（-Z 向き）」だけでなく全周を前提に作る: 地面と遠景の丘は全周（util.HILLS）、背後（+Z）や左右にも木・壁・土手などを置く。
+//   遠景の木は farTrees.surroundPoints で全周に置ける（正面の月と星の側だけ低く・まばらにして、初期の視点の夜空を守る）。焚火から 24m 以上に置く（交差した板だと分からない距離）。
+//   カメラが焚火のまわり 1.6〜4m を回るので、その輪の中の物は低く（0.5m 以下）、目の高さの置物は camBlockers で避ける。
+//   草（FABOTANIC のフィールド）の間引く扇形は、カメラの方向について回る（forest.js の patchFieldMaterial）。
+//   描く量: 視錐台の外の物は描かれないが、InstancedMesh は frustumCulled=false だと全部を処理する。大きな物（竹の株など）は方位ごとに InstancedMesh を分ける（garden.js）。
 // api（window.TAKIBI）にシーン向けの窓口:
 //   api.playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null : 効果音（plop splash plip lap kakon pour drip trickle creak）。delay は「映像でその瞬間が来るまでの秒数」で、音は出力遅延ぶん早めに予約される
 //   api.onEnvEvent(cb) -> 解除関数 : 環境音の予約時刻に同期したイベント {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]}（蛙の喉の動き用）

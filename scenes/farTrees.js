@@ -6,6 +6,7 @@
 // 月光の青みと焚火側の暖かさを instance の色で乗せる。透明部分は alphaTest（並べ替えなし）で抜く。
 // BackgroundForest.js（付属の多数配置コード）は使わない: 季節ごとの入れ替えと夜の色づけを自前の材質で行うため。
 import * as THREE from 'three';
+import { HILLS, hillH } from './util.js';
 
 const DIR = 'assets/plants/';
 const FILES = {
@@ -16,11 +17,38 @@ const FILES = {
 };
 const KINDS = Object.keys(FILES);
 
-/* カメラ正面の夜空（月・星）を木で隠さないための空け方。焚火から見た方位 az（カメラの正面 = 0、右 = +）が
-   この範囲の方向には木を置かない。月は季節で az 0.45〜0.55 にあるので、右側を広めに空ける */
-export function inSkyClearing(x, z) {
+/* 全周に木を置くときの、正面（月と星の側）の空け方。焚火から見た方位 az（初期のカメラの正面 = 0、右 = +）。
+   正面から月のあたり（az -0.3〜0.8）は、木を低く・まばらにして、初期の視点で上側に夜空が見えるようにする。月の真正面（az 0.5 前後）はとくに低く */
+export function skyFactor(x, z) {
   const az = Math.atan2(x, -z);
-  return az > -0.42 && az < 0.78;
+  const w = smooth(1.35, 0.55, Math.abs(az - 0.25)), mo = smooth(0.34, 0.12, Math.abs(az - 0.5));
+  return { h: 1 - 0.55 * w - 0.3 * mo, keep: 1 - 0.6 * w - 0.35 * mo };
+}
+
+/* 遠景の丘（util.HILLS[0]）の表面の高さ。稜線 R の外側 12m は 0 へ下る */
+export function hillSurfY(x, z) {
+  const l = HILLS[0], r = Math.hypot(x, z), h = hillH(l, Math.atan2(z, x));
+  if (r < l.R - 16) return 0;
+  if (r < l.R) return h * (r - (l.R - 16)) / 16;
+  return r < l.R + 12 ? h * (1 - (r - l.R) / 12) : 0;
+}
+
+/* 焚火のまわり全周に遠景の木の位置を作る。手前の輪（rRing）と丘の稜線の上（rRidge）。
+   opts: { ringFrac（輪の割合）, rRing:[24,31], rRidge:[31,38], hRing:[9,13], hRidge:[9,14], front（正面を低く・まばらに。既定 true）, reject(x,z)（true なら置かない）, h（高さの倍率）} */
+export function surroundPoints(rng, n, opts = {}) {
+  const o = Object.assign({ ringFrac: 0.6, rRing: [24, 31], rRidge: [31, 38], hRing: [9, 13], hRidge: [9, 14], front: true, h: 1 }, opts);
+  const pts = []; let guard = 0;
+  const nRing = Math.round(n * o.ringFrac);
+  while (pts.length < n && guard++ < n * 80) {
+    const ridge = pts.length >= nRing;
+    const rr = ridge ? o.rRidge : o.rRing, hh = ridge ? o.hRidge : o.hRing;
+    const a = rng() * Math.PI * 2, r = rr[0] + rng() * (rr[1] - rr[0]);
+    const x = Math.sin(a) * r, z = Math.cos(a) * r;
+    const sf = o.front ? skyFactor(x, z) : { h: 1, keep: 1 };
+    if (rng() > sf.keep || (o.reject && o.reject(x, z))) continue;
+    pts.push({ x, z, y: hillSurfY(x, z) - 0.1, h: (hh[0] + rng() * (hh[1] - hh[0])) * sf.h * o.h });
+  }
+  return pts;
 }
 
 /* 季節ごとの木の構成（割合。合計 1） */
@@ -100,7 +128,7 @@ function makeMaterial(sp, ctx) {
 }
 
 /* points: [{x, z, y?, h?}]。h は木の高さ(m)。省略時は 6〜14m のばらつき。
-   opts: { seed, brightness（夜の明るさの倍率。既定 1）, hMin, hMax }
+   opts: { seed, brightness（夜の明るさの倍率。既定 1）, hMin, hMax, mix（種類の割合で季節の既定を上書き。例 {fir: 1} で針葉樹だけ） }
    戻り値: Promise<{group, setSeason(season), triangles(), dispose()}|null>（読めなかったら null） */
 export async function loadFarTrees(ctx, points, opts = {}) {
   const species = await loadSpecies(ctx.assets);
@@ -126,7 +154,7 @@ export async function loadFarTrees(ctx, points, opts = {}) {
   return {
     group,
     setSeason(season) {
-      const mix = MIX[season] || MIX.summer, look = LOOK[season] || LOOK.summer;
+      const mix = opts.mix || MIX[season] || MIX.summer, look = LOOK[season] || LOOK.summer;
       const used = Object.keys(mix), cnt = {};
       KINDS.forEach((k) => { cnt[k] = 0; });
       tris = 0;

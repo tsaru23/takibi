@@ -5,10 +5,10 @@
 //   窓の光・ドア・ランタン・薪棚・冬の雪・秋の屋根の落ち葉はコードのまま（雪と落ち葉は GLB の屋根・手すりの位置に置き直す）。読めなければ、下の丸太の積み重ねの家のまま。
 //   玄関（ポーチ側）が +Z、棟の向きが Z。窓は家の前面 x=±1.45, y=1.3 の位置に重ねている。
 import * as THREE from 'three';
-import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, HILLS, hillGround, loadOptionalModel, materialTextures } from './util.js';
+import { mulberry32, rnd, clamp, radialTexture, mergeGeoms, makePoints, loadOptionalModel, materialTextures } from './util.js';
 import { collectFieldEntries, loadField, applyFieldLevel, applyFieldTint } from './forest.js';
 import { makeSnowPoints } from './snow.js';
-import { loadFarTrees, inSkyClearing } from './farTrees.js';
+import { loadFarTrees, surroundPoints } from './farTrees.js';
 
 /* 家の位置（焚火の奥・やや左）と向き（焚火の方へ少し振る）。寸法は家のローカル座標（+Z が玄関側）*/
 const CAB = { x: -2.6, z: -10.4, ry: 0.32 };
@@ -27,11 +27,11 @@ const SEASON = {
   winter: { trees: [0x1a3324, 0x12281c, 0x203c2b], win: 1.3, snow: 1, leaves: 0, petals: false, ff: 1 }
 };
 /* 草地（FABOTANIC）の量。家・丸太の壁・森で三角形を使うので、森（manifest の levels）より絞る。
-   ふつうで全体 30 万三角形以下。カメラ手前の扇形には元から置かない。使う複製は焚火の背後の弧（slots 1〜3）のままで、1 つあたりの密度を下げる */
+   ふつうで全体 30 万三角形以下。複製は焚火のまわり全周に 8 個で、1 つあたりの密度を下げる */
 const FIELD_LEVELS = {
-  many: { slots: [0, 1, 2, 3, 4], density: 0.3 },
-  normal: { slots: [1, 2, 3], density: 0.38 },
-  few: { slots: [1, 2, 3], density: 0.17 }
+  many: { slots: [0, 1, 2, 3, 4, 5, 6, 7], density: 0.3 },
+  normal: { slots: [0, 1, 2, 3, 4, 5, 6, 7], density: 0.24 },
+  few: { slots: [0, 2, 4, 6], density: 0.15 }
 };
 const GROUND_TINT = { spring: [1, 1, 1], summer: [1, 1, 1], autumn: [1, 0.96, 0.9], winter: [2.1, 2.3, 2.7] };
 const LEAF_COLORS = [0xc8471c, 0xe0842a, 0xa02c14, 0xd9a12e];
@@ -296,6 +296,7 @@ export default {
 
     /* --- 斧の刺さった切り株（stump.glb の流用。焚火と家のあいだ）--- */
     const STUMP = { x: -2.7, z: -2.4 };
+    ctx.camBlockers && ctx.camBlockers.push({ x: STUMP.x, z: STUMP.z, r: 0.45 });
     const stumpGrp = new THREE.Group(); stumpGrp.position.set(STUMP.x, 0, STUMP.z); root.add(stumpGrp);
     const stumpSnow = new THREE.Mesh(own(geos, new THREE.CylinderGeometry(0.22, 0.24, 0.05, 10)), snowMat); stumpSnow.visible = false; snowObjs.push(stumpSnow); stumpGrp.add(stumpSnow);
     let stumpTop = 0.42;
@@ -328,24 +329,14 @@ export default {
       const cone = (r, h, y) => ({ geo: new THREE.ConeGeometry(r, h, 6), matrix: new THREE.Matrix4().makeTranslation(0, y, 0) });
       const foliGeo = own(geos, mergeGeoms([cone(0.85, 1.6, 1.4), cone(0.62, 1.4, 2.15), cone(0.4, 1.1, 2.8)]));
       const snowGeo = own(geos, mergeGeoms([cone(0.8, 1.0, 1.7), cone(0.58, 0.9, 2.4), cone(0.37, 0.75, 3.05)]));
-      const NT = 80, NNEAR = 34;
-      const pts = []; let guard = 0;
-      while (pts.length < NT && guard++ < 1500) {
-        const far = pts.length >= NNEAR;
-        const a = rng() * Math.PI * 2, r = far ? 27 + rng() * 7 : Math.sqrt(10 * 10 + rng() * (26 * 26 - 10 * 10));
-        const x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (!far && r < 16 && Math.abs(Math.atan2(x, z)) < 1.0) continue;
-        if (!far && Math.hypot(x - CAB.x, z - CAB.z) < 6.5) continue;      // 家のまわり
-        if (!far && Math.hypot(x, z) < 8 && z > -6.5) continue;
-        pts.push({ x, z, far, s: far ? 1.3 + rng() * 1.1 : 0.8 + rng() * 0.8 });
-      }
+      // 全周に、遠景の木と同じ位置（焚火から 24m 以上。家のまわりは空ける）。遠景の木が読めるまでの仮
+      const pts = surroundPoints(mulberry32(555), 80, { h: 0.5, hRing: [4, 6], hRidge: [4, 6], reject: (x, z) => Math.hypot(x - CAB.x, z - CAB.z) < 7 }).map((p) => ({ x: p.x, z: p.z, y: p.y, s: p.h / 3.4 }));
       trunks = new THREE.InstancedMesh(trunkGeo, own(mats, new THREE.MeshLambertMaterial({ color: 0x2c1c10 })), pts.length);
       foli = new THREE.InstancedMesh(foliGeo, own(mats, new THREE.MeshLambertMaterial({ color: 0xffffff })), pts.length);
       snowFoli = new THREE.InstancedMesh(snowGeo, own(mats, new THREE.MeshLambertMaterial({ color: 0xdde8f5, emissive: 0x18222e })), pts.length);
       pts.forEach((p, i) => {
         Q.setFromEuler(E.set(0, rng() * 6.28, 0));
-        const y = hillGround(HILLS[0], Math.hypot(p.x, p.z), Math.atan2(p.z, p.x)) - 0.1;
-        M4.compose(V.set(p.x, y, p.z), Q, SC.set(p.s * (0.9 + rng() * 0.2), p.s, p.s * (0.9 + rng() * 0.2)));
+        M4.compose(V.set(p.x, p.y, p.z), Q, SC.set(p.s * (0.9 + rng() * 0.2), p.s, p.s * (0.9 + rng() * 0.2)));
         trunks.setMatrixAt(i, M4); foli.setMatrixAt(i, M4); snowFoli.setMatrixAt(i, M4); treeStyle.push({ ci: Math.floor(rng() * 4), k: 0.55 * (0.8 + rng() * 0.4) });
       });
       foli.frustumCulled = trunks.frustumCulled = snowFoli.frustumCulled = false; snowFoli.visible = false; root.add(trunks, foli, snowFoli);
@@ -354,16 +345,8 @@ export default {
     /* --- 遠景の木（FABOTANIC）。読めたら仮の円錐の木と入れ替える。家のまわりとカメラ手前の扇形は空ける --- */
     let far = null;
     {
-      const fr = mulberry32(909), fpts = [];
-      let guard = 0;
-      while (fpts.length < 160 && guard++ < 6000) {
-        const ridge = fpts.length >= 90;
-        const a = fr() * Math.PI * 2, r = ridge ? 31 + fr() * 5 : 24 + fr() * 6;
-        const x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (inSkyClearing(x, z)) continue;                                      // 正面の夜空・家と煙突のうしろは空ける
-        if (Math.hypot(x - CAB.x, z - CAB.z) < 7) continue;
-        fpts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + fr() * 5 : 9 + fr() * 4 });
-      }
+      // 焚火のまわり全周。家と煙突のうしろは空け、正面（月・星の側）は低く・まばらにする
+      const fpts = surroundPoints(mulberry32(909), 260, { reject: (x, z) => Math.hypot(x - CAB.x, z - CAB.z) < 7 });
       loadFarTrees(ctx, fpts, { seed: 23 }).then((h) => {
         if (!h || isStopped()) { if (h) h.dispose(); return; }
         far = h; root.add(h.group);
@@ -377,12 +360,12 @@ export default {
     const mkDrift = (tex, size, emissive) => { const im = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(size, size)), own(mats, new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.04, side: THREE.DoubleSide, depthWrite: false, emissive })), NDR); im.frustumCulled = false; im.visible = false; root.add(im); return im; };
     const petals = mkDrift(petalT, 0.11, 0x2a1520), fallLeaves = mkDrift(leafT, 0.19, 0x241208);
     const snowPts = makeSnowPoints(700, uScale); snowPts.points.visible = false; root.add(snowPts.points);
-    const dd = []; for (let i = 0; i < 700; i++) { const a = rng() * 6.28, r = Math.sqrt(rng()) * 11; dd.push({ x: Math.cos(a) * r, z: Math.sin(a) * r - 2, y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2.2, 2.2), tilt: rnd(0.5, 1.1) }); }
+    const dd = []; for (let i = 0; i < 700; i++) { const a = rng() * 6.28, r = Math.sqrt(rng()) * 11; dd.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, y: rnd(0, 6.5), vy: rnd(0.3, 0.7), ph: rnd(0, 20), sz: rnd(0.75, 1.3), f1: rnd(1.2, 2.6), f2: rnd(1, 2.2), spin: rnd(-2.2, 2.2), tilt: rnd(0.5, 1.1) }); }
     { const cs1 = [0xffc4d6, 0xffd6e2, 0xf7b0c8]; for (let i = 0; i < NDR; i++) { petals.setColorAt(i, COL.setHex(cs1[i % 3])); fallLeaves.setColorAt(i, COL.setHex(LEAF_COLORS[i % 4])); } }
     const gLeaf = new THREE.InstancedMesh(own(geos, new THREE.PlaneGeometry(0.17, 0.17).rotateX(-Math.PI / 2)), leafMat, 110); gLeaf.frustumCulled = false; gLeaf.visible = false; root.add(gLeaf);
     {
       for (let i = 0; i < 110; i++) {
-        let x, z, g = 0; do { x = (rng() - 0.5) * 12 + CAB.x * 0.5; z = -9 + rng() * 11; g++; } while (g < 20 && Math.hypot(x, z) < 1.5);
+        let x, z, g = 0; do { if (i % 2) { const a = rng() * 6.28, r = 1.6 + Math.sqrt(rng()) * 8; x = Math.cos(a) * r; z = Math.sin(a) * r; } else { x = (rng() - 0.5) * 12 + CAB.x * 0.5; z = -9 + rng() * 11; } g++; } while (g < 20 && Math.hypot(x, z) < 1.5);
         Q.setFromEuler(E.set((rng() - 0.5) * 0.3, rng() * 6.28, (rng() - 0.5) * 0.3)); M4.compose(V.set(x, 0.02, z), Q, SC.setScalar(0.7 + rng() * 0.8)); gLeaf.setMatrixAt(i, M4); gLeaf.setColorAt(i, COL.setHex(LEAF_COLORS[i % 4]).multiplyScalar(0.7));
       }
     }
@@ -391,7 +374,7 @@ export default {
     snowPatch.frustumCulled = false; snowPatch.visible = false; root.add(snowPatch);
     {
       for (let i = 0; i < NSNOW; i++) {
-        let x, z, g = 0; do { x = (rng() - 0.5) * 18 - 1; z = -12 + rng() * 15; g++; } while (g < 20 && (Math.hypot(x, z) < 1.7 || (Math.abs(x - CAB.x) < 2.6 && Math.abs(z - CAB.z) < 3.0)));
+        let x, z, g = 0; do { if (i % 2) { const a = rng() * 6.28, r = 1.8 + Math.sqrt(rng()) * 9; x = Math.cos(a) * r; z = Math.sin(a) * r; } else { x = (rng() - 0.5) * 18 - 1; z = -12 + rng() * 15; } g++; } while (g < 20 && (Math.hypot(x, z) < 1.7 || (Math.abs(x - CAB.x) < 2.6 && Math.abs(z - CAB.z) < 3.0)));
         const s = 0.7 + rng() * 1.4; Q.setFromEuler(E.set(0, rng() * 6, 0)); M4.compose(V.set(x, 0.014 + i * 0.00003, z), Q, SC.set(s * 1.4, 1, s)); snowPatch.setMatrixAt(i, M4);
         snowPatch.setColorAt(i, COL.setScalar(clamp(1 - 0.5 * Math.hypot(x, z + 3) / 10, 0.45, 1)));
       }
@@ -472,7 +455,7 @@ export default {
         const P = snowPts;
         for (let i = 0; i < 700; i++) {
           const d = dd[i], o = i * 3; d.y -= d.vy * dt * 0.5; d.x += Math.sin(t * 1.1 + d.ph) * 0.2 * dt; d.z += Math.cos(t * 0.9 + d.ph) * 0.2 * dt;
-          if (d.y < 0) { d.y = 6.5; const a = rng() * 6.28, r = Math.sqrt(rng()) * 11; d.x = Math.cos(a) * r; d.z = Math.sin(a) * r - 2; }
+          if (d.y < 0) { d.y = 6.5; const a = rng() * 6.28, r = Math.sqrt(rng()) * 11; d.x = Math.cos(a) * r; d.z = Math.sin(a) * r; }
           P.pos[o] = d.x; P.pos[o + 1] = d.y; P.pos[o + 2] = d.z; P.size[i] = 0.032 * d.sz * d.sz; P.alp[i] = 0.9; P.col[o] = 0.93; P.col[o + 1] = 0.96; P.col[o + 2] = 1;
         }
         P.flush(700); return;
@@ -481,7 +464,7 @@ export default {
       for (let i = 0; i < NDR; i++) {
         const d = dd[i]; d.y -= d.vy * dt * (season === 'autumn' ? 1.0 : 0.75); const sway = season === 'autumn' ? 0.7 : 0.5;
         d.x += Math.sin(t * 1.1 + d.ph) * sway * dt; d.z += Math.cos(t * 0.9 + d.ph) * sway * dt;
-        if (d.y < 0.03) { d.y = 6; const a = rng() * 6.28, r = Math.sqrt(rng()) * 9; d.x = Math.cos(a) * r; d.z = Math.sin(a) * r - 2; }
+        if (d.y < 0.03) { d.y = 6; const a = rng() * 6.28, r = Math.sqrt(rng()) * 9; d.x = Math.cos(a) * r; d.z = Math.sin(a) * r; }
         de.set(Math.sin(t * d.f1 + d.ph) * d.tilt, t * d.spin + d.ph, Math.cos(t * d.f2 + d.ph) * d.tilt); dq.setFromEuler(de);
         dm.compose(dp.set(d.x, d.y, d.z), dq, ds.setScalar(d.sz)); im.setMatrixAt(i, dm);
       }

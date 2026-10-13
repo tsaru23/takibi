@@ -2,6 +2,7 @@
 // 形式は scenes/index.js のコメントを参照。水面の反射は Reflector ではなく、空・月・焚火を式で近似する（内蔵GPUでも軽い）。
 import * as THREE from 'three';
 import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, loadOptionalModel, materialTextures } from './util.js';
+import { loadFarTrees, surroundPoints } from './farTrees.js';
 
 /* ---------- 池の形（焚火の右奥〜右） ----------
    カメラ（0, 1.03, 2.5 から -Z を見る・縦画角55°）は低いので、手前の石囲いの陰にならないよう池を焚火から離し、
@@ -359,6 +360,28 @@ export default {
       tufts.count = 0; root.add(tufts);
     }
 
+    /* --- 池のまわり全周の草地（低い草の束）と遠景の木。池は今の方向のまま、ほかの方向は草地と木 --- */
+    const NMEAD = 160;
+    const meadow = new THREE.InstancedMesh(tuftGeo, grassMat, NMEAD);
+    {
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), mr = mulberry32(2718);
+      for (let i = 0, n = 0, guard = 0; n < NMEAD && guard++ < 2000; ) {
+        const a = mr() * 6.28, r = 2.3 + Math.pow(mr(), 0.8) * 14, x = Math.sin(a) * r, z = Math.cos(a) * r;
+        if (pondU(x, z) < 1.45) continue;
+        const s = 0.35 + mr() * 0.45;
+        q.setFromEuler(e.set(0, mr() * 6, 0)); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s, s)); meadow.setMatrixAt(n++, m4);
+      }
+      meadow.frustumCulled = false; meadow.count = 0; root.add(meadow);
+    }
+    let far = null;
+    {
+      const pts = surroundPoints(mulberry32(777), 260, { reject: (x, z) => pondU(x, z) < 1.6 });
+      loadFarTrees(ctx, pts, { seed: 51, brightness: 1 }).then((h) => {
+        if (!h || disposed) { if (h) h.dispose(); return; }
+        far = h; root.add(h.group); if (season) h.setSeason(season);
+      }).catch((err) => console.warn('[takibi] far trees:', err));
+    }
+
     /* --- 蓮の葉 --- */
     const NLEAF_MAX = 16;
     const leafGeo = own(geos, leafGeometry());
@@ -703,6 +726,8 @@ export default {
       bermMat.color.setHex(cfg.berm);
       const sc = new THREE.Color(); stoneMat.color.setScalar(cfg.stone);
       grassMat.color.setHex(cfg.grass).multiplyScalar(0.7);
+      if (far) far.setSeason(s);
+      meadow.visible = true;
       placeLeaves(cfg.leafN); placeFlowers(cfg.flowers); setupFrogs(cfg.frogs);
       fl.visible = cfg.floating > 0; fl.count = cfg.floating;
       ice.visible = cfg.ice;
@@ -799,7 +824,7 @@ export default {
         const fl0 = st.started ? clamp(st.flame, 0, 1.3) : 0;
         U.uFlame.value = fl0 * (0.85 + 0.15 * Math.sin(t * 13 + Math.sin(t * 5) * 2)) + 0.12 * (st.ember || 0);
         const gl = st.grass || 'normal';
-        if (gl !== grassLevel) { grassLevel = gl; tufts.count = GRASS_N[gl] || 0; }
+        if (gl !== grassLevel) { grassLevel = gl; tufts.count = GRASS_N[gl] || 0; meadow.count = Math.round(NMEAD * (GRASS_N[gl] || 0) / GRASS_N.many); }
         updateLeaves(t); updateKoi(dt, t); updateMedaka(dt, t); updateRipples(t);
         frogs.forEach((f, i) => updateFrog(f, i, t));
         flowers.children.forEach((f) => { f.rotation.z = Math.sin(t * 0.6 + f.userData.ph) * 0.03; f.position.y = Y_WATER; });
@@ -812,6 +837,7 @@ export default {
         offEnv();
         if (ground && origGround) { ground.geometry = origGround; if (holeGeo) holeGeo.dispose(); }
         ctx.fireflies && (ctx.fireflies.value = 1);
+        if (far) { far.dispose(); far = null; }
         texs.forEach((x) => x.dispose()); geos.forEach((x) => x.dispose()); mats.forEach((x) => x.dispose());
       }
     };

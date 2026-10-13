@@ -12,11 +12,29 @@ const { mulberry32, clamp, rnd, rgb, radialTexture, disposeTree, makePoints, HIL
 
 export { SCENES };
 
+/* 視点の窓口（index.html から使う）。
+   setCameraAuto(on, seconds = 240): 「ゆっくり見回す」。何も操作していないとき、焚火のまわりを seconds 秒で1周する（操作すると止まり、少しして再開）
+   getCameraAuto() -> {on, seconds}
+   resetCameraView(): 初期の視点へなめらかに戻す（ダブルクリックと同じ）
+   getCameraView() / setCameraView({az, pit, dist}): 方位(rad)・上下の増減(rad)・距離(m)。検証や保存・復元用（すぐ反映） */
+export function setCameraAuto(on, seconds) { if (ctx) ctx.setAuto(!!on, seconds); }
+export function getCameraAuto() { return ctx ? ctx.getAuto() : { on: false, seconds: 240 }; }
+export function resetCameraView() { if (ctx) ctx.resetView(); }
+export function getCameraView() { return ctx ? ctx.getView() : null; }
+export function setCameraView(v) { if (ctx) ctx.setView(v); }
+/* getRenderStats() -> {triangles, calls, geometries, textures}: 直前の1フレーム（炎の発光パスを含む）の描画量と、GPU 上の資源の数。性能・リーク確認用 */
+export function getRenderStats() { return ctx ? ctx.getStats() : null; }
+
 const FRAME_MS = 1000 / 30;          // 描画は30fpsに制限
-const MAX_DPR = 1.25;                // 内蔵GPUでも回るようピクセル比の上限を低めにする
+const MAX_DPR = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) ? 1.1 : 1.25;   // 内蔵GPU・スマホでも回るようピクセル比の上限を低めにする（タッチ端末は 1.1）
 const SLOW_FPS = 20, SLOW_WINDOW_MS = 5000;   // 5秒間の平均がこれを下回ったら草を減らす
 const GAP_MS = 250;                  // これを超えるフレーム間隔は「止まっていた」とみなして計測に含めない
 const FOV = 55;
+const EYE_Y = 1.03, AIM_Y = 0.68;    // 焚火の前に座った人の目線（目の高さ 約1.03m）と、見つめる焚火の中心の高さ
+const CAM_R = 2.5;                   // 初期の、焚火からの水平距離(m)
+const DIST_MIN = 1.6, DIST_MAX = 4.0;   // ホイール・ピンチで変えられる範囲
+const PITCH_MIN = -0.16, PITCH_MAX = 0.75;   // 上下: 初期の向きからの増減(rad)。-0.16 = さらに約9°見下ろす、+0.75 = 夜空を見上げて約 +35°（初期は約 -8°）
+const TAP_PX = 10, TAP_MS = 400, DBL_MS = 320;   // タップの判定（これ未満の移動・時間）と、ダブルタップの間隔
 const SKY_R = 150;                   // 空の物（月・流れ星・星）を置く半径
 const TILE_M = 1.75;                 // 土のテクスチャ1タイルの大きさ(m)
 // 世界の縮尺は 1 unit = 1 m。焚火まわり（実物の目安: 石囲い外径 約1.1m・石 20〜35cm・薪 長さ約45cm 太さ約12cm・切り株 直径約40cm 高さ約40cm）
@@ -465,30 +483,91 @@ export async function start(opts) {
     P.flush(n);
   }
 
-  /* ---------- カメラ ---------- */
-  const target = new THREE.Vector3(0, 0.68, 0);
-  let azT = 0, az = 0, elT = 0, el = 0;
-  const CAM_R = 2.5, CAM_EL = 0.14;   // 焚火の前に座った人の目線（目の高さ 約1.03m・焚火の中心から水平に約2.5m）。火と空を一緒に見る
+  /* ---------- カメラ ----------
+     焚火を中心に、左右（方位）は無制限に360度、上下は少し見下ろす角度から +35° の見上げまで。ドラッグ・1本指で見回し、ホイール・2本指のピンチで寄り引き。
+     離したあとは少し惰性で止まる。ダブルクリック（ダブルタップ）で初期の視点へ。何もしないときはごくゆっくり揺れ、設定で「ゆっくり見回す」（setCameraAuto）も選べる。 */
+  const view = { az: 0, azT: 0, vAz: 0, pit: 0, pitT: 0, vPit: 0, dst: CAM_R, dstT: CAM_R, reset: false, lastTouch: -1e9 };
+  const aimPitch = (d) => Math.atan2(AIM_Y - EYE_Y, d);   // 焚火の中心を画面の中央に置く角度（距離ごと）
+  const auto = { on: false, sec: 240, amt: 0 };
+  const vo = { x: 0, y: 0 }; let voOn = false;   // 画面の見える範囲へ寄せるずらし(px)
+  const camBlockers = [];   // シーンが置く {x, z, r}: カメラがこの円の中に入らない（シーンを離れると空にする）
+  canvas.style.touchAction = 'none';
 
-  /* 入力: ドラッグで視点、ドラッグでないクリックで薪をくべる */
-  let down = null, dragged = false;
-  const onDown = (e) => { down = { x: e.clientX, y: e.clientY, az: azT, el: elT, id: e.pointerId }; dragged = false; try { canvas.setPointerCapture(e.pointerId); } catch (err) {} };
+  const ptrs = new Map();   // pointerId -> {x, y}
+  let gest = null;          // 進行中の操作 {t0, x0, y0, moved, pinched, drag, bx, by, baz, bpit, pd0, bdst, lt}
+  let lastTap = { t: -1e9, x: 0, y: 0 };
+  const nowMs = () => performance.now();
+  const ptrList = () => Array.from(ptrs.values());
+  function rebase() {
+    const l = ptrList(); if (!gest) return;
+    if (l.length === 1) { gest.bx = l[0].x; gest.by = l[0].y; gest.baz = view.azT; gest.bpit = view.pitT; gest.lt = nowMs(); }
+    else if (l.length >= 2) { gest.pd0 = Math.hypot(l[0].x - l[1].x, l[0].y - l[1].y) || 1; gest.bdst = view.dstT; }
+  }
+  const onDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    const t = nowMs();
+    if (!gest) gest = { t0: t, x0: e.clientX, y0: e.clientY, moved: 0, pinched: false, drag: false };
+    if (ptrs.size >= 2) gest.pinched = true;
+    view.vAz = view.vPit = 0; view.reset = false; view.lastTouch = t;
+    rebase();
+  };
   const onMove = (e) => {
-    if (!down || e.pointerId !== down.id) return;
-    const dx = e.clientX - down.x, dy = e.clientY - down.y;
-    if (!dragged && Math.hypot(dx, dy) > 6) dragged = true;
-    if (dragged) { azT = clamp(down.az - dx * 0.005, -0.7, 0.7); elT = clamp(down.el + dy * 0.003, -0.1, 0.16); }
+    const pt = ptrs.get(e.pointerId); if (!pt || !gest) return;
+    pt.x = e.clientX; pt.y = e.clientY;
+    gest.moved = Math.max(gest.moved, Math.hypot(e.clientX - gest.x0, e.clientY - gest.y0));
+    const t = nowMs(); view.lastTouch = t;
+    const l = ptrList();
+    if (l.length >= 2) {
+      const d = Math.hypot(l[0].x - l[1].x, l[0].y - l[1].y) || 1;
+      view.dstT = clamp(gest.bdst * gest.pd0 / d, DIST_MIN, DIST_MAX);   // 指を広げると近づく
+      return;
+    }
+    if (gest.pinched) return;   // ピンチのあと残った1本では回さない（触り直す）
+    if (!gest.drag) { if (gest.moved <= TAP_PX) return; gest.drag = true; rebase(); return; }
+    const fk = camera.fov / FOV;
+    const az2 = gest.baz - (pt.x - gest.bx) * 0.0055 * fk, pit2 = clamp(gest.bpit + (pt.y - gest.by) * 0.0045 * fk, PITCH_MIN, PITCH_MAX);
+    const dtm = Math.max(1, t - gest.lt) / 1000;
+    view.vAz = 0.55 * view.vAz + 0.45 * (az2 - view.azT) / dtm; view.vPit = 0.55 * view.vPit + 0.45 * (pit2 - view.pitT) / dtm;
+    gest.lt = t; view.azT = az2; view.pitT = pit2;
   };
   const onUp = (e) => {
-    if (!down || e.pointerId !== down.id) return;
-    const was = dragged; down = null; dragged = false;
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
     try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
-    if (!was && e.type === 'pointerup') api.addLog();
+    if (!gest) return;
+    const t = nowMs();
+    if (ptrs.size > 0) { rebase(); return; }
+    const was = gest; gest = null; view.lastTouch = t;
+    if (e.type === 'pointerup' && !was.pinched && was.moved < TAP_PX && t - was.t0 < TAP_MS) {
+      // タップ: すぐあとの2回目のタップは「初期の視点へ戻す」（薪はくべない）
+      if (t - lastTap.t < DBL_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) { lastTap.t = -1e9; resetView(); return; }
+      lastTap = { t, x: e.clientX, y: e.clientY };
+      api.addLog({ x: e.clientX, y: e.clientY });   // pointerup の中で同期的に（index.html の tapFeed が上端・下端の帯を振り分ける）
+      return;
+    }
+    if (!was.drag || t - was.lt > 90) view.vAz = view.vPit = 0;   // 離す直前まで動いていたときだけ惰性
+    view.vAz = clamp(view.vAz, -2.5, 2.5); view.vPit = clamp(view.vPit, -1.0, 1.0);
   };
+  const onWheel = (e) => {
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 100 : e.deltaY;
+    view.dstT = clamp(view.dstT * Math.exp(clamp(dy, -200, 200) * 0.0012), DIST_MIN, DIST_MAX);
+    view.reset = false; view.lastTouch = nowMs();
+  };
+  const noGesture = (e) => e.preventDefault();
+  function resetView() {
+    view.azT = Math.round(view.az / (Math.PI * 2)) * Math.PI * 2;   // いちばん近い「正面」へ
+    view.pitT = 0; view.dstT = CAM_R; view.vAz = view.vPit = 0; view.reset = true;
+  }
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', onUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('gesturestart', noGesture);
+  canvas.addEventListener('gesturechange', noGesture);
 
   function resize() {
     const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
@@ -540,7 +619,7 @@ export async function start(opts) {
   let baseChildren = null;
   const sceneCtx = {
     THREE, scene, renderer, camera, api, util, assets, uScale, isStopped,
-    fireCenter: { x: 0, z: 0 }, root: null, fireLights, lights: { hemi, moon: moonLight }, sky, hills,
+    fireCenter: { x: 0, z: 0 }, root: null, camBlockers, fireLights, lights: { hemi, moon: moonLight }, sky, hills,
     ground, fireflies: ffScale,   // ground: 地面のメッシュ（シーンが穴や色を変えたら dispose で戻す）。fireflies.value: ホタルの数の倍率（1=22匹、最大2）
   };
   function switchScene(id) {
@@ -548,6 +627,7 @@ export async function start(opts) {
     curSceneId = id;
     if (curScene && curScene.def === def) return;
     if (!baseChildren) baseChildren = new Set(scene.children);   // 共通部分（シーン無しの状態）の物
+    camBlockers.length = 0;
     if (curScene) {
       try { curScene.inst.dispose(); } catch (err) { console.error(err); }
       scene.remove(curScene.root); disposeTree(curScene.root);
@@ -649,14 +729,45 @@ export async function start(opts) {
     updateFireflies(dt, t, !!st.fireflies);
     if (curScene) curScene.inst.update(dt, t, st);
 
-    // カメラ（ドラッグで少し回せる。何もしなければごくゆっくり揺れる）
-    az += (azT - az) * (1 - Math.exp(-dt * 6)); el += (elT - el) * (1 - Math.exp(-dt * 6));
-    const a = az + 0.05 * Math.sin(t * 0.13) + 0.02 * Math.sin(t * 0.31), e = CAM_EL + el + 0.015 * Math.sin(t * 0.11);
-    camera.position.set(Math.sin(a) * CAM_R * Math.cos(e), target.y + CAM_R * Math.sin(e), Math.cos(a) * CAM_R * Math.cos(e));
-    camera.lookAt(target);
+    // カメラ（見回し・寄り引き・惰性・ゆっくり見回す・初期の視点へ戻る）
+    const touching = ptrs.size > 0;
+    if (!touching) {
+      view.azT += view.vAz * dt; view.pitT = clamp(view.pitT + view.vPit * dt, PITCH_MIN, PITCH_MAX);
+      const dec = Math.exp(-dt * 4.5); view.vAz *= dec; view.vPit *= dec;
+      if (Math.abs(view.vAz) < 0.01) view.vAz = 0;
+      if (Math.abs(view.vPit) < 0.01) view.vPit = 0;
+    }
+    const calm = !touching && !view.reset && view.vAz === 0 && now - view.lastTouch > 2500;
+    auto.amt += ((auto.on && calm ? 1 : 0) - auto.amt) * (1 - Math.exp(-dt * 1.2));
+    if (auto.amt > 0.001) view.azT += auto.amt * (Math.PI * 2 / auto.sec) * dt;
+    const kf = 1 - Math.exp(-dt * (view.reset ? 3.2 : 8));
+    view.az += (view.azT - view.az) * kf; view.pit += (view.pitT - view.pit) * kf; view.dst += (view.dstT - view.dst) * kf;
+    if (view.reset && Math.abs(view.azT - view.az) < 0.002 && Math.abs(view.dstT - view.dst) < 0.005) view.reset = false;
+    const a = view.az + (auto.amt > 0.5 ? 0 : 0.05 * Math.sin(t * 0.13) + 0.02 * Math.sin(t * 0.31));
+    const pit = aimPitch(view.dst) + view.pit + 0.015 * Math.sin(t * 0.11);
+    let cx = Math.sin(a) * view.dst, cz = Math.cos(a) * view.dst;
+    for (const b of camBlockers) {   // シーンの置物（鹿威し・縁台など）に頭を突っ込まない
+      const dx = cx - b.x, dz = cz - b.z, d = Math.hypot(dx, dz), lim = b.r + 0.2;
+      if (d < lim) { if (d > 1e-4) { cx = b.x + dx * lim / d; cz = b.z + dz * lim / d; } else cx = b.x + lim; }
+    }
+    // スマホで設定のシートが半分開いているとき、焚火がシートに隠れないよう、画面の見える範囲の中央へ寄せる（閉じたら戻す）
+    {
+      const b = document.body, w = window.innerWidth, h = window.innerHeight;
+      const open = b.classList.contains('m') && b.classList.contains('panel-open');
+      const tx = open && w > h ? 0.22 * w : 0, ty = open && w <= h ? 0.3 * h : 0;
+      const kp = 1 - Math.exp(-dt * 7);
+      vo.x += (tx - vo.x) * kp; vo.y += (ty - vo.y) * kp;
+      if (Math.abs(vo.x) + Math.abs(vo.y) > 0.5) { camera.setViewOffset(w, h, vo.x, vo.y, w, h); voOn = true; }
+      else if (voOn) { camera.clearViewOffset(); voOn = false; }
+    }
+    camera.position.set(cx, EYE_Y, cz);
+    const cp = Math.cos(pit);
+    camera.lookAt(cx - Math.sin(a) * cp, EYE_Y + Math.sin(pit), cz - Math.cos(a) * cp);
   }
 
   /* 描画ループ（30fps。タブ非表示 / 映像オフの間は止める） */
+  renderer.info.autoReset = false;
+  let lastTris = 0, lastCalls = 0;
   let raf = 0, last = 0, active = false, winStart = 0, winFrames = 0, winWarm = true;   // 表示開始直後の最初の5秒は読み込み・シェーダー生成で遅くなるので判定しない
   function resetPerf() { winStart = 0; winFrames = 0; }
   function loop(ts) {
@@ -666,8 +777,10 @@ export async function start(opts) {
     const dt = last ? Math.min(0.05, gap / 1000) : 1 / 30;
     const hadLast = last > 0;
     last = ts;
+    renderer.info.reset();
     update(dt);
     fire.render();
+    lastTris = renderer.info.render.triangles; lastCalls = renderer.info.render.calls;
     // 計測: 止まっていた・間引かれたフレーム（間隔が GAP_MS 超）は除外し、非表示中はリセット
     if (document.hidden || (hadLast && gap > GAP_MS)) { resetPerf(); return; }
     if (!winStart) { winStart = ts; winFrames = 0; return; }
@@ -690,13 +803,26 @@ export async function start(opts) {
   setActive(api.getState().active);
 
   ctx = {
-    canvas, renderer, scene, stop() {
+    canvas, renderer, scene,
+    setAuto(on, sec) { auto.on = on; if (Number.isFinite(sec) && sec >= 30) auto.sec = sec; },
+    getStats() { const m = renderer.info.memory; return { triangles: lastTris, calls: lastCalls, geometries: m.geometries, textures: m.textures }; },
+    getAuto() { return { on: auto.on, seconds: auto.sec }; },
+    resetView,
+    getView() { return { az: view.az, pit: view.pit, dist: view.dst }; },
+    setView(v) {
+      if (Number.isFinite(v.az)) view.az = view.azT = v.az;
+      if (Number.isFinite(v.pit)) view.pit = view.pitT = clamp(v.pit, PITCH_MIN, PITCH_MAX);
+      if (Number.isFinite(v.dist)) view.dst = view.dstT = clamp(v.dist, DIST_MIN, DIST_MAX);
+      view.vAz = view.vPit = 0; view.reset = false;
+    },
+    stop() {
       stopped = true;
       setActive(false);
       unsubs.forEach((u) => { try { u(); } catch (err) {} });
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp); canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('wheel', onWheel); canvas.removeEventListener('gesturestart', noGesture); canvas.removeEventListener('gesturechange', noGesture);
       falling.forEach((d) => scene.remove(d.mesh));
       if (curScene) { try { curScene.inst.dispose(); } catch (err) {} scene.remove(curScene.root); curScene = null; }
       fire.dispose();

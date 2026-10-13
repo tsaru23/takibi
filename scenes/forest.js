@@ -1,9 +1,9 @@
 // シーン「季節の木」（森）。仮の円錐の木、FABOTANIC の草地フィールド、季節ごとの舞うもの（花びら・落ち葉・雪）、雪だまり。
 // 形式は scenes/index.js のコメントを参照。
 import * as THREE from 'three';
-import { mulberry32, rnd, clamp, rgb, radialTexture, mergeGeoms, disposeTree, makePoints, inCameraWedge, HILLS, hillGround } from './util.js';
+import { mulberry32, rnd, clamp, rgb, radialTexture, mergeGeoms, disposeTree, makePoints } from './util.js';
 import { makeSnowPoints } from './snow.js';
-import { loadFarTrees, inSkyClearing } from './farTrees.js';
+import { loadFarTrees, surroundPoints } from './farTrees.js';
 
 const SEASON_INDEX = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 const ROOT = new URL('../', import.meta.url);   // サイトのルート
@@ -51,17 +51,15 @@ function buildProcedural(season, noTrees) {
   const trunkGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.7, 6); trunkGeo.translate(0, 0.35, 0);
   const cone = (r, h, y) => ({ geo: new THREE.ConeGeometry(r, h, 8), matrix: new THREE.Matrix4().makeTranslation(0, y, 0) });
   const foliGeo = mergeGeoms([cone(0.85, 1.6, 1.4), cone(0.62, 1.4, 2.15), cone(0.4, 1.1, 2.8)]);
-  const NT = noTrees ? 0 : 100, NNEAR = 30;
+  const NT = noTrees ? 0 : 100;
   const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x2c1c10 }), Math.max(1, NT));
   const foli = new THREE.InstancedMesh(foliGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, NT));
-  let nt = 0, guard = 0;
-  while (nt < NT && guard++ < 500) {
-    const far = nt >= NNEAR;   // 手前30本は12〜26m、残りは遠景の稜線の上
-    const a = rng() * Math.PI * 2, r = far ? 27 + rng() * 7 : Math.sqrt(12 * 12 + rng() * (26 * 26 - 12 * 12));
-    const x = Math.sin(a) * r, z = Math.cos(a) * r;
-    if (!far && r < 16 && Math.abs(Math.atan2(x, z)) < 1.0) continue;
-    const s = far ? 1.3 + rng() * 1.1 : 0.7 + rng() * 0.7;
-    q.setFromEuler(e.set(0, rng() * 6.28, 0)); v3.set(x, hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, z); sc.set(s * (0.9 + rng() * 0.2), s, s * (0.9 + rng() * 0.2));
+  // 全周に、遠景の木と同じ位置（焚火から 24m 以上）。遠景の木が読めるまでの仮
+  const tp = surroundPoints(mulberry32(1000 + SEASON_INDEX[season] * 77), NT, { h: 0.5, hRing: [4, 6], hRidge: [4, 6] });
+  let nt = 0;
+  for (const p of tp) {
+    const s = p.h / 3.4;   // 円錐3段の木は高さ 約3.4（s=1）
+    q.setFromEuler(e.set(0, rng() * 6.28, 0)); v3.set(p.x, p.y, p.z); sc.set(s * (0.9 + rng() * 0.2), s, s * (0.9 + rng() * 0.2));
     m4.compose(v3, q, sc);
     trunks.setMatrixAt(nt, m4); foli.setMatrixAt(nt, m4);
     foli.setColorAt(nt, col.setHex(st.trees[Math.floor(rng() * st.trees.length)]).multiplyScalar(0.55));
@@ -109,9 +107,8 @@ function buildProcedural(season, noTrees) {
     const acc = new THREE.InstancedMesh(geo, mat, st.accentN);
     const RMAX = isSnow ? 8.5 : 14;
     for (let i = 0; i < st.accentN; i++) {
-      let a = rng() * Math.PI * 2;
+      const a = rng() * Math.PI * 2;
       const r = Math.sqrt(2.2 * 2.2 + rng() * (RMAX * RMAX - 2.2 * 2.2));
-      if (isSnow && inCameraWedge(Math.sin(a) * r, Math.cos(a) * r, r)) a += Math.PI;   // カメラ手前には置かない
       const s = isSnow ? 0.45 + rng() * 0.8 : 0.8 + rng() * 0.6;
       q.setFromEuler(e.set(0, rng() * 6.28, 0));
       v3.set(Math.sin(a) * r, isSnow ? 0.02 : 0.25 + rng() * 0.15, Math.cos(a) * r);
@@ -171,7 +168,6 @@ async function buildFromManifest(season, isStopped) {
     for (let i = 0; i < count; i++) {
       const a = rng() * Math.PI * 2, r = Math.sqrt(rmin * rmin + rng() * Math.max(0, rmax * rmax - rmin * rmin));
       const x = Math.sin(a) * r, z = Math.cos(a) * r;
-      if (inCameraWedge(x, z, r) && r > 2.5) continue;
       const o = gltf.scene.clone(true);
       o.position.set(x, 0, z); o.rotation.y = rng() * Math.PI * 2; o.scale.setScalar(base * (0.85 + rng() * 0.3));
       group.add(o);
@@ -190,7 +186,7 @@ export async function collectFieldEntries() {
   const seen = new Set();
   return all.filter((en) => en && en.type === 'field' && typeof en.dir === 'string' && !seen.has(en.dir) && seen.add(en.dir));
 }
-// 焚火の周りを空け（ディザで縁をぼかす）、カメラ手前の扇形は草を間引く
+// 焚火の周りを空け（ディザで縁をぼかす）、カメラ側（焚火から見てカメラの方向の扇形）は草を間引く。カメラは焚火のまわりを回るので、扇形もカメラについて回る
 function patchFieldMaterial(mat, key, opt) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey;
   const thin = key !== 'soil' && key !== 'stone';
@@ -211,11 +207,11 @@ function patchFieldMaterial(mat, key, opt) {
     float tkH = fract(sin(dot(floor(vTkWp.xz * 90.0 + vTkWp.y * 37.0), vec2(12.9898, 78.233))) * 43758.5453);
     if (tkR < ${r0}) discard;
     if (tkR < ${r1} && tkH > (tkR - ${r0}) / (${r1} - ${r0})) discard;
-    ${thin ? `float tkA = abs(atan(vTkWp.x, vTkWp.z));
+    ${thin ? `float tkA = acos(clamp(dot(normalize(vTkWp.xz), normalize(cameraPosition.xz)), -1.0, 1.0));
     if (tkA < 0.9 && tkR < 7.0 && tkH > 0.25 + 0.75 * smoothstep(0.35, 0.9, tkA)) discard;` : ''}
   }`);
   };
-  mat.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|tkfield' + (thin ? 'T' : 'S'); };
+  mat.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + '|tkfield2' + (thin ? 'T' : 'S'); };
   mat.needsUpdate = true;
 }
 export async function loadField(entry, isStopped) {
@@ -247,11 +243,11 @@ export async function loadField(entry, isStopped) {
     if (o.isInstancedMesh) o.userData.tkFull = o.count;   // 草の量の切替で instance 数を増減する（読み込み直さない）
   });
   const group = new THREE.Group();
-  const count = Math.max(1, (entry.count | 0) || 5), radius = Number.isFinite(entry.radius) ? entry.radius : 3.6;
-  const gap = 0.75, arc = Math.PI * 2 - gap * 2;      // カメラ手前(+Z)の扇形には複製を置かない
+  const count = Math.max(1, (entry.count | 0) || 8), radius = Number.isFinite(entry.radius) ? entry.radius : 3.6;
+  const arc = Math.PI * 2;                            // 焚火のまわり全周に複製を並べる（カメラが回るので、手前の扇形も空けない）
   const rng = mulberry32(31337);
   for (let i = 0; i < count; i++) {
-    const phi = gap + (i + 0.5) * (arc / count) + (rng() - 0.5) * 0.12;
+    const phi = (i + 0.5) * (arc / count) + (rng() - 0.5) * 0.12;
     const c = asset.root.clone(true);           // ジオメトリと材質は共有
     c.position.set(Math.sin(phi) * radius, i * 0.006, Math.cos(phi) * radius);
     c.rotation.y = (i * 2.399963 + rng() * 0.8) % (Math.PI * 2);   // 黄金角ずらしで同じ見た目を並べない
@@ -259,11 +255,11 @@ export async function loadField(entry, isStopped) {
   }
   return { asset, group, mats, entry };
 }
-// 草の量: 使う複製(slot)と instance の密度。ring の両端(手前側)から先に減らす
-const DEFAULT_LEVELS = {
-  many: { slots: [0, 1, 2, 3, 4], density: 0.75 },
-  normal: { slots: [1, 2, 3], density: 0.6 },
-  few: { slots: [1, 2, 3], density: 0.27 }
+// 草の量: 使う複製(slot)と instance の密度
+const DEFAULT_LEVELS = {   // 複製は全周に 8 個（番号は焚火から見て +Z から回る順）。減らすときも全周にまばらに残す
+  many: { slots: [0, 1, 2, 3, 4, 5, 6, 7], density: 0.5 },
+  normal: { slots: [0, 1, 2, 3, 4, 5, 6, 7], density: 0.38 },
+  few: { slots: [0, 2, 4, 6], density: 0.3 }
 };
 // levels: シーンごとの上書き（省略可。manifest の levels より優先）。家など別の物で三角形を使うシーンが、草を絞るのに使う
 export function applyFieldLevel(field, level, levels) {
@@ -302,7 +298,7 @@ export default {
     const { scene, root, uScale } = ctx;
     let disposed = false;
     const isStopped = () => disposed || ctx.isStopped();
-    let curSeason = '', grassLevel = '', fieldObj = null, fieldLoading = false;
+    let curSeason = '', grassLevel = '', fieldObj = null, fieldLoading = false, fieldFailed = false;
     const plants = {};   // season -> {group, real}
     let far = null;      // 遠景の木（FABOTANIC）。読めたら仮の円錐の木と入れ替える
 
@@ -387,18 +383,9 @@ export default {
       }).catch((err) => console.warn('[takibi] plants manifest:', err));
     }
 
-    /* 遠景の木: 手前の輪（24〜30m）と遠景の稜線の上。正面の夜空とカメラ手前の扇形は空ける */
+    /* 遠景の木: 焚火のまわり全周（手前の輪 24〜31m と遠景の稜線の上）。正面（月・星の側）は低く・まばらにして夜空を見せる */
     (function loadFar() {
-      const rng = mulberry32(4242), pts = [];
-      let guard = 0;
-      while (pts.length < 180 && guard++ < 6000) {
-        const ridge = pts.length >= 100;
-        // 手前の輪は 24〜30m（交差した板だと分からない距離）。正面（月・星の方向）には木を置かない
-        const a = rng() * Math.PI * 2, r = ridge ? 31 + rng() * 5 : 24 + rng() * 6;
-        const x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (inSkyClearing(x, z)) continue;
-        pts.push({ x, z, y: hillGround(HILLS[0], r, Math.atan2(z, x)) - 0.1, h: ridge ? 9 + rng() * 5 : 9 + rng() * 4 });
-      }
+      const pts = surroundPoints(mulberry32(4242), 300);
       loadFarTrees(ctx, pts, { seed: 11 }).then((h) => {
         if (!h || isStopped()) { if (h) h.dispose(); return; }
         far = h; root.add(h.group);
@@ -414,14 +401,14 @@ export default {
       if (fieldLoading) return;
       fieldLoading = true;
       collectFieldEntries().then((list) => (list.length ? loadField(list[0], isStopped) : null)).then((f) => {
-        if (!f) return;
+        if (!f) { if (!isStopped()) fieldFailed = true; return; }
         if (isStopped()) { f.asset.dispose(); return; }
         fieldObj = f;
         root.add(f.group);
         applyFieldLevel(f, grassLevel === 'none' ? 'many' : grassLevel);
         f.group.visible = grassLevel !== 'none';
         applyFieldTint(f, curSeason);
-      }).catch((err) => console.warn('[takibi] field asset:', err));
+      }).catch((err) => { fieldFailed = true; console.warn('[takibi] field asset:', err); });
     }
 
     let seasonFx = true;
@@ -435,8 +422,8 @@ export default {
       update(dt, t, st) {
         const gl = st.grass || 'normal';
         if (gl !== grassLevel) { grassLevel = gl; ensureField(gl); }
-        // 仮の草の束は、フィールドが無い（未読込・読込失敗）ときだけ、かつ草の量が「なし」以外のときだけ出す
-        const tuftsOn = gl !== 'none' && !fieldObj;
+        // 仮の草の束は、フィールドの読み込みに失敗したときだけ（読み込み中は出さない: 仮の草が一瞬大きく映って見苦しいため）、かつ草の量が「なし」以外のときだけ出す
+        const tuftsOn = gl !== 'none' && !fieldObj && fieldFailed;
         for (const k in plants) { const tf = plants[k].group.userData && plants[k].group.userData.tufts; if (tf) tf.visible = tuftsOn; }
         seasonFx = st.seasonFx;
         if (driftKey !== curSeason + (seasonFx ? '1' : '0')) initDrift(curSeason, seasonFx);

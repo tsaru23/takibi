@@ -18,6 +18,12 @@ const HW = 1.45, SPR = 1.7, CRN = 3.0;                    // 入口の半幅・�
 const E0 = new THREE.Vector3(R0(PHE) * Math.sin(PHE), 0, -R0(PHE) * Math.cos(PHE));   // 入口の床の中心
 const NOUT = new THREE.Vector2(Math.sin(PHE), -Math.cos(PHE));                        // 外向き（xz）
 const TLAT = new THREE.Vector2(Math.cos(PHE), Math.sin(PHE));                         // 入口の横方向（xz）
+/* 背後（初期のカメラの後ろ側）の奥へ続く暗い通路。壁に小さなアーチをあけ、その先に暗い坑道をのばす（月は差さない） */
+const PHB = Math.PI - 0.35;                               // 通路の向き
+const HW2 = 1.15, SPR2 = 1.35, CRN2 = 2.4, TUN_L = 15;    // 通路の半幅・アーチの起点の高さ・頂点の高さ・長さ
+const E1 = new THREE.Vector3(R0(PHB) * Math.sin(PHB), 0, -R0(PHB) * Math.cos(PHB));
+const NOUT1 = new THREE.Vector2(Math.sin(PHB), -Math.cos(PHB));
+const TLAT1 = new THREE.Vector2(Math.cos(PHB), Math.sin(PHB));
 const FIRE_GAIN = 4.0, FIRE_DECAY = 1.4;                  // 焚火の光の強さの倍率と減衰（洞窟の壁の奥まで届かせるため、距離で落ちにくくする）
 const MOON_AZ = 0.28;                                     // カメラ（0, 1.03, 2.5）から入口のあたりに見える方位。ここに月を置く
 
@@ -46,11 +52,11 @@ function wallPoint(a, s, out) {
 /* 壁面の岩肌: 入口のアーチをフラグメントで抜く（縁はノイズでぎざぎざ）。入口の近くの壁はうっすら月の青 */
 function patchWall(mat, U) {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uE0 = U.uE0; sh.uniforms.uT = U.uT; sh.uniforms.uN = U.uN;
+    sh.uniforms.uE0 = U.uE0; sh.uniforms.uT = U.uT; sh.uniforms.uN = U.uN; sh.uniforms.uE1 = U.uE1; sh.uniforms.uT1 = U.uT1; sh.uniforms.uN1 = U.uN1;
     sh.vertexShader = 'varying vec3 vTkW;\n' + sh.vertexShader.replace('#include <project_vertex>',
       '#include <project_vertex>\n  vTkW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = `varying vec3 vTkW;
-uniform vec3 uE0; uniform vec2 uT; uniform vec2 uN;
+uniform vec3 uE0; uniform vec2 uT; uniform vec2 uN; uniform vec3 uE1; uniform vec2 uT1; uniform vec2 uN1;
 float tkSh(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float tkSn(vec3 p) {
   vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -68,6 +74,16 @@ float tkSn(vec3 p) {
     tkIn = min(${HW.toFixed(3)} - abs(tkLat), top - vTkW.y) + nz;
     if (abs(tkAl) < 3.2 && tkIn > 0.0 && vTkW.y > -0.1) discard;
     diffuseColor.rgb *= mix(1.0, 0.5, smoothstep(-0.55, 0.0, tkIn) * step(abs(tkAl), 3.2));
+  }
+  {   // 背後の通路のアーチ
+    vec3 tkd1 = vTkW - uE1;
+    float tkLat1 = dot(tkd1.xz, uT1), tkAl1 = dot(tkd1.xz, uN1);
+    float x1 = clamp(tkLat1 / ${HW2.toFixed(3)}, -1.0, 1.0);
+    float top1 = ${SPR2.toFixed(3)} + (${CRN2.toFixed(3)} - ${SPR2.toFixed(3)}) * sqrt(max(0.0, 1.0 - x1 * x1));
+    float nz1 = (tkSn(vTkW * 2.6 + 11.0) - 0.5) * 0.36 + (tkSn(vTkW * 8.0) - 0.5) * 0.12;
+    float in1 = min(${HW2.toFixed(3)} - abs(tkLat1), top1 - vTkW.y) + nz1;
+    if (abs(tkAl1) < 3.2 && in1 > 0.0 && vTkW.y > -0.1) discard;
+    diffuseColor.rgb *= mix(1.0, 0.45, smoothstep(-0.5, 0.0, in1) * step(abs(tkAl1), 3.2));
   }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   {
     float mo = exp(-length(tkd.xz - uN * 0.5) * 0.3) * (0.5 + 0.5 * tkSn(vTkW * 1.7));
@@ -112,7 +128,7 @@ export default {
     if (ground) ground.material.color.setRGB(0.72, 0.7, 0.7);
 
     /* --- 岩壁と天井 --- */
-    const U = { uE0: { value: E0.clone() }, uT: { value: TLAT.clone() }, uN: { value: NOUT.clone() } };
+    const U = { uE0: { value: E0.clone() }, uT: { value: TLAT.clone() }, uN: { value: NOUT.clone() }, uE1: { value: E1.clone() }, uT1: { value: TLAT1.clone() }, uN1: { value: NOUT1.clone() } };
     const rockNormal = own(texs, rockNormalMap(256, 17, 6));
     rockNormal.repeat.set(1, 1);
     const wallMat = own(mats, new THREE.MeshStandardMaterial({
@@ -126,7 +142,10 @@ export default {
         const a = i / NPH * Math.PI * 2, s = j / NS;
         wallPoint(a, s, pt);
         P.push(pt.x, pt.y, pt.z);
-        UV.push(18 * i / NPH, (pt.y + 0.25) / 2.1);
+        { // 壁は方位で、天井の頂点付近は真上からの座標でテクスチャを貼る（頂点に放射状の筋が出ないように）
+          const k = clamp((pt.y - 2.0) / 1.2, 0, 1), u0 = 18 * i / NPH, v0 = (pt.y + 0.25) / 2.1;
+          UV.push(u0 + (pt.x * 0.5 - u0) * k, v0 + (pt.z * 0.5 - v0) * k);
+        }
         const tone = fbm3(pt.x * 0.55 + 5, pt.y * 0.7, pt.z * 0.55, 3), grain = 0.72 + 0.56 * fbm3(pt.x * 2.4, pt.y * 2.4, pt.z * 2.4 + 4, 2);
         col.copy(dark).lerp(light, tone).multiplyScalar(grain);
         if (pt.y < 0.8) { const w = 1 - pt.y / 0.8; col.r *= 1 - 0.28 * w; col.g *= 1 - 0.1 * w; col.b *= 1 - 0.18 * w; }   // 床近くは湿って暗く、わずかに青緑
@@ -181,6 +200,50 @@ export default {
         q.setFromEuler(e.set(rng() * 3, rng() * 6, rng() * 3));
         m4.compose(new THREE.Vector3(E0.x + TLAT.x * lat + NOUT.x * off, y, E0.z + TLAT.y * lat + NOUT.y * off), q, new THREE.Vector3(s * (1 + rng() * 0.4), s * (0.8 + rng() * 0.4), s));
         im.setMatrixAt(i, m4); im.setColorAt(i, c.setScalar(0.65 + rng() * 0.6));
+      });
+      im.frustumCulled = false; root.add(im);
+    }
+
+    /* --- 背後の通路: 壁のアーチの先へ、少し曲がりながら細くなる暗い坑道（奥は真っ暗）。縁には岩を並べる --- */
+    {
+      const NSL = 12, NAR = 14, P = [], C = [], UV = [], I = [], col = new THREE.Color(), base = new THREE.Color(0x4a4238);
+      const SEC = [[-1, 0], [-1, SPR2 * 0.5 / CRN2], [-1, SPR2 / CRN2]];   // 断面（横は半幅の比、高さは頂点の比）: 左の壁 → アーチ → 右の壁。壁にあけたアーチと同じ形
+      for (let m = 1; m <= 9; m++) { const th = Math.PI * m / 10; SEC.push([-Math.cos(th), (SPR2 + (CRN2 - SPR2) * Math.sin(th)) / CRN2]); }
+      SEC.push([1, SPR2 / CRN2], [1, SPR2 * 0.5 / CRN2], [1, 0]);
+      for (let j = 0; j <= NSL; j++) {
+        const f = j / NSL, sdist = -1.2 + f * (TUN_L + 1.2), k = 1 - 0.3 * f, lat = 3.2 * Math.sin(f * 1.4) + (fbm3(f * 3, 4, 2, 2) - 0.5) * 0.8;
+        for (let a = 0; a <= NAR; a++) {
+          const [px, py] = SEC[a];
+          const x = px * HW2 * k, y = py * (CRN2 * k) * (1 + 0.05 * Math.sin(a * 2.3 + j)) , n = (fbm3(a * 0.9 + 3, j * 0.8, 5, 3) - 0.5) * 0.45;
+          const nx = x + n * Math.sign(px || 1) * 0.5;
+          P.push(E1.x + NOUT1.x * sdist + TLAT1.x * (lat + nx), y + n * 0.3, E1.z + NOUT1.y * sdist + TLAT1.y * (lat + nx));
+          const dark = Math.max(0, 1 - 0.95 * Math.pow(f, 0.8)), tone = 0.7 + 0.6 * fbm3(a * 0.5, j * 0.7, 9, 3);
+          col.copy(base).multiplyScalar(tone * dark); C.push(col.r, col.g, col.b);
+          UV.push(sdist / 2.1, a / NAR * 3);
+        }
+      }
+      for (let j = 0; j < NSL; j++) for (let a = 0; a < NAR; a++) { const i0 = j * (NAR + 1) + a, i1 = i0 + 1, i2 = i0 + NAR + 1, i3 = i2 + 1; I.push(i0, i1, i2, i1, i3, i2); }
+      const g = own(geos, new THREE.BufferGeometry());
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
+      g.setIndex(I); g.computeVertexNormals();
+      const tm = own(mats, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0, normalMap: rockNormal, normalScale: new THREE.Vector2(1.3, 1.3), side: THREE.DoubleSide }));
+      const tun = new THREE.Mesh(g, tm); tun.frustumCulled = false; root.add(tun);
+      // 奥の突き当たりは真っ黒（光が届かない）
+      const cap = new THREE.Mesh(own(geos, new THREE.CircleGeometry(HW2 * 1.4, 12)), own(mats, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide, fog: false })));
+      cap.position.set(E1.x + NOUT1.x * (TUN_L + 0.2) + TLAT1.x * 3.5, 1.2, E1.z + NOUT1.y * (TUN_L + 0.2) + TLAT1.y * 3.5);
+      cap.rotation.y = -Math.atan2(NOUT1.y, NOUT1.x) + Math.PI / 2; cap.scale.set(1, 1.3, 1); root.add(cap);
+      // アーチの縁の岩
+      const geo = own(geos, noisedRockGeometry(1, 4.1, 0.36));
+      const m = own(mats, new THREE.MeshStandardMaterial({ color: 0x3f3a34, roughness: 0.7, normalMap: rockNormal, normalScale: new THREE.Vector2(1.4, 1.4) }));
+      const pts = [];
+      for (let y = 0.15; y < SPR2; y += 0.5) { pts.push([-HW2 - 0.08, y]); pts.push([HW2 + 0.08, y]); }
+      for (let kk = 0; kk <= 8; kk++) { const x = -1 + kk / 4; pts.push([x * (HW2 + 0.08), SPR2 + (CRN2 - SPR2) * Math.sqrt(Math.max(0, 1 - x * x)) + 0.1]); }
+      const im = new THREE.InstancedMesh(geo, m, pts.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
+      pts.forEach(([lat, y], i) => {
+        const sz = 0.24 + rng() * 0.2, off = rng() * 0.45 - 0.05;
+        q.setFromEuler(e.set(rng() * 3, rng() * 6, rng() * 3));
+        m4.compose(new THREE.Vector3(E1.x + TLAT1.x * lat + NOUT1.x * off, y, E1.z + TLAT1.y * lat + NOUT1.y * off), q, new THREE.Vector3(sz * (1 + rng() * 0.4), sz * (0.8 + rng() * 0.4), sz));
+        im.setMatrixAt(i, m4); im.setColorAt(i, c.setScalar(0.55 + rng() * 0.5));
       });
       im.frustumCulled = false; root.add(im);
     }
@@ -254,7 +317,7 @@ export default {
       for (let i = 0; i < NSL; i++) {
         const a = rng() * Math.PI * 2, rr = R0(a) * (0.45 + rng() * 0.5);
         const x = Math.sin(a) * rr, z = -Math.cos(a) * rr;
-        if (Math.hypot(x, z) < 1.9 || z > 0.2) { place(sl, i, 30, 30, 0.001, 0.001, 0.001, 0, 0); continue; }
+        if (Math.hypot(x, z) < 1.9) { place(sl, i, 30, 30, 0.001, 0.001, 0.001, 0, 0); continue; }
         place(sl, i, x, z, 0.5 + rng() * 0.9, 0.1 + rng() * 0.08, 0.4 + rng() * 0.7, rng() * 6, 0.35);
       }
       let n = 0, guard = 0;
