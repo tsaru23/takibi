@@ -226,7 +226,7 @@ function petalTex() {
 export default {
   id: 'pond',
   label: '池',
-  audio: { autoOn: ['frog', 'scenesfx'], reverb: null, sources: { frog: [{ x: PC.x - 1.2, z: PC.z - 0.9 }, { x: PC.x + 1.3, z: PC.z + 0.5 }, { x: PC.x + 0.2, z: PC.z - 1.3 }], brook: [{ x: PC.x - 2.2, y: 0.1, z: PC.z + 0.3 }] } },
+  audio: { autoOn: ['frog', 'insect', 'scenesfx', { id: 'brook', season: 'spring' }], reverb: null, sources: { frog: [{ x: PC.x - 1.2, z: PC.z - 0.9 }, { x: PC.x + 1.3, z: PC.z + 0.5 }, { x: PC.x + 0.2, z: PC.z - 1.3 }], brook: [{ x: PC.x - 2.2, y: 0.1, z: PC.z + 0.3 }] } },
 
   build(ctx) {
     const { scene, root, api, assets, ground } = ctx;

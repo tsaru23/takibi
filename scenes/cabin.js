@@ -85,7 +85,7 @@ function normalizedLog(gltf) {
 export default {
   id: 'cabin',
   label: 'ログハウス',
-  audio: { autoOn: ['owl', 'scenesfx'], reverb: { seconds: 2.4, decay: 3.2, wet: 0.26 } },
+  audio: { autoOn: ['owl', 'insect', 'scenesfx', { id: 'kettle', season: 'winter' }], reverb: { seconds: 2.4, decay: 3.2, wet: 0.26 } },
 
   build(ctx) {
     const { scene, root, api, assets, ground, uScale, camera } = ctx;

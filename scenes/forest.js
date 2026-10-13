@@ -292,7 +292,7 @@ export function applyFieldTint(field, season) {
 export default {
   id: 'forest',
   label: '季節の木',
-  audio: { autoOn: [], reverb: null },
+  audio: { autoOn: ['insect', { id: 'wind', vol: 0.35 }, 'owl'], reverb: null },
 
   build(ctx) {
     const { scene, root, uScale } = ctx;

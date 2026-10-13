@@ -132,7 +132,7 @@ function petalTexture() {
 export default {
   id: 'sea',
   label: '海',
-  audio: { autoOn: ['wave'], reverb: null, sources: { wave: [-8, 0, 8].map((x) => ({ x, y: 0.1, z: Z_BASE + 1.2 })) } },   // 波打ち際に沿って左・中・右
+  audio: { autoOn: ['wave', { id: 'wind', vol: 0.35 }, { id: 'fw', season: 'summer' }], reverb: null, sources: { wave: [-8, 0, 8].map((x) => ({ x, y: 0.1, z: Z_BASE + 1.2 })) } },   // 波打ち際に沿って左・中・右
   props: { logPile: { x: -1.4, z: 0.25, rotY: 0.35 } },   // 波が届かない平らな砂の上（z > -3）
 
   build(ctx) {

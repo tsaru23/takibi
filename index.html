@@ -346,6 +346,9 @@ var S = {};
 })();
 // シーンの音の連動で自動オンにした環境音は、保存しない（次回起動時に「元の状態」が分からなくなるため）
 var autoApplied = [];
+var autoVol = {};      // 自動オンにした音の「そのシーンの既定の音量」（スライダーを動かすまで。保存しない）
+var manualVol = {};    // スライダーを動かした音（以後、シーンの既定の音量で上書きしない。このセッションだけ）
+var manualEnv = {};    // 手でオン／オフを切り替えた音（以後、シーンの連動で勝手に変えない。このセッションだけ）
 var resetting = false;   // 「設定を初期値に戻す」の読み込み直しの間は、保存しない（消した設定を書き戻さないため）
 function save() {
   if (resetting) return;
@@ -500,7 +503,7 @@ var segEl = document.getElementById('seasonSeg'), fxEl = document.getElementById
 SEASONS.forEach(function (sn) {
   var b = document.createElement('button');
   b.type = 'button'; b.innerHTML = '<span class="ic">' + iconSvg(SEAS_ICON[sn]) + '</span>' + SEAS_JA[sn]; b.dataset.s = sn;
-  b.addEventListener('click', function () { S.season = sn; save(); refreshSeasonUI(); });
+  b.addEventListener('click', function () { S.season = sn; applyAuto(); save(); refreshSeasonUI(); });
   segEl.appendChild(b);
 });
 fxEl.checked = S.seasonFx;
@@ -523,6 +526,8 @@ ENV.forEach(function (e) {
   row.appendChild(head);
   chk.addEventListener('change', function () {
     var ai = autoApplied.indexOf(e.id); if (ai >= 0) autoApplied.splice(ai, 1);   // 手で変えたら、シーンを離れても戻さない
+    manualEnv[e.id] = true;                                                         // 以後、シーンの連動では勝手にオン／オフしない
+    if (autoVol[e.id] != null) { delete autoVol[e.id]; syncVolUI(e.id); }
     S['on_' + e.id] = chk.checked; save(); refreshEnvUI(); refreshSummaries();
   });
   var rng = null;
@@ -531,6 +536,7 @@ ENV.forEach(function (e) {
     rng.setAttribute('aria-label', e.label + 'の音量');
     rng.value = S['vol_' + e.id]; out.textContent = Math.round(S['vol_' + e.id] * 100) + '%';
     rng.addEventListener('input', function () {
+      delete autoVol[e.id]; manualVol[e.id] = true;   // スライダーを動かしたら、その値を優先する
       S['vol_' + e.id] = parseFloat(rng.value); out.textContent = Math.round(S['vol_' + e.id] * 100) + '%'; save();
     });
     row.appendChild(rng);
@@ -544,6 +550,11 @@ ENV.forEach(function (e) {
   }
   envRows[e.id] = { row: row, chk: chk, rng: rng, note: note, tag: tag, scope: e.scope, sfx: e.group === 'sfx' };
 });
+function syncVolUI(id) {   // スライダーの表示を、いま効いている音量に合わせる
+  var r = envRows[id]; if (!r || !r.rng) return;
+  var v = autoVol[id] != null ? autoVol[id] : S['vol_' + id];
+  r.rng.value = v; r.row.querySelector('output').textContent = Math.round(v * 100) + '%';
+}
 function placeRows(box, rows) {   // すでにその並びなら触らない（操作中の要素を動かして、フォーカスやドラッグを途切れさせないため）
   var cur = Array.prototype.slice.call(box.children);
   if (cur.length === rows.length && rows.every(function (r, i) { return cur[i] === r; })) return;
@@ -1072,10 +1083,20 @@ function buildGraph(ctx) {
   roarB = chain(loopSrc(brownBuf, 0.55), 'lowpass', 200, 0.5, 0);  // 低い唸り
   roarC = chain(loopSrc(whiteBuf, 1), 'bandpass', 2600, 0.4, 0);   // 微かな「シュー」
 
+  roarA.live = true; roarA.offT = -1;
   initEnv();
   nextCrackle = ac.currentTime + 0.3;
   audioReady = true;      // すべてのノードが揃ってから audioTick を動かす
   applyReverb();
+}
+
+// 燃える音の3本を、焚火の PannerNode につなぐ／切る（0 のときは切って、フィルタの計算も止める）
+function roarLink(on) {
+  [roarA, roarB, roarC].forEach(function (r) {
+    try { if (on) r.g.connect(SP.fireBed.g); else r.g.disconnect(); } catch (e) {}
+  });
+  if (on) { var z = 0; [roarA, roarB, roarC].forEach(function (r) { r.g.gain.cancelScheduledValues(0); r.g.gain.value = z; }); }
+  roarA.live = on; roarA.offT = -1;
 }
 
 /* ---- 環境音レイヤー（ノードは1度だけ作りゲインで出し入れ） ---- */
@@ -1089,7 +1110,8 @@ function avail(id) {
 }
 function lvl(id) {
   if (!avail(id) || !S['on_' + id]) return 0;
-  return (ENV_BASE[id] || 1) * S['vol_' + id] * S['vol_' + id];
+  var v = autoVol[id] != null && autoApplied.indexOf(id) >= 0 ? autoVol[id] : S['vol_' + id];   // シーンの既定の音量（自動オンのまま、スライダーを動かしていない間）
+  return (ENV_BASE[id] || 1) * v * v;
 }
 function mkG(v, dest) { var n = ac.createGain(); n.gain.value = v; if (dest) n.connect(dest); return n; }
 function mkF(type, f, q, dest) {
@@ -1191,11 +1213,11 @@ function initEnv() {
    単発は候補からランダムに選び（続けて同じものは選ばない）、速さと音量を少し変える。 */
 var REC_URL = 'assets/audio/';
 var REC = { meta: null, metaP: null, buf: {}, info: {}, st: {}, failT: {}, gain: {}, unw: {}, last: {}, lastChk: 0, lastDrip: -99 };
-var REC_SKIP = { creak_2: 1 };                     // ノイズが強いので使わない
+var REC_SKIP = {};                                 // 使わない録音の id（いまは無し）
 // 層ごとの音量の補正（dB）。録音を LUFS で -23 にそろえたうえで、層だけを書き出した出力（RMS）を測って、合成音と釣り合うように決めた。leaves と wind は録音のヒスが目立つので控えめ
 var REC_TRIM = { owl: 3, frog_chorus: -4, frog_call: -2, insects_autumn: 13, insects_summer: 12, waves: 1, brook: 6, river: 5, rain: -1, wind: -1, bamboo: 4, leaves: -3, kettle: 2,
-  shishiodoshi: 3, shishiodoshi_water: -6, koi_splash: -4, cave_drip: -19, furin: -3, fireworks: -2, creak: -10 };
-var SCENE_SFX = { pond: ['koi_splash'], garden: ['shishiodoshi', 'shishiodoshi_water'], cave: ['cave_drip'], cabin: ['creak'] };
+  shishiodoshi: 3, shishiodoshi_water: -6, trickle: -12, koi_splash: -4, cave_drip: -19, furin: -3, fireworks: -2, creak: -10 };
+var SCENE_SFX = { pond: ['koi_splash'], garden: ['shishiodoshi', 'shishiodoshi_water', 'trickle'], cave: ['cave_drip'], cabin: ['creak'] };
 function recGroup(s) { return s.id.indexOf('_water') > 0 ? s.group + '_water' : s.group; }
 function recMeta() {
   if (REC.metaP) return REC.metaP;
@@ -1514,6 +1536,25 @@ function playWaveRec(t) {
 var SFXR = {
   kakon: function (t, v, d) { return recShot(recPick('shishiodoshi'), t, d, v * rnd(0.85, 1), rnd(0.97, 1.04)); },
   pour: function (t, v, d) { return recShot(recPick('shishiodoshi_water'), t, d, v * rnd(0.8, 1), rnd(0.95, 1.05)); },
+  trickle: function (t, v, d, o) {                        // 筒に水が流れ込む音: せせらぎの録音を細く絞ったループ（dur 秒のあいだ。stop() で止める）
+    var id = recPick('trickle'), b = id && REC.buf[id];
+    if (!b) return null;
+    var dur = Math.max(0.5, o.dur || 10), src = ac.createBufferSource(), g = ac.createGain(), lp = null, e0 = t + dur;
+    src.buffer = b; src.loop = true; src.playbackRate.value = rnd(0.98, 1.02);
+    g.channelCount = 1; g.channelCountMode = 'explicit';
+    var gv = v * REC.gain[id];
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gv, t + 0.6);
+    g.gain.setValueAtTime(gv, Math.max(t + 0.6, e0 - 0.4)); g.gain.linearRampToValueAtTime(0.0001, e0);
+    if (rendering) { lp = mkF('lowpass', 9500, 0.7); src.connect(lp); lp.connect(g); } else src.connect(g);
+    g.connect(d);
+    src.start(t, Math.random() * b.duration); src.stop(e0 + 0.05);
+    var ended = false;
+    src.onended = function () { ended = true; try { src.disconnect(); g.disconnect(); if (lp) lp.disconnect(); } catch (er) {} };
+    return { stop: function () {
+      if (ended) return; var n = ac.currentTime;
+      try { g.gain.cancelScheduledValues(n); g.gain.setTargetAtTime(0, n, 0.06); src.stop(n + 0.4); } catch (er) {}
+    } };
+  },
   plop: function (t, v, d) { return recShot(recPick('koi_splash', function (x) { return x === 'koi_splash_1' ? 0.4 : 1; }), t, d, v * rnd(0.7, 1), rnd(0.92, 1.1)); },
   splash: function (t, v, d) { return recShot(recPick('koi_splash'), t, d, v * rnd(0.8, 1), rnd(0.92, 1.1)); },
   plip: function (t, v, d) { return recShot(recPick('koi_splash', function (x) { return x === 'koi_splash_1' ? 0.1 : 1; }), t, d, v * rnd(0.35, 0.55), rnd(1.1, 1.3)); },
@@ -1817,23 +1858,7 @@ var SFX = {
     o.connect(bp); bp.connect(g); g.connect(d); o.start(t); o.stop(t + dur + 0.03);
     o.onended = function () { try { o.disconnect(); bp.disconnect(); g.disconnect(); } catch (e) {} };
   },
-  trickle: function (t, v, d, o) {         // 筒に落ちる細い水音（dur 秒のあいだ続く。stop() で止める）
-    var dur = Math.max(0.5, o.dur || 10), src = ac.createBufferSource(); src.buffer = whiteBuf; src.loop = true;
-    var f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 3400; f1.Q.value = 0.9;
-    var f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1600; f2.Q.value = 1.4;
-    var g = ac.createGain(), lf = ac.createOscillator(), lg = ac.createGain();
-    lf.frequency.value = 6.5; lg.gain.value = 0.02; lf.connect(lg); lg.connect(g.gain);
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.07 * v, t + 0.3);
-    g.gain.setValueAtTime(0.07 * v, t + dur - 0.25); g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    src.connect(f1); src.connect(f2); f1.connect(g); f2.connect(g); g.connect(d);
-    src.start(t, Math.random() * 1.2); lf.start(t); src.stop(t + dur + 0.05); lf.stop(t + dur + 0.05);
-    var ended = false;
-    src.onended = function () { ended = true; try { src.disconnect(); f1.disconnect(); f2.disconnect(); g.disconnect(); lf.disconnect(); lg.disconnect(); } catch (e) {} };
-    return { stop: function () {
-      if (ended) return; var n = ac.currentTime;
-      try { g.gain.cancelScheduledValues(n); g.gain.setTargetAtTime(0, n, 0.05); src.stop(n + 0.3); lf.stop(n + 0.3); } catch (e) {}
-    } };
-  }
+  trickle: function () { return null; }     // 筒に水が流れ込む音は録音（trickle）だけで鳴らす。読めていない間は無音（以前のノイズの合成音は「ザザザ」と聞こえたため廃止）
 };
 function playSfx(name, o) {
   o = o || {};
@@ -1985,11 +2010,20 @@ function audioTick(ot) {
   var lvl = 0.02 + 0.85 * Math.pow(Math.min(1.3, fl), 1.1) + 0.03 * em;
 
   if (!off) master.gain.setTargetAtTime(started ? S.master * S.master : 0, t, 0.1);
-  tgt(roarA.g.gain, vol * lvl * (0.8 + 0.2 * lfo), t, 0.3);
-  tgt(roarA.f.frequency, 380 + 420 * fl + 150 * lfo2, t, 0.3);
-  tgt(roarB.g.gain, vol * lvl * 0.6 * (0.85 + 0.15 * lfo2), t, 0.4);
-  tgt(roarC.g.gain, vol * (0.004 + 0.05 * fl) * (0.6 + 0.4 * Math.random()), t, 0.15);
-  tgt(roarC.f.frequency, 2200 + 1200 * fl + 500 * lfo, t, 0.3);
+  // 燃える音（roarA/B/C は焚火の PannerNode SP.fireBed に入る）。設定が 0 のときは、すばやく 0 に絞ってから経路を切り、合成の計算も止める（0.5% 未満は 0 とみなす）
+  if (S.roar > 0.005) {
+    if (!roarA.live) roarLink(true);
+    roarA.offT = -1;
+    tgt(roarA.g.gain, vol * lvl * (0.8 + 0.2 * lfo), t, 0.3);
+    tgt(roarA.f.frequency, 380 + 420 * fl + 150 * lfo2, t, 0.3);
+    tgt(roarB.g.gain, vol * lvl * 0.6 * (0.85 + 0.15 * lfo2), t, 0.4);
+    tgt(roarC.g.gain, vol * (0.004 + 0.05 * fl) * (0.6 + 0.4 * Math.random()), t, 0.15);
+    tgt(roarC.f.frequency, 2200 + 1200 * fl + 500 * lfo, t, 0.3);
+  } else if (roarA.live) {
+    [roarA, roarB, roarC].forEach(function (r) { tgt(r.g.gain, 0, t, 0.05); });
+    if (roarA.offT == null || roarA.offT < 0) roarA.offT = t;
+    else if (rendering || t - roarA.offT > 0.8) roarLink(false);
+  }
 
   envTick(t);
   var run = off || (started && ac.state === 'running');
@@ -2114,15 +2148,36 @@ window.TAKIBI = {
   onActiveChange: function (cb) { return subscribe(activeCbs, cb); } // (active:boolean)
 };
 
-/* シーンの音の連動: audio.autoOn の環境音を自動でオンにし、シーンを離れたら自動でオンにした分だけ戻す。audio.reverb があれば残響をかける */
+/* シーンの音の連動: audio.autoOn の環境音を自動でオンにし、シーンを離れたら（季節の条件を外れたら）自動でオンにした分だけ戻す。audio.reverb があれば残響をかける。
+   autoOn の要素は 'id' か { id, season?, vol? }（season: その季節のときだけ、vol: 自動オンの間の既定の音量 0..1）。手でオン／オフした音は、連動で変えない */
+var curAuto = [];
+function applyAuto() {
+  var want = {}, ids = [];
+  curAuto.forEach(function (x) {
+    var o = typeof x === 'string' ? { id: x } : x;
+    if (!o || !envRows[o.id] || (o.season && o.season !== S.season)) return;
+    if ((o.id === 'insect' || o.id === 'frog') && S.season === 'winter') return;   // 冬は虫も蛙も鳴かない
+    want[o.id] = o; ids.push(o.id);
+  });
+  autoApplied.slice().forEach(function (id) {       // 対象でなくなった分を戻す
+    if (want[id]) return;
+    S['on_' + id] = false; envRows[id].chk.checked = false; delete autoVol[id];
+    autoApplied.splice(autoApplied.indexOf(id), 1); syncVolUI(id);
+  });
+  ids.forEach(function (id) {
+    var o = want[id];
+    if (autoApplied.indexOf(id) < 0) {
+      if (manualEnv[id] || S['on_' + id]) return;   // 手で切り替えた音と、すでにオンの音には触らない
+      S['on_' + id] = true; autoApplied.push(id); envRows[id].chk.checked = true;
+    }
+    if (o.vol != null && !manualVol[id]) autoVol[id] = o.vol; else delete autoVol[id];
+    syncVolUI(id);
+  });
+}
 function applySceneAudio(a) {
   a = a || {};
-  autoApplied.forEach(function (id) { S['on_' + id] = false; if (envRows[id]) envRows[id].chk.checked = false; });
-  autoApplied = [];
-  (a.autoOn || []).forEach(function (id) {
-    if (!envRows[id] || S['on_' + id]) return;
-    S['on_' + id] = true; autoApplied.push(id); envRows[id].chk.checked = true;
-  });
+  curAuto = a.autoOn || [];
+  applyAuto();
   curReverb = a.reverb || null;
   applyReverb();
   curSources = a.sources || {};         // シーンが指定した音の場所（川の帯・波打ち際・蛙の位置など）
@@ -2387,7 +2442,7 @@ function unlockAudio() {
 
 /* ---- ループの書き出し ---- */
 function audioKey() {
-  var k = [Object.keys(REC.buf).sort().join(','), S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb), spOut, JSON.stringify(curSources), JSON.stringify(sceneRnd)];
+  var k = [Object.keys(REC.buf).sort().join(','), S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb), spOut, JSON.stringify(curSources), JSON.stringify(sceneRnd), JSON.stringify(autoVol)];
   ENV.forEach(function (e) { k.push(S['on_' + e.id] ? 1 : 0, S['vol_' + e.id]); });
   return k.join('|');
 }

@@ -1,6 +1,6 @@
 # Audio credits
 
-The recordings in this folder come from [Freesound](https://freesound.org). They were cut, filtered, loudness-adjusted and converted to AAC (.m4a) for this app. They are not covered by the MIT License of this repository; each one follows the license listed below.
+The recordings in this folder come from [Freesound](https://freesound.org). They were cut, filtered, noise-reduced (spectral gating), loudness-adjusted and converted to AAC (.m4a) for this app. They are not covered by the MIT License of this repository; each one follows the license listed below.
 
 ## CC BY 4.0
 
@@ -21,7 +21,7 @@ Attribution is not required under CC0; the authors are listed as a courtesy.
 - **Japan_Kashiwa_Insects_Far_and_Upclose.wav** by RutgerMuller - https://freesound.org/people/RutgerMuller/sounds/365257/ - CC0 1.0 - files: insects_autumn.m4a
 - **Japan_Ina_Night_Fields_Farm_Crickets_Bugs_TAKE2_24bit_96KHz.wav** by RutgerMuller - https://freesound.org/people/RutgerMuller/sounds/361875/ - CC0 1.0 - files: insects_summer.m4a
 - **Gentle Ocean Waves Loop** by kkenny101 - https://freesound.org/people/kkenny101/sounds/852826/ - CC0 1.0 - files: waves.m4a
-- **Small stream in forest** by Cinetony - https://freesound.org/people/Cinetony/sounds/559955/ - CC0 1.0 - files: brook.m4a
+- **Small stream in forest** by Cinetony - https://freesound.org/people/Cinetony/sounds/559955/ - CC0 1.0 - files: brook.m4a, trickle_1.m4a
 - **River Flow Loop** by EminYILDIRIM - https://freesound.org/people/EminYILDIRIM/sounds/608141/ - CC0 1.0 - files: river.m4a
 - **Light Rain on Woodland Floor and Running Stream.wav** by thinkingfish - https://freesound.org/people/thinkingfish/sounds/695571/ - CC0 1.0 - files: rain.m4a
 - **the rush in the trees** by 37735i6 - https://freesound.org/people/37735i6/sounds/706661/ - CC0 1.0 - files: wind.m4a
@@ -31,7 +31,7 @@ Attribution is not required under CC0; the authors are listed as a courtesy.
 - **Furin japanese wind chime.wav** by ayustat2001 - https://freesound.org/people/ayustat2001/sounds/501168/ - CC0 1.0 - files: furin_1.m4a, furin_2.m4a, furin_3.m4a
 - **Japanese fireworks (Hanabi) ( Festival Circle of Light 2018, Moscow)** by Walking.With.Microphones - https://freesound.org/people/Walking.With.Microphones/sounds/556083/ - CC0 1.0 - files: fireworks_1.m4a, fireworks_2.m4a, fireworks_3.m4a
 - **tea_kettle_heating_whistle.wav** by leo153 - https://freesound.org/people/leo153/sounds/500545/ - CC0 1.0 - files: kettle.m4a
-- **Creaking in Room 6.wav** by Greg_Surr - https://freesound.org/people/Greg_Surr/sounds/590169/ - CC0 1.0 - files: creak_1.m4a, creak_2.m4a
+- **Creaking in Room 6.wav** by Greg_Surr - https://freesound.org/people/Greg_Surr/sounds/590169/ - CC0 1.0 - files: creak_1.m4a
 - **Autumn wind and dry leaves.wav** by Stek59 - https://freesound.org/people/Stek59/sounds/457318/ - CC0 1.0 - files: leaves.m4a
 
 License text for CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/

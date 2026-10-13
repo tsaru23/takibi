@@ -99,7 +99,7 @@ export default {
   id: 'cave',
   label: '洞窟',
   audio: {
-    autoOn: ['cavewind', 'scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 },
+    autoOn: ['scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 },
     sources: { cavewind: [{ x: E0.x + TLAT.x, y: 1.2, z: E0.z + TLAT.y }, { x: E0.x - TLAT.x, y: 2.2, z: E0.z - TLAT.y }] }   // 入口のアーチの左右
   },
   props: { logPile: { x: -1.45, z: 0.35, rotY: 0.4 } },   // 洞窟の床（平らな地面）の手前。壁・水たまり・石筍から離れた位置

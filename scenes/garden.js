@@ -178,7 +178,7 @@ function stripeTex() {
 export default {
   id: 'garden',
   label: '庭園・竹藪',
-  audio: { autoOn: ['bamboo', 'scenesfx'], reverb: { seconds: 1.6, decay: 3, wet: 0.22 }, sources: { brook: [{ x: SH_POS.x, y: 0.2, z: SH_POS.z }] } },
+  audio: { autoOn: ['scenesfx', 'insect', { id: 'chime', season: 'summer' }], reverb: { seconds: 1.6, decay: 3, wet: 0.22 }, sources: { brook: [{ x: SH_POS.x, y: 0.2, z: SH_POS.z }] } },
   props: { logPile: { x: -1.4, z: 0.5, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
 
   build(ctx) {

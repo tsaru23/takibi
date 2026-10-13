@@ -5,7 +5,11 @@
 //     id: 'forest',                 // 設定 S.scene に保存される
 //     label: '季節の木',              // 設定パネルの表示名
 //     audio: {
-//       autoOn: ['brook'],          // このシーンを選んだとき自動でオンにする環境音の id（index.html の ENV。frog, bamboo, scenesfx なども）。離れると元に戻る
+//       autoOn: ['insect', { id: 'wind', vol: 0.35 }, { id: 'fw', season: 'summer' }],
+//                                   // このシーンを選んだとき自動でオンにする環境音（index.html の ENV の id。frog, scenesfx なども）。離れると元に戻る。
+//                                   //   要素は 'id' か { id, season?, vol? }。season（'spring'|'summer'|'autumn'|'winter'）を書くと、その季節のときだけオン（季節を替えると出入りする）。
+//                                   //   vol（0..1）は自動オンの間の既定の音量で、スライダーを動かしたら動かした値を優先する。
+//                                   //   手でオン／オフした音は、シーンを替えても勝手に変えない。自動オンの分は保存しない。竹のささやき（bamboo）は自動でオンにしない方針
 //       reverb: null,               // または { seconds: 2.4, decay: 3, wet: 0.35 }。ConvolverNode の残響（IR はコードで生成）
 //       sources: {                  // 省略可。音の鳴る場所（立体音響。1 unit = 1 m、焚火が原点、y は高さ。省略した y は既定の高さ）。
 //         river: [{x, z}, ...],     //   川の流れ: 川の帯に沿った点（3点に間引いて使う）。 wave: 波打ち際に沿った点（3点）
