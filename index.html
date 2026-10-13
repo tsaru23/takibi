@@ -3,7 +3,15 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080503">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="焚火">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>焚火</title>
 <meta name="description" content="作業中にバックグラウンドで流す、調整できる焚火と季節の環境音">
 <meta property="og:title" content="焚火">
@@ -59,7 +67,13 @@
   #start p { margin:0; color:var(--dim); font-size:13px; line-height:1.7; }
   body.started #start { display:none; }
   #panel h2 { margin:16px 0 4px; padding-top:10px; border-top:1px solid var(--line); }
-  #panel h2:first-of-type { margin-top:12px; }
+  #secFire > h2 { margin-top:12px; }
+  #secScene > h2 { display:none; }
+  .acch { display:block; width:100%; margin:0; padding:0; border:0; background:none; color:inherit; font:inherit; letter-spacing:inherit; text-align:left; cursor:default; pointer-events:none; }
+  .acch .chev { display:none; }
+  #sheetHead { display:none; }
+  .sp, body.m .pc { display:none; }
+  body.m .sp { display:inline; }
   .seg { display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:4px; }
   .seg button { flex:1; padding:7px 0; background:transparent; border:0; color:var(--dim); cursor:pointer; font:inherit; }
   .seg button.on { background:rgba(255,154,60,.25); color:var(--fg); }
@@ -75,6 +89,69 @@
   #gear { display:flex; align-items:center; justify-content:center; }
   #feed .ic, .seg .ic, .chk .ic, .row .ic { margin-right:6px; }
   .seg button { display:flex; align-items:center; justify-content:center; }
+
+  /* ---------- スマホ（body.m）: 幅600px未満、または横向きの低い画面 ---------- */
+  html { overscroll-behavior:none; }
+  body { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; touch-action:manipulation; }
+  #panel input, #panel select { -webkit-user-select:auto; user-select:auto; }
+  body.m { --sab:env(safe-area-inset-bottom,0px); --sat:env(safe-area-inset-top,0px); --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+    --head:52px; --h0:calc(var(--head) + var(--sab)); font-size:16px; }
+  body.m #toast { top:calc(var(--sat) + 10px); font-size:13px; max-width:calc(100vw - 32px); text-align:center; }
+  body.m #noVideo { font-size:16px; }
+  body.m #fuel { left:calc(var(--sal) + 14px); top:calc(var(--sat) + 12px); bottom:auto; font-size:13px; }
+  body.m #dots i { width:12px; height:6px; }
+  body.m #gear { display:none; }
+  body.m #feed { bottom:calc(var(--h0) + 16px); min-height:56px; padding:0 36px; font-size:17px; letter-spacing:.08em; display:flex; align-items:center; touch-action:manipulation; }
+  body.m.panel-open #feed { opacity:0; pointer-events:none; }
+  body.m #feed .ic svg { width:1.3em; height:1.3em; }
+  body.m #start { padding:calc(var(--sat) + 20px) calc(var(--sar) + 20px) calc(var(--sab) + 20px) calc(var(--sal) + 20px); }
+  body.m #start button { min-height:60px; padding:0 48px; font-size:22px; }
+  body.m #start p { font-size:15px; }
+  /* ボトムシート */
+  body.m #panel { left:0; right:0; bottom:0; top:auto; width:auto; max-height:none; height:var(--h0); display:flex; flex-direction:column; padding:0; overflow:hidden;
+    border-radius:20px 20px 0 0; border-width:1px 0 0; background:rgba(22,14,8,.9); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    font-size:15px; transition:height .28s cubic-bezier(.2,.8,.2,1), opacity .6s; }
+  body.m #panel.drag { transition:opacity .6s; }
+  body.m #sheetHead { display:flex; flex:none; flex-direction:column; align-items:center; justify-content:flex-start; height:var(--head); padding-top:8px; cursor:grab;
+    touch-action:none; -webkit-user-select:none; user-select:none; outline-offset:-3px; }
+  body.m #sheetHead .grab { display:block; width:44px; height:5px; border-radius:3px; background:rgba(255,190,120,.45); }
+  body.m #sheetHead .st { margin-top:6px; font-size:14px; color:var(--dim); letter-spacing:.12em; line-height:1; }
+  body.m #panelBody { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+    padding:0 18px calc(var(--sab) + 28px); visibility:hidden; transition:visibility 0s linear .28s; }
+  body.m.panel-open #panelBody { visibility:visible; transition-delay:0s; }
+  body.m .row { margin:12px 0; }
+  body.m .row label { margin-bottom:2px; min-height:24px; align-items:center; }
+  body.m #panel h2 { margin:0; padding:0; border-top:1px solid var(--line); font-size:15px; }
+  body.m #secFire > h2, body.m #secScene > h2 { display:block; margin:0; }
+  body.m #secScene > h2 { border-top:0; }
+  body.m .acch { pointer-events:auto; display:flex; align-items:center; justify-content:space-between; min-height:52px; cursor:pointer; color:var(--fg); letter-spacing:.06em; touch-action:manipulation; }
+  body.m .acch .chev { display:block; width:10px; height:10px; border-right:2px solid var(--dim); border-bottom:2px solid var(--dim); transform:rotate(45deg); margin:-4px 6px 0 0; transition:transform .2s; }
+  body.m .acc.shut .acch .chev { transform:rotate(-45deg); margin:0 6px 0 0; }
+  body.m .acc.shut > .accb { display:none; }
+  body.m .accb { padding-bottom:6px; }
+  body.m select { min-height:48px; padding:0 12px; font-size:16px; }
+  body.m .seg button { min-height:48px; padding:0 4px; font-size:15px; }
+  body.m .seg { border-radius:10px; }
+  body.m .chk { min-height:48px; margin:2px 0; gap:12px; font-size:15px; }
+  body.m .chk input, body.m .ehead input { width:26px; height:26px; flex:none; }
+  body.m .ehead { min-height:44px; font-size:15px; }
+  body.m .ehead output { font-size:14px; }
+  body.m .note { font-size:13px; margin-left:38px; }
+  body.m #panel .hint { font-size:13px; line-height:1.7; margin:14px 0 4px; }
+  body.m input[type=range] { -webkit-appearance:none; appearance:none; height:44px; background:transparent; cursor:pointer; touch-action:pan-y; }
+  body.m input[type=range]::-webkit-slider-runnable-track { height:6px; border-radius:3px; background:rgba(255,190,120,.28); }
+  body.m input[type=range]::-moz-range-track { height:6px; border-radius:3px; background:rgba(255,190,120,.28); }
+  body.m input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:44px; height:44px; margin-top:-19px; border-radius:50%;
+    border:10px solid transparent; background:var(--accent); background-clip:padding-box; box-shadow:0 0 0 1px rgba(0,0,0,.25); }
+  body.m input[type=range]::-moz-range-thumb { width:24px; height:24px; border-radius:50%; border:10px solid transparent; background:var(--accent); background-clip:padding-box; box-sizing:content-box; }
+  body.m input[type=range]:disabled { opacity:.5; }
+  body.m input[type=range]:disabled::-webkit-slider-thumb { background:var(--dim); }
+  /* 横向き: 右側にシートを置き、焚火（画面中央）を隠さない */
+  @media (orientation:landscape) {
+    body.m #panel { left:auto; width:min(420px,44vw); right:var(--sar); }
+    body.m #feed { left:calc(var(--sal) + 18px); transform:none; bottom:calc(var(--sab) + 18px); }
+    body.m #panelBody { padding-left:16px; padding-right:16px; }
+  }
 </style>
 </head>
 <body>
@@ -82,7 +159,7 @@
 
 <div id="start">
   <button id="ignite">火をつける</button>
-  <p>音が出ます。クリックで薪をくべられます。<br>右下の歯車で調整できます。</p>
+  <p><span class="pc">音が出ます。クリックで薪をくべられます。<br>右下の歯車で調整できます。</span><span class="sp">音が出ます。画面をタップで薪をくべられます。<br>下のつまみを引き上げて調整できます。</span></p>
 </div>
 
 <div id="toast" role="status"></div>
@@ -90,26 +167,48 @@
 <button id="feed" class="ui" type="button"><span class="ic" data-icon="flame"></span>薪をくべる</button>
 <button id="gear" class="ui" type="button" aria-label="設定"><span class="ic" data-icon="settings"></span></button>
 <div id="panel" class="ui">
-  <div class="row" id="sceneRow" style="display:none"><label><span>シーン</span></label><select id="sceneSel"></select></div>
-  <div class="seg" id="seasonSeg"></div>
-  <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
-  <label class="chk"><input type="checkbox" id="fireflies"> ホタル</label>
-  <label class="chk"><input type="checkbox" id="nightSky"> 夜空（星・月・流れ星）</label>
-  <h2>焚火</h2>
-  <div class="row" id="grassRow"><label><span>草の量</span></label><div class="seg" id="grassSeg"></div></div>
-  <div id="sliders"></div>
-  <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
-  <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
-  <h2>環境音</h2>
-  <div id="envAll"></div>
-  <h2 id="seasonH">季節の音</h2>
-  <div id="envSeason"></div>
-  <div class="hint">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。ドラッグで視点を少し回せます。</div>
+  <div id="sheetHead" role="button" tabindex="0" aria-controls="panelBody" aria-expanded="false" aria-label="設定を開く"><i class="grab"></i><span class="st">設定</span></div>
+  <div id="panelBody">
+  <section class="acc" id="secScene">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">シーンと季節</span><i class="chev"></i></button></h2>
+    <div class="accb">
+      <div class="row" id="sceneRow" style="display:none"><label><span>シーン</span></label><select id="sceneSel"></select></div>
+      <div class="seg" id="seasonSeg"></div>
+      <label class="chk"><input type="checkbox" id="seasonFx"> 季節の演出</label>
+      <label class="chk"><input type="checkbox" id="fireflies"> ホタル</label>
+      <label class="chk"><input type="checkbox" id="nightSky"> 夜空（星・月・流れ星）</label>
+    </div>
+  </section>
+  <section class="acc" id="secFire">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">焚火</span><i class="chev"></i></button></h2>
+    <div class="accb">
+      <div class="row" id="grassRow"><label><span>草の量</span></label><div class="seg" id="grassSeg"></div></div>
+      <div id="sliders"></div>
+      <label class="chk"><input type="checkbox" id="autoFeed"> 自動くべ（薪が減ったら足す）</label>
+      <label class="chk"><input type="checkbox" id="videoOff"> <span class="ic" data-icon="eye-off"></span>映像オフ（音だけ）</label>
+      <label class="chk" id="wakeRow" style="display:none"><input type="checkbox" id="keepAwake"> 画面をつけたままにする</label>
+    </div>
+  </section>
+  <section class="acc" id="secEnv">
+    <h2><button type="button" class="acch" aria-expanded="true"><span class="t">環境音</span><i class="chev"></i></button></h2>
+    <div class="accb"><div id="envAll"></div></div>
+  </section>
+  <section class="acc" id="secSeason">
+    <h2 id="seasonH"><button type="button" class="acch" aria-expanded="true"><span class="t">季節の音</span><i class="chev"></i></button></h2>
+    <div class="accb"><div id="envSeason"></div></div>
+  </section>
+  <div class="hint"><span class="pc">クリック / スペースキーで薪をくべる。Hキーで操作UIを隠す。ドラッグで視点を少し回せます。</span><span class="sp">タップで薪をくべます。画面の上端と下端をタップすると操作が表示されます。設定は下のつまみを引き上げて開きます。</span></div>
+  </div>
 </div>
 
 <script>
 (function () {
 'use strict';
+
+/* スマホ向けの配置: 幅600px未満、または横向きの低い画面（body.m）。CSS も同じ条件で body.m を使う */
+var MQ_M = window.matchMedia('(max-width:599px), (max-height:480px) and (max-width:950px)');
+function isM() { return MQ_M.matches; }
+document.body.classList.toggle('m', isM());
 
 /* Lucide icons (ISC License, https://lucide.dev) — inline, 24x24 stroke icons */
 var ICONS = {
@@ -129,7 +228,7 @@ Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function 
 var SEAS_ICON = { spring: 'flower-2', summer: 'sun', autumn: 'leaf', winter: 'snowflake' };
 
 /* ---------- 設定 ---------- */
-var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'' };
+var DEFAULTS = { brightness:1, crackFreq:0.5, crackSize:0.5, roar:0.5, master:0.7, speed:1, autoFeed:true, videoOff:false, scene:'forest', nightSky:true, fireflies:false, firefliesManual:false, grass:'normal', grassAuto:'', keepAwake:false };
 var SLIDERS = [
   ['brightness','明るさ',0.3,1.6,0.01,function(v){return Math.round(v*100)+'%';}],
   ['crackFreq','パチパチの頻度',0,1,0.01,function(v){return Math.round(v*100)+'%';}],
@@ -165,9 +264,11 @@ var STORE_KEY = 'takibi.settings.v1';
 var S = {};
 (function load() {
   var k; for (k in DEFAULTS) S[k] = DEFAULTS[k];
+  var hadStored = false;
   try {
     var raw = localStorage.getItem(STORE_KEY);
     if (raw) {
+      hadStored = true;
       var o = JSON.parse(raw);
       for (k in DEFAULTS) {
         if (typeof DEFAULTS[k] === 'number' && typeof o[k] === 'number' && isFinite(o[k])) S[k] = o[k];
@@ -179,6 +280,7 @@ var S = {};
       }
     }
   } catch (e) {}
+  if (!hadStored && isM()) S.grass = 'few';   // 初めてスマホで開いたときは草を少なめに（選んだ値は保存され、以後は尊重される）
 })();
 // シーンの音の連動で自動オンにした環境音は、保存しない（次回起動時に「元の状態」が分からなくなるため）
 var autoApplied = [];
@@ -188,6 +290,7 @@ function save() {
     autoApplied.forEach(function (id) { c['on_' + id] = false; });
     localStorage.setItem(STORE_KEY, JSON.stringify(c));
   } catch (e) {}
+  audioSettingsChanged();
 }
 // ホタルは季節の初期値（夏だけオン）に従う。ユーザーが手で変えたら、その値を優先する
 function firefliesOn() { return S.firefliesManual ? S.fireflies : S.season === 'summer'; }
@@ -344,7 +447,7 @@ ENV.forEach(function (e) {
 function refreshSeasonUI() {
   var winter = S.season === 'winter';
   Array.prototype.forEach.call(segEl.children, function (b) { b.classList.toggle('on', b.dataset.s === S.season); });
-  document.getElementById('seasonH').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
+  document.querySelector('#seasonH .t').textContent = '季節の音（' + SEAS_JA[S.season] + '）';
   ENV.forEach(function (e) {
     var r = envRows[e.id];
     r.row.style.display = (r.scope === 'all' || r.scope === S.season || autoApplied.indexOf(e.id) >= 0) ? '' : 'none';
@@ -368,34 +471,165 @@ document.getElementById('gear').addEventListener('click', function (e) {
 });
 document.getElementById('panel').addEventListener('click', function (e) { e.stopPropagation(); });
 document.getElementById('feed').addEventListener('click', function (e) { e.stopPropagation(); addLog(); });
-document.getElementById('noVideo').addEventListener('click', function () { addLog(); });
-document.addEventListener('click', function (e) { if (!videoOK && !e.target.closest('#panel, #gear, #feed, #start')) addLog(); });
+document.getElementById('noVideo').addEventListener('click', function () { tapFeed(); });
+document.addEventListener('click', function (e) { if (!videoOK && !e.target.closest('#panel, #gear, #feed, #start')) tapFeed({ x: e.clientX, y: e.clientY }); });
 document.body.addEventListener('click', function (e) {
   if (document.body.classList.contains('panel-open') && !e.target.closest('#panel') && !e.target.closest('#gear')) {
-    document.body.classList.remove('panel-open');
+    if (isM()) setSheet('closed'); else document.body.classList.remove('panel-open');
   }
 });
+
+/* ---------- スマホ: ボトムシートと、タップの振り分け ---------- */
+var panelEl = document.getElementById('panel'), headEl = document.getElementById('sheetHead');
+var probe = document.createElement('div');   // 安全領域（ノッチ・ホームバー）の大きさを px で読むための見えない要素
+probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+document.body.appendChild(probe);
+var M = { st: 0, sb: 0, h0: 52, half: 300, full: 600 };
+function measure() {
+  var cs = getComputedStyle(probe), H = window.innerHeight, land = window.innerWidth > H;
+  M.st = parseFloat(cs.paddingTop) || 0; M.sb = parseFloat(cs.paddingBottom) || 0;
+  M.h0 = 52 + M.sb;
+  M.full = Math.max(M.h0 + 120, H - M.st - 8);
+  M.half = Math.min(M.full, Math.max(M.h0 + 160, Math.round(H * (land ? 0.62 : 0.46))));
+}
+var sheetState = 'closed';
+function sheetH(st) { return st === 'full' ? M.full : st === 'half' ? M.half : M.h0; }
+function setSheet(st, instant) {
+  sheetState = st;
+  var open = st !== 'closed';
+  document.body.classList.toggle('panel-open', open);
+  headEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+  headEl.setAttribute('aria-label', open ? '設定を閉じる' : '設定を開く');
+  if (isM()) {
+    measure();
+    if (instant) panelEl.classList.add('drag');
+    panelEl.style.height = sheetH(st) + 'px';
+    if (instant) { void panelEl.offsetHeight; panelEl.classList.remove('drag'); }
+  }
+  wakeUI();
+}
+(function () {
+  var d = null, order = ['closed', 'half', 'full'];
+  headEl.addEventListener('pointerdown', function (e) {
+    if (!isM() || d) return;
+    measure();
+    var now = performance.now();
+    d = { id: e.pointerId, y0: e.clientY, h0: panelEl.getBoundingClientRect().height, t: now, lastT: now, lastY: e.clientY, vy: 0, moved: false };
+    try { headEl.setPointerCapture(e.pointerId); } catch (x) {}
+    panelEl.classList.add('drag');
+  });
+  headEl.addEventListener('pointermove', function (e) {
+    if (!d || e.pointerId !== d.id) return;
+    var dy = e.clientY - d.y0;
+    if (Math.abs(dy) > 6) d.moved = true;
+    if (!d.moved) return;
+    var now = performance.now(), dt = now - d.lastT;
+    if (dt > 0) d.vy = 0.8 * d.vy + 0.2 * ((e.clientY - d.lastY) / dt);   // px/ms。負は上向き
+    d.lastT = now; d.lastY = e.clientY;
+    var h = Math.max(M.h0, Math.min(M.full, d.h0 - dy));
+    panelEl.style.height = h + 'px';
+    document.body.classList.toggle('panel-open', h > M.h0 + 8);
+  });
+  function end(e) {
+    if (!d || e.pointerId !== d.id) return;
+    var dd = d; d = null;
+    try { headEl.releasePointerCapture(e.pointerId); } catch (x) {}
+    panelEl.classList.remove('drag');
+    if (!dd.moved) {
+      if (e.type === 'pointerup' && performance.now() - dd.t < 600) setSheet(sheetState === 'closed' ? 'half' : 'closed');
+      else setSheet(sheetState);
+      return;
+    }
+    var cur = panelEl.getBoundingClientRect().height, idx = order.indexOf(sheetState), target;
+    if (Math.abs(dd.vy) > 0.45) target = dd.vy < 0 ? order[Math.min(2, idx + 1)] : order[Math.max(0, idx - 1)];   // 勢いのある引きは1段進める
+    else target = order.slice().sort(function (p, q) { return Math.abs(cur - sheetH(p)) - Math.abs(cur - sheetH(q)); })[0];
+    setSheet(target);
+  }
+  headEl.addEventListener('pointerup', end);
+  headEl.addEventListener('pointercancel', end);
+  headEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSheet(sheetState === 'closed' ? 'half' : 'closed'); }
+  });
+})();
+
+/* アコーディオン（スマホのみ）。畳んだ状態は覚えておく */
+var ACC_KEY = 'takibi.ui.v1', accState = {};
+try { accState = JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {}; } catch (e) { accState = {}; }
+var acchEls = [];
+Array.prototype.forEach.call(document.querySelectorAll('.acc'), function (sec) {
+  var btn = sec.querySelector('.acch'), id = sec.id;
+  var shut = id in accState ? !!accState[id] : (id === 'secEnv' || id === 'secSeason');   // 初期は上2つだけ開く
+  function apply() { sec.classList.toggle('shut', shut); btn.setAttribute('aria-expanded', shut ? 'false' : 'true'); }
+  apply(); acchEls.push(btn);
+  btn.addEventListener('click', function () {
+    if (!isM()) return;
+    shut = !shut; apply(); accState[id] = shut;
+    try { localStorage.setItem(ACC_KEY, JSON.stringify(accState)); } catch (e) {}
+  });
+});
+function applyMode() {
+  var m = isM();
+  document.body.classList.toggle('m', m);
+  acchEls.forEach(function (b) { b.tabIndex = m ? 0 : -1; });
+  if (m) setSheet(document.body.classList.contains('panel-open') ? 'half' : 'closed', true);
+  else { panelEl.style.height = ''; panelEl.classList.remove('drag'); }
+}
+if (MQ_M.addEventListener) MQ_M.addEventListener('change', applyMode); else if (MQ_M.addListener) MQ_M.addListener(applyMode);
+window.addEventListener('resize', function () { if (isM()) { measure(); setSheet(sheetState, true); } });
+
+/* タップの判定: 上端と下端の帯のタップは「操作UIを出す」、それ以外は「薪をくべる」。シートが開いているときのタップは閉じるだけ */
+var lastPtr = { x: -1, y: -1 };
+['pointerdown', 'pointerup'].forEach(function (ev) {
+  window.addEventListener(ev, function (e) { lastPtr.x = e.clientX; lastPtr.y = e.clientY; }, { capture: true, passive: true });
+});
+function inBand(y) {
+  if (y < 0) return false;
+  var H = window.innerHeight;
+  return y < Math.min(M.st + 72, H * 0.2) || y > H - Math.min(150 + M.sb, H * 0.3);
+}
+function tapFeed(pos) {
+  if (isM()) {
+    if (sheetState !== 'closed') { setSheet('closed'); return; }
+    var y = pos && typeof pos.y === 'number' ? pos.y : lastPtr.y;
+    if (inBand(y)) { wakeUI(); return; }
+  }
+  addLog();
+}
+
 var idleTimer = 0, uiForcedHidden = false;
 function wakeUI() {
   if (uiForcedHidden) return;
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(function () { document.body.classList.add('idle'); }, 4000);
+  idleTimer = setTimeout(function () { document.body.classList.add('idle'); }, isM() ? 6000 : 4000);
 }
-['pointermove', 'pointerdown', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, wakeUI, { passive: true }); });
+['pointermove', 'pointerdown', 'touchstart'].forEach(function (ev) {
+  window.addEventListener(ev, function (e) {
+    if (isM()) {   // スマホ: 画面をなぞる・薪をくべるタップではUIを出さない。UI自体か、上端・下端の帯に触れたときだけ
+      if (ev !== 'pointerdown') return;
+      var t = e.target;
+      if (!(t && t.closest && t.closest('.ui')) && !inBand(e.clientY)) return;
+    }
+    wakeUI();
+  }, { passive: true });
+});
 window.addEventListener('keydown', function (e) {
   if (e.target && e.target.tagName === 'INPUT' && e.code === 'Space') return;
   if (e.code === 'Space') { e.preventDefault(); addLog(); wakeUI(); }
+  else if (e.key === 'Escape' && isM() && sheetState !== 'closed') setSheet('closed');
   else if (e.key === 'h' || e.key === 'H') {
     uiForcedHidden = !uiForcedHidden;
-    if (uiForcedHidden) { document.body.classList.add('idle'); document.body.classList.remove('panel-open'); }
+    if (uiForcedHidden) { document.body.classList.add('idle'); document.body.classList.remove('panel-open'); if (isM()) sheetState = 'closed', panelEl.style.height = ''; }
     else wakeUI();
   }
 });
+measure();
+applyMode();
 wakeUI();
 
 /* ---------- 音 (Web Audio 手続き合成) ---------- */
-var ac = null, audioReady = false, master, comp, bus, whiteBuf, brownBuf, revConv, revWet, revDry;
+var ac = null, audioReady = false, master, comp, bus, outGain, whiteBuf, brownBuf, revConv, revWet, revDry;
+var rendering = false;       // true の間は OfflineAudioContext（ループの書き出し）に向けて鳴らしている
 var roarA, roarB, roarC;      // {f, g}
 var snowLP, L = {}, waveN, gSp, gSu, gAu, suzuGate;
 var nextCrackle = 0, nextAccent = 0;
@@ -412,15 +646,17 @@ function makeImpulse(seconds, decay) {
   }
   return buf;
 }
+// 通常は目標値へなめらかに寄せる。書き出し中は最初から目標値にしておく（頭に立ち上がりを作らない）
+function tgt(p, v, t, tc) { if (rendering) p.setValueAtTime(v, t); else p.setTargetAtTime(v, t, tc); }
 function applyReverb() {
   if (!ac || !revConv) return;
   var r = curReverb, t = ac.currentTime;
   if (r) {
     revConv.buffer = makeImpulse(r.seconds || 2.2, r.decay || 3);
     var wet = Math.min(1, Math.max(0, r.wet == null ? 0.3 : r.wet));
-    revWet.gain.setTargetAtTime(wet, t, 0.3); revDry.gain.setTargetAtTime(1 - 0.4 * wet, t, 0.3);
+    tgt(revWet.gain, wet, t, 0.3); tgt(revDry.gain, 1 - 0.4 * wet, t, 0.3);
   } else {
-    revWet.gain.setTargetAtTime(0, t, 0.3); revDry.gain.setTargetAtTime(1, t, 0.3);
+    tgt(revWet.gain, 0, t, 0.3); tgt(revDry.gain, 1, t, 0.3);
   }
 }
 function makeBuffers() {
@@ -452,19 +688,25 @@ function loopSrc(buf, rate) {
 function initAudio() {
   var AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
-  ac = new AC();
+  buildGraph(new AC());
+  ac.onstatechange = onAcState;
+}
+// 音の経路を ctx（ふつうの AudioContext か、ループ書き出し用の OfflineAudioContext）の上に組む。結果はこのスコープの変数に入る
+function buildGraph(ctx) {
+  ac = ctx; L = {};
   master = ac.createGain(); master.gain.value = 0;
   comp = ac.createDynamicsCompressor();
   comp.threshold.value = -16; comp.knee.value = 20; comp.ratio.value = 6;
   comp.attack.value = 0.004; comp.release.value = 0.2;
   bus = ac.createGain(); bus.gain.value = 0.9;
-  snowLP = ac.createBiquadFilter(); snowLP.type = 'lowpass'; snowLP.frequency.value = 20000; snowLP.Q.value = 0.5;
+  snowLP = ac.createBiquadFilter(); snowLP.type = 'lowpass'; snowLP.frequency.value = Math.min(20000, ac.sampleRate / 2); snowLP.Q.value = 0.5;
   // 残響（ConvolverNode）: 乾いた音と残響を並べてから master へ。残響の量は setReverb で決める
   revDry = ac.createGain(); revWet = ac.createGain(); revWet.gain.value = 0;
   revConv = ac.createConvolver();
   bus.connect(snowLP); snowLP.connect(revDry); revDry.connect(master);
   snowLP.connect(revConv); revConv.connect(revWet); revWet.connect(master);
-  master.connect(comp); comp.connect(ac.destination);
+  outGain = ac.createGain(); outGain.gain.value = 1;   // 録音ループとのクロスフェード用
+  master.connect(comp); comp.connect(outGain); outGain.connect(ac.destination);
   makeBuffers();
 
   function chain(src, type, freq, q, gainVal) {
@@ -724,7 +966,7 @@ var frogBusy = [0, 0, 0], frogLastVoice = -1;
 var envEvents = [], envCbs = [];
 function frogVoices() { return S.season === 'autumn' ? 1 : S.season === 'winter' ? 0 : 3; }
 function queueEnvEvent(ev) {
-  if (!envCbs.length || !drawingOn() || envEvents.length >= 80) return;
+  if (rendering || !envCbs.length || !drawingOn() || envEvents.length >= 80) return;
   var k = envEvents.length;
   while (k > 0 && envEvents[k - 1].t > ev.t) k--;
   envEvents.splice(k, 0, ev);
@@ -887,12 +1129,12 @@ var SCH = {
   kettle:  { on: function () { return lvl('kettle') > 0; }, init: function () { return rnd(0.5, 2); }, fn: playKnock, next: 0 }
 };
 function envTick(t) {
-  ENV.forEach(function (e) { if (!e.noVol) L[e.id].gain.setTargetAtTime(lvl(e.id), t, 0.6); });   // 2秒前後でフェード
+  ENV.forEach(function (e) { if (!e.noVol) tgt(L[e.id].gain, lvl(e.id), t, 0.6); });   // 2秒前後でフェード
   var se = S.season;
-  gSp.gain.setTargetAtTime(se === 'spring' ? 0.5 : 0, t, 0.6);
-  gSu.gain.setTargetAtTime(se === 'summer' ? 0.7 : 0, t, 0.6);
-  gAu.gain.setTargetAtTime(se === 'autumn' ? 1 : 0, t, 0.6);
-  snowLP.frequency.setTargetAtTime(se === 'winter' && S.on_snowq ? 900 : 20000, t, 0.8);
+  tgt(gSp.gain, se === 'spring' ? 0.5 : 0, t, 0.6);
+  tgt(gSu.gain, se === 'summer' ? 0.7 : 0, t, 0.6);
+  tgt(gAu.gain, se === 'autumn' ? 1 : 0, t, 0.6);
+  tgt(snowLP.frequency, se === 'winter' && S.on_snowq ? 900 : Math.min(20000, ac.sampleRate / 2), t, 0.8);
 }
 function schedEnv(t) {
   for (var key in SCH) {
@@ -987,27 +1229,31 @@ function expSample(rate) { return -Math.log(1 - Math.random()) / rate; }
 
 function crackleLevel(fl, em) { return Math.pow(Math.max(0, fl), 1.2) * (1 + 2.5 * boost) + 0.05 * em; }
 
-function audioTick() {
+// ot を渡すと、その時刻（秒）を「いま」として OfflineAudioContext に予約する（ループの書き出し用）。省略時はふつうの再生
+function audioTick(ot) {
   if (!ac || !audioReady) return;
-  var t = ac.currentTime;
-  var tt = performance.now() / 1000;
+  var off = ot != null;
+  if (!off && mode === 'loop' && document.hidden) return;   // 録音ループで鳴らしている間は、聞こえない Web Audio を動かさない（電池）
+  var t = off ? ot : ac.currentTime;
+  var tt = off ? ot : performance.now() / 1000;
   var lfo = 0.5 * Math.sin(tt * 0.7) + 0.3 * Math.sin(tt * 1.9 + 1) + 0.2 * Math.sin(tt * 4.3 + 2);
   var lfo2 = Math.sin(tt * 0.37 + 0.5) * 0.6 + Math.sin(tt * 1.13) * 0.4;
-  var em = emberLevel();
-  var fl = started ? flame : 0;
+  var em = off ? (flame < 0.1 ? 1 : 0) : emberLevel();
+  var fl = off ? flame : (started ? flame : 0);
   var vol = S.roar * S.roar;
   var lvl = 0.02 + 0.85 * Math.pow(Math.min(1.3, fl), 1.1) + 0.03 * em;
 
-  master.gain.setTargetAtTime(started ? S.master * S.master : 0, t, 0.1);
-  roarA.g.gain.setTargetAtTime(vol * lvl * (0.8 + 0.2 * lfo), t, 0.3);
-  roarA.f.frequency.setTargetAtTime(380 + 420 * fl + 150 * lfo2, t, 0.3);
-  roarB.g.gain.setTargetAtTime(vol * lvl * 0.6 * (0.85 + 0.15 * lfo2), t, 0.4);
-  roarC.g.gain.setTargetAtTime(vol * (0.004 + 0.05 * fl) * (0.6 + 0.4 * Math.random()), t, 0.15);
-  roarC.f.frequency.setTargetAtTime(2200 + 1200 * fl + 500 * lfo, t, 0.3);
+  if (!off) master.gain.setTargetAtTime(started ? S.master * S.master : 0, t, 0.1);
+  tgt(roarA.g.gain, vol * lvl * (0.8 + 0.2 * lfo), t, 0.3);
+  tgt(roarA.f.frequency, 380 + 420 * fl + 150 * lfo2, t, 0.3);
+  tgt(roarB.g.gain, vol * lvl * 0.6 * (0.85 + 0.15 * lfo2), t, 0.4);
+  tgt(roarC.g.gain, vol * (0.004 + 0.05 * fl) * (0.6 + 0.4 * Math.random()), t, 0.15);
+  tgt(roarC.f.frequency, 2200 + 1200 * fl + 500 * lfo, t, 0.3);
 
   envTick(t);
-  if (started && ac.state === 'running') schedEnv(t);
-  if (!started || ac.state !== 'running') { nextCrackle = t + 0.1; nextAccent = 0; return; }
+  var run = off || (started && ac.state === 'running');
+  if (run) schedEnv(t);
+  if (!run) { nextCrackle = t + 0.1; nextAccent = 0; return; }
   accentTick(t, fl);
   if (nextCrackle < t) nextCrackle = t + 0.02;
 
@@ -1038,7 +1284,7 @@ function audioTick() {
   }
 }
 function queueVisual(t, count, accent) {
-  if (!drawingOn()) return;
+  if (rendering || !drawingOn()) return;
   if (visualQ.length >= 200) return;
   var ev = { t: t, n: count };
   if (accent) ev.accent = true;
@@ -1049,11 +1295,14 @@ function queueVisual(t, count, accent) {
 
 document.addEventListener('visibilitychange', function () {
   visible = !document.hidden;
-  if (visible) {
-    visualQ.length = 0; envEvents.length = 0;
-    if (ac && ac.state === 'suspended' && started) { try { ac.resume(); } catch (e) {} }
+  visualQ.length = 0; envEvents.length = 0;
+  if (document.hidden) {
+    LOOP.sawHidden = true;
+    if (started && loopWanted() && LOOP.ready && !userPaused) enterLoop();   // 見えなくなったら、録音ループに引き継ぐ（OSが Web Audio を止めても鳴り続ける）
   } else {
-    visualQ.length = 0; envEvents.length = 0;
+    ensureAudio(false);
+    applyWake();
+    if (LOOP.dirty) scheduleLoopRender(1500);
   }
   emitActive();
 });
@@ -1110,7 +1359,7 @@ window.TAKIBI = {
       active: drawingOn()             // 描画すべきか（タブ表示中かつ映像オンのとき true）
     };
   },
-  addLog: addLog,
+  addLog: tapFeed,                    // 画面のタップ用（スマホでは上端・下端の帯のタップは薪をくべず、UI表示になる）。tapFeed({x,y}) と座標を渡してもよい
   playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle creak
   onEnvEvent: function (cb) { return subscribe(envCbs, cb); },       // {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]} 蛙の声の予約時刻に同期（喉の動き用）
   applySceneAudio: applySceneAudio,   // シーンが切り替わったとき、audio 指定（autoOn / reverb）を渡す
@@ -1133,6 +1382,7 @@ function applySceneAudio(a) {
   curReverb = a.reverb || null;
   applyReverb();
   refreshSeasonUI();
+  audioSettingsChanged();
 }
 
 /* ---------- 草の量と自動軽量化 ---------- */
@@ -1194,10 +1444,10 @@ function boot3d() {
     if (!list.some(function (s) { return s.id === S.scene; }) && list.length) S.scene = list[0].id;
     var sel = document.getElementById('sceneSel');
     list.forEach(function (s) {
-      var o = document.createElement('option'); o.value = s.id; o.textContent = s.label; sel.appendChild(o);
+      var o = document.createElement('option'); o.value = s.id; o.textContent = s.label; sel.appendChild(o); SCENE_LABELS[s.id] = s.label;
     });
-    sel.value = S.scene;
-    sel.addEventListener('change', function () { S.scene = sel.value; save(); });
+    sel.value = S.scene; updateMediaMeta();
+    sel.addEventListener('change', function () { S.scene = sel.value; save(); updateMediaMeta(); });
     document.getElementById('sceneRow').style.display = '';
     refreshGrassUI();
     return m.start({ canvas: cv3, api: window.TAKIBI });
@@ -1207,12 +1457,300 @@ function boot3d() {
   });
 }
 
+/* ---------- 画面を消さない（Screen Wake Lock） ---------- */
+var wakeLock = null, wakePending = false;
+function applyWake() {
+  if (!('wakeLock' in navigator)) return;
+  var want = S.keepAwake && started && !document.hidden;
+  if (want && !wakeLock && !wakePending) {
+    wakePending = true;
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakePending = false; wakeLock = l;
+      l.addEventListener('release', function () { if (wakeLock === l) wakeLock = null; });   // タブが裏に回ると自動で外れる
+      if (!(S.keepAwake && started)) { wakeLock = null; l.release().catch(noop); }
+    }).catch(function () { wakePending = false; wakeLock = null; });
+  } else if (!want && wakeLock) {
+    var l2 = wakeLock; wakeLock = null; l2.release().catch(noop);
+  }
+}
+if ('wakeLock' in navigator) {
+  var wakeEl = document.getElementById('keepAwake');
+  document.getElementById('wakeRow').style.display = '';
+  wakeEl.checked = S.keepAwake;
+  wakeEl.addEventListener('change', function () { S.keepAwake = wakeEl.checked; save(); applyWake(); });
+}
+
+/* ---------- バックグラウンドでも鳴らす: Web Audio から、録音したループ（<audio loop>）への切り替え ----------
+   Web Audio は画面ロックや別アプリへの切り替えで OS に止められやすい。一方、メディア再生（<audio>）は
+   Media Session を付ければバックグラウンドでも続けられる。そこで、いまの設定の音を OfflineAudioContext で数分ぶん書き出して
+   ループにしておき、画面が見えなくなったらそちらに引き継ぐ。パソコンでは Web Audio が止まらないので、止まったのを確かめるまで何もしない */
+var noop = function () {};
+var LOOP_ENV = (function () {
+  try {
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+      (window.matchMedia('(pointer:coarse)').matches && window.matchMedia('(hover:none)').matches);
+  } catch (e) { return false; }
+})();
+var sawBgSuspend = false;     // パソコンでも、裏に回って Web Audio が止まるのを見たら、ループを使う側に切り替える
+var userPaused = false;       // ロック画面などから一時停止された
+var mode = 'web', modeTok = 0;   // 'web'（Web Audio で鳴らす）か 'loop'（録音ループで鳴らす）
+var loopEl = null, SILENT_URL = '', elUrl = '', volOK = false;
+var LOOP = { sawHidden: false, sr: 22050, dur: 180, xf: 5, key: '', job: 0, timer: 0, ready: false, url: '', flame: 0, dirty: false, ms: 0 };
+var SCENE_LABELS = {};
+function loopWanted() { return LOOP_ENV || sawBgSuspend; }
+
+function wavHeader(view, ch, sr, bits, dataBytes) {
+  function w(o, t) { for (var i = 0; i < t.length; i++) view.setUint8(o + i, t.charCodeAt(i)); }
+  w(0, 'RIFF'); view.setUint32(4, 36 + dataBytes, true); w(8, 'WAVE'); w(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, ch, true); view.setUint32(24, sr, true);
+  view.setUint32(28, sr * ch * bits / 8, true); view.setUint16(32, ch * bits / 8, true); view.setUint16(34, bits, true);
+  w(36, 'data'); view.setUint32(40, dataBytes, true);
+}
+function silentWavUrl() {
+  var sr = 8000, b = new Uint8Array(44 + sr);
+  wavHeader(new DataView(b.buffer), 1, sr, 8, sr);
+  for (var i = 44; i < b.length; i++) b[i] = 128;   // 8bit の無音
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+function ensureEl() {
+  if (loopEl) return loopEl;
+  loopEl = new Audio();
+  loopEl.loop = true; loopEl.preload = 'auto'; loopEl.setAttribute('playsinline', '');
+  SILENT_URL = silentWavUrl();
+  try { loopEl.volume = 0.5; volOK = loopEl.volume === 0.5; loopEl.volume = 1; } catch (e) { volOK = false; }   // iOS は audio.volume が効かない
+  setElSrc(SILENT_URL);
+  return loopEl;
+}
+function setElSrc(url) {
+  if (!loopEl || elUrl === url) return;
+  var prev = elUrl; elUrl = url; loopEl.src = url;
+  if (prev && prev !== SILENT_URL && prev !== LOOP.url) { try { URL.revokeObjectURL(prev); } catch (e) {} }
+}
+function playEl() { if (!loopEl) return; try { var p = loopEl.play(); if (p && p.catch) p.catch(noop); } catch (e) {} }
+
+function fadeWeb(target, sec, from) {
+  if (!ac || !outGain) return;
+  var t = ac.currentTime, g = outGain.gain;
+  g.cancelScheduledValues(t); g.setValueAtTime(from == null ? g.value : from, t); g.linearRampToValueAtTime(target, t + sec);
+}
+function enterLoop() {
+  if (mode === 'loop' || !loopEl || !LOOP.ready || userPaused) return false;
+  mode = 'loop'; var tok = ++modeTok, done = false;
+  setElSrc(LOOP.url);
+  function fade() { if (done || tok !== modeTok) return; done = true; fadeWeb(0, 1.0); }   // ループが鳴り始めてから Web Audio を絞る（途切れさせない）
+  loopEl.addEventListener('playing', fade, { once: true });
+  setTimeout(fade, 1800);
+  try {
+    var p = loopEl.play();
+    if (p && p.catch) p.catch(function () { if (tok === modeTok) { mode = 'web'; done = true; setElSrc(SILENT_URL); } });   // 再生を許されなかった: Web Audio のまま
+  } catch (e) { mode = 'web'; done = true; }
+  syncMediaState();
+  return true;
+}
+function enterWeb() {
+  if (mode === 'web' || !ac) return;
+  var tok = ++modeTok;
+  function go() {
+    if (tok !== modeTok || mode !== 'loop' || ac.state !== 'running') return;   // まだ再開できないなら、ループのまま。次のタップで再挑戦する
+    mode = 'web'; nextCrackle = 0; nextAccent = 0;
+    var quick = !volOK;     // 音量を変えられない端末では、Web Audio を素早く立ち上げて、ループを切るまでの二重を短くする
+    fadeWeb(1, quick ? 0.4 : 1.0, 0);
+    fadeElOut(quick ? 0.5 : 1.0, function () { if (mode === 'web') { setElSrc(SILENT_URL); if (!userPaused) playEl(); } });
+    syncMediaState();
+  }
+  var p = null;
+  try { p = ac.resume(); } catch (e) {}
+  if (p && p.then) p.then(function () { setTimeout(go, 60); }, noop); else setTimeout(go, 60);
+}
+function fadeElOut(sec, done) {
+  if (!loopEl || !volOK) { setTimeout(done, sec * 1000 + 100); return; }
+  var n = 0, steps = Math.max(1, Math.round(sec * 20));
+  var iv = setInterval(function () {
+    n++; try { loopEl.volume = Math.max(0, 1 - n / steps); } catch (e) {}
+    if (n >= steps) { clearInterval(iv); done(); try { loopEl.volume = 1; } catch (e) {} }
+  }, 50);
+}
+function onAcState() {
+  if (!started || !ac) return;
+  if (ac.state === 'running') { if (mode === 'loop' && !document.hidden) enterWeb(); return; }
+  if (userPaused) return;
+  if (document.hidden && !LOOP_ENV && !sawBgSuspend) { sawBgSuspend = true; LOOP.dirty = true; ensureEl(); }   // 裏で止まった。次に表示されたとき、ループを書き出す
+  if (loopWanted() && LOOP.ready) enterLoop();
+}
+// 止まっていたら再開する（別アプリから戻った、画面ロックを解除した、次にタップした、など）
+function ensureAudio(fromTap) {
+  if (!ac || !started) return;
+  if (userPaused) { if (!fromTap) return; userPaused = false; syncMediaState(); }
+  if (mode === 'loop') { if (!document.hidden) enterWeb(); return; }
+  if (ac.state !== 'running') { try { var p = ac.resume(); if (p && p.catch) p.catch(noop); } catch (e) {} }
+  if (loopEl && loopEl.paused && !document.hidden) playEl();
+}
+['pointerdown', 'touchend', 'keydown', 'click'].forEach(function (ev) {
+  window.addEventListener(ev, function () {
+    if (ac && started && (userPaused || mode === 'loop' || ac.state !== 'running' || (loopEl && loopEl.paused))) ensureAudio(true);
+  }, { capture: true, passive: true });
+});
+window.addEventListener('pageshow', function () { ensureAudio(false); });
+window.addEventListener('focus', function () { ensureAudio(false); });
+
+/* Media Session: ロック画面や通知に「焚火」と再生・一時停止を出す。どちらの経路で鳴っていても止められる */
+function updateMediaMeta() {
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: '焚火', artist: SCENE_LABELS[S.scene] || '焚火', album: '焚火',
+      artwork: [{ src: 'assets/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'assets/icons/icon-512.png', sizes: '512x512', type: 'image/png' }]
+    });
+  } catch (e) {}
+}
+function syncMediaState() {
+  if (!('mediaSession' in navigator)) return;
+  try { navigator.mediaSession.playbackState = userPaused ? 'paused' : 'playing'; } catch (e) {}
+}
+function mediaPause() {
+  userPaused = true;
+  try { if (ac && ac.state === 'running') ac.suspend(); } catch (e) {}
+  if (loopEl) { try { loopEl.pause(); } catch (e) {} }
+  syncMediaState();
+}
+function mediaPlay() {
+  userPaused = false; syncMediaState();
+  if (mode === 'loop') { playEl(); if (!document.hidden) enterWeb(); }
+  else { try { ac.resume(); } catch (e) {} if (loopEl) playEl(); }
+}
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  updateMediaMeta(); syncMediaState();
+  try { navigator.mediaSession.setActionHandler('play', mediaPlay); navigator.mediaSession.setActionHandler('pause', mediaPause); } catch (e) {}
+}
+
+/* 「火をつける」のタップの中で呼ぶ: iOS で確実に鳴らすための初期化 */
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // Safari 16.4+: マナーモードでも鳴り、バックグラウンドでも続きやすい
+  if (!ac) return;
+  try { var p = ac.resume(); if (p && p.catch) p.catch(noop); } catch (e) {}
+  try { var b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination); src.start(0); } catch (e) {}   // 無音を1回鳴らして、iOS の出力を起こす
+  if (loopWanted()) { ensureEl(); playEl(); }   // ユーザー操作の中で再生を始めた <audio> だけが、あとから src を替えて鳴らせる（まず無音）
+  setupMediaSession();
+  applyWake();
+  if (loopWanted()) scheduleLoopRender(2500);
+}
+
+/* ---- ループの書き出し ---- */
+function audioKey() {
+  var k = [S.roar, S.crackFreq, S.crackSize, S.master, S.season, S.autoFeed, JSON.stringify(curReverb)];
+  ENV.forEach(function (e) { k.push(S['on_' + e.id] ? 1 : 0, S['vol_' + e.id]); });
+  return k.join('|');
+}
+function offFlame() { return S.autoFeed ? Math.max(flame, 0.3) : flame; }   // 自動くべがあれば、炎は保たれる前提
+function audioSettingsChanged() {
+  if (!started || !loopWanted()) return;
+  if (LOOP.ready && audioKey() === LOOP.key) return;
+  LOOP.job++;                              // 書き出し中のものは、古い設定なので捨てる
+  scheduleLoopRender(3000);                // 最後の変更から3秒後に書き出し直す
+}
+function scheduleLoopRender(ms) {
+  clearTimeout(LOOP.timer);
+  LOOP.timer = setTimeout(function () { LOOP.timer = 0; startLoopRender(); }, ms);
+}
+// 書き出しに使う変数一式。ふつうの再生用の変数と入れ替えて、同じ合成コードをそのまま使う（同期の間だけ入れ替わる）
+function takeG() {
+  var n = {}, k; for (k in SCH) n[k] = SCH[k].next;
+  return { ac: ac, audioReady: audioReady, master: master, comp: comp, bus: bus, outGain: outGain, whiteBuf: whiteBuf, brownBuf: brownBuf,
+    revConv: revConv, revWet: revWet, revDry: revDry, roarA: roarA, roarB: roarB, roarC: roarC, snowLP: snowLP, L: L, waveN: waveN,
+    gSp: gSp, gSu: gSu, gAu: gAu, suzuGate: suzuGate, nextCrackle: nextCrackle, nextAccent: nextAccent, boost: boost, flame: flame,
+    frogBusy: frogBusy, frogLastVoice: frogLastVoice, rendering: rendering, S: S, sch: n };
+}
+function putG(g) {
+  ac = g.ac; audioReady = g.audioReady; master = g.master; comp = g.comp; bus = g.bus; outGain = g.outGain; whiteBuf = g.whiteBuf; brownBuf = g.brownBuf;
+  revConv = g.revConv; revWet = g.revWet; revDry = g.revDry; roarA = g.roarA; roarB = g.roarB; roarC = g.roarC; snowLP = g.snowLP; L = g.L; waveN = g.waveN;
+  gSp = g.gSp; gSu = g.gSu; gAu = g.gAu; suzuGate = g.suzuGate; nextCrackle = g.nextCrackle; nextAccent = g.nextAccent; boost = g.boost; flame = g.flame;
+  frogBusy = g.frogBusy; frogLastVoice = g.frogLastVoice; rendering = g.rendering; S = g.S;
+  for (var k in SCH) SCH[k].next = g.sch[k] || 0;
+}
+function inG(g, fn) {
+  var live = takeG(); putG(g);
+  try { fn(); } finally { var after = takeG(); putG(live); for (var k in after) g[k] = after[k]; }
+}
+function startLoopRender() {
+  if (!started || !loopWanted() || !ac || typeof OfflineAudioContext === 'undefined') return;
+  if (document.hidden) { LOOP.dirty = true; return; }
+  LOOP.dirty = false; LOOP.sawHidden = false;
+  var token = ++LOOP.job, t0 = performance.now(), key = audioKey();
+  var sr = LOOP.sr, xf = LOOP.xf, dur = LOOP.dur, total, off;
+  try {
+    off = new OfflineAudioContext(2, Math.ceil((dur + xf) * sr), sr);
+    if (typeof off.suspend !== 'function' && dur > 60) { dur = 60; off = new OfflineAudioContext(2, Math.ceil((dur + xf) * sr), sr); }   // suspend が無いと長いほど遅くなるので短くする
+  } catch (e) { return; }
+  total = dur + xf;
+  var snap = {}, k; for (k in S) snap[k] = S[k];
+  var g = { S: snap, flame: offFlame(), boost: 0, rendering: true, nextCrackle: 0, nextAccent: 0, frogBusy: [0, 0, 0], frogLastVoice: -1, sch: {}, L: {}, ac: null, audioReady: false };
+  try { inG(g, function () { buildGraph(off); master.gain.value = S.master * S.master; }); } catch (e) { console.error(e); return; }
+  var tNext = 0, CH = 6;
+  function sched(limit) { inG(g, function () { for (; tNext < limit; tNext += 1) audioTick(tNext); }); }
+  function done() {
+    off.startRendering().then(function (buf) {
+      if (token !== LOOP.job) return;
+      encodeLoop(buf, Math.round(xf * sr), function (blob) {
+        if (token !== LOOP.job) return;
+        var old = LOOP.url;
+        LOOP.url = URL.createObjectURL(blob); LOOP.ready = true; LOOP.key = key; LOOP.flame = g.flame; LOOP.ms = performance.now() - t0;
+        if (old && old !== elUrl) { try { URL.revokeObjectURL(old); } catch (e) {} }
+        if (LOOP.ms > 30000 && LOOP.dur > 60 && !LOOP.sawHidden) LOOP.dur = Math.max(60, Math.floor(LOOP.dur * 0.6));   // 重い端末では、次から短くする
+      });
+    }).catch(function (e) { console.error('ループの書き出しに失敗しました', e); });
+  }
+  try {
+    if (typeof off.suspend === 'function') {
+      // 全部を先に予約すると、まだ鳴らない大量のノードを毎回なぞるので遅くなる。CH 秒ごとに一時停止して、そのぶんだけ予約する
+      sched(CH + 1);
+      for (var T = CH; T < total; T += CH) (function (T) {
+        off.suspend(T).then(function () {
+          if (token !== LOOP.job) return;      // 古い設定の書き出しは、ここで止めて捨てる
+          try { sched(T + CH + 1); } catch (e) { console.error(e); return; }
+          off.resume();
+        });
+      })(T);
+      done();
+    } else {
+      // suspend が無い環境: 全部を先に予約する。重いので、短くして、8秒ぶんずつイベントループへ返しながら予約する
+      var step = function () {
+        if (token !== LOOP.job) return;
+        try { sched(Math.min(total, tNext + 8)); } catch (e) { console.error(e); return; }
+        if (tNext < total) setTimeout(step, 0); else done();
+      };
+      step();
+    }
+  } catch (e) { console.error(e); }
+}
+// 書き出した total 秒のうち、最後の xf 秒を頭にクロスフェードで重ねて、継ぎ目のない dur 秒の WAV にする
+function encodeLoop(buf, xfN, cb) {
+  var n = buf.length - xfN, c0 = buf.getChannelData(0), c1 = buf.getChannelData(1);
+  var bytes = new Uint8Array(44 + n * 4), view = new DataView(bytes.buffer), i = 0;
+  wavHeader(view, 2, buf.sampleRate, 16, n * 4);
+  function q(x) { x = x < -1 ? -1 : x > 1 ? 1 : x; return x < 0 ? x * 32768 : x * 32767; }
+  (function chunk() {
+    var end = Math.min(n, i + 262144);
+    for (; i < end; i++) {
+      var l = c0[i], r = c1[i];
+      if (i < xfN) { var x = i / xfN, a = Math.sin(x * Math.PI / 2), b = Math.cos(x * Math.PI / 2); l = l * a + c0[n + i] * b; r = r * a + c1[n + i] * b; }   // 等パワー
+      view.setInt16(44 + i * 4, q(l), true); view.setInt16(46 + i * 4, q(r), true);
+    }
+    if (i < n) setTimeout(chunk, 0); else cb(new Blob([bytes], { type: 'audio/wav' }));
+  })();
+}
+// 炎の強さが大きく変わったら、ループも作り直す
+setInterval(function () {
+  if (loopWanted() && started && LOOP.ready && !LOOP.timer && !document.hidden && Math.abs(offFlame() - LOOP.flame) > 0.3) scheduleLoopRender(100);
+}, 20000);
+
 /* ---------- 起動 ---------- */
 document.getElementById('ignite').addEventListener('click', function () {
   if (started) return;
-  try { initAudio(); if (ac && ac.state === 'suspended') ac.resume(); } catch (e) { console.error(e); ac = null; audioReady = false; }
+  try { initAudio(); unlockAudio(); } catch (e) { console.error(e); ac = null; audioReady = false; }
   started = true;
   document.body.classList.add('started');
+  applyWake();
   fuel = 2.5; flame = 0; boost = 0.6;
   lastStep = performance.now();
   updateFuelUI();
