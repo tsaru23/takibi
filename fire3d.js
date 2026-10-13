@@ -2,6 +2,13 @@
 // 毎フレーム update()、描画は render()、終了時に dispose() を呼ぶ。外部の画像は使わず、模様はすべてシェーダー内のノイズで作る。
 import * as THREE from 'three';
 
+// 大きさの倍率（1 = 以前の大きさ。世界は 1 unit = 1 m。以前は焚火だけが実物の 2 倍ほど大きかった）
+const FLAME_K = 0.65;   // 炎（ふだんの高さ 約 0.4〜0.8m、薪が多いとき最大 約 1.1m）。模様のノイズは元の大きさのまま縮める
+const SPARK_K = 0.65;   // 火の粉の飛ぶ範囲（高さ 約 2〜3m・横 約 1.5〜2.5m。アクセントのときは +1m ほど）
+const SMOKE_K = 0.6;    // 煙
+const BED_K = 0.45;     // 底の熾火・炭（石囲いの内側に収まる）
+const LIGHT_Y_K = 0.6;  // 火の光（点光源・ハロー）の高さ
+const LIGHT_K = 0.3;    // 火の光の強さ（光源が地面と近くなったぶん、物が白飛びしないよう下げる。距離の 2 乗で効くので、縮めた比の 2 乗に近い）
 const MAX_SPARK = 400;
 const SPARKS_PER_FRAME = 40;   // 1フレームで新しく出す火花の上限
 const SPARKS_PER_FRAME_ACCENT = 80;   // アクセントのフレームだけ緩める
@@ -106,7 +113,7 @@ attribute vec3 iOrigin;
 attribute vec3 iVel;
 attribute vec4 iA;     // 誕生時刻, 寿命, 乱数, 種類(0=上昇 1=弾道)
 attribute vec4 iB;     // 太さ, 初期温度, 着地時刻(弾道), 上昇の終端速度 or 重力
-uniform float uTime, uStreak, uPx;
+uniform float uTime, uStreak, uPx, uWS;
 uniform vec2 uRes;
 varying vec2 vQ;
 varying vec3 vCol;
@@ -152,6 +159,7 @@ void main() {
   float ta = max(0.0, age - uStreak);
   vec3 pt = posAt(ta, uTime - (age - ta));
   vec3 ph = posAt(age, uTime);   // 後に呼ぶ（gImpact は先頭側の値を使う）
+  pt *= uWS; ph *= uWS;           // 全体の大きさ（SPARK_K）。形・動きは元のまま縮める
   mat4 vp = projectionMatrix * viewMatrix;
   vec4 ch = vp * vec4(ph, 1.0), ct = vp * vec4(pt, 1.0);
   if (ch.w < 0.05 || ct.w < 0.05) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); vA = 0.0; vQ = vec2(0.0); vCol = vec3(0.0); return; }
@@ -197,7 +205,7 @@ void main() {
 /* ---------- 煙: 薄い灰色の板をゆっくり昇らせる ---------- */
 const SMOKE_VERT = /* glsl */`
 attribute vec4 iS;     // 乱数, 位相, 大きさ, 寿命倍率
-uniform float uTime, uBase;
+uniform float uTime, uBase, uSK;
 varying vec2 vUv;
 varying float vK, vSeed;
 void main() {
@@ -205,7 +213,8 @@ void main() {
   vec3 c = vec3((iS.x - 0.5) * 0.25, uBase + age * 0.34, (fract(iS.x * 7.3) - 0.5) * 0.25);
   c.x += sin(age * 0.55 + iS.x * 6.28) * 0.3 * k + 0.035 * age * age;
   c.z += cos(age * 0.45 + iS.x * 9.0) * 0.3 * k;
-  float size = (0.3 + 1.5 * k) * iS.z;
+  c *= uSK;
+  float size = (0.3 + 1.5 * k) * iS.z * uSK;
   float an = iS.x * 6.28 + age * 0.12 * (iS.x - 0.5);
   vec2 cr = mat2(cos(an), -sin(an), sin(an), cos(an)) * position.xy;
   vec4 mv = viewMatrix * vec4(c, 1.0);
@@ -234,7 +243,7 @@ void main() {
 /* ---------- 焚火の底の熾火（地面に敷く発光） ---------- */
 const BED_VERT = /* glsl */`
 varying vec2 vP;
-void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vP = wp.xz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vP = wp.xz / ${BED_K.toFixed(3)}; gl_Position = projectionMatrix * viewMatrix * wp; }`;
 const BED_FRAG = /* glsl */`
 uniform float uTime, uGlow;
 varying vec2 vP;
@@ -349,8 +358,8 @@ export function createFire(opts) {
   let time = 0;
 
   /* 光: 2つの点光源をずらして置き、別々の周期でちらつかせる */
-  const lightA = new THREE.PointLight(0xff8a3c, 0, 16, 2);
-  const lightB = new THREE.PointLight(0xff7428, 0, 14, 2);
+  const lightA = new THREE.PointLight(0xff8a3c, 0, 11, 2);
+  const lightB = new THREE.PointLight(0xff7428, 0, 9, 2);
   group.add(lightA, lightB);
 
   /* 炎の板（中心1枚＋周り） */
@@ -369,7 +378,7 @@ export function createFire(opts) {
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
     }));
     const m = new THREE.Mesh(flameGeo, mat);
-    m.position.set(d.x, 0.02, d.z); m.renderOrder = 3; m.frustumCulled = false;
+    m.position.set(d.x * FLAME_K, 0.015, d.z * FLAME_K); m.renderOrder = 3; m.frustumCulled = false;
     group.add(m);
     return { m, mat, d, ph: Math.random() * 10 };
   });
@@ -381,7 +390,7 @@ export function createFire(opts) {
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
   }));
   const bedGeo = own(new THREE.CircleGeometry(0.85, 40)); bedGeo.rotateX(-Math.PI / 2);
-  const bed = new THREE.Mesh(bedGeo, bedMat); bed.position.y = 0.03; bed.renderOrder = 2;
+  const bed = new THREE.Mesh(bedGeo, bedMat); bed.position.y = 0.03; bed.scale.setScalar(BED_K); bed.renderOrder = 2;
   group.add(bed);
 
   /* 薪と炭のひび割れ発光 */
@@ -408,6 +417,7 @@ export function createFire(opts) {
       coals.setMatrixAt(i, m4.compose(p, q, s));
     }
   }
+  coals.scale.setScalar(BED_K);
   group.add(coals);
 
   /* 火花（GPU で動かす。CPU は生まれた瞬間の値を書くだけ） */
@@ -424,7 +434,7 @@ export function createFire(opts) {
   sparkGeo.setAttribute('iA', aA); sparkGeo.setAttribute('iB', aB);
   sparkGeo.instanceCount = MAX_SPARK;
   const sparkMat = own(new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uStreak: { value: 0.035 }, uPx: { value: 900 }, uRes: { value: new THREE.Vector2(1, 1) } },
+    uniforms: { uTime: { value: 0 }, uStreak: { value: 0.035 }, uPx: { value: 900 }, uWS: { value: SPARK_K }, uRes: { value: new THREE.Vector2(1, 1) } },
     vertexShader: SPARK_VERT, fragmentShader: SPARK_FRAG,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false
   }));
@@ -508,7 +518,7 @@ export function createFire(opts) {
         } else if (e.n >= 10) burst(Math.round(rnd(12, 18)), 'pop');                            // 大きな「パン」
         else burst(2 + Math.round(e.n * rnd(0.5, 1.0)), 'crackle');                             // パチッ（3〜7個）
       } else {
-        const x0 = e.dx * 1.6;
+        const x0 = e.dx * 1.1;   // 火の粉の元の座標（SPARK_K を掛けて薪の落ちる位置に合う）
         burst(8, 'crackle', x0);
         for (let k = 0; k < 8; k++) riseSpark(1, x0, 0.22, 1.3);
       }
@@ -529,7 +539,7 @@ export function createFire(opts) {
   }
   smokeGeo.instanceCount = NSMOKE;
   const smokeMat = own(new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uBase: { value: 1.1 }, uAmt: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uBase: { value: 1.1 }, uSK: { value: SMOKE_K }, uAmt: { value: 0 } },
     vertexShader: SMOKE_VERT, fragmentShader: SMOKE_FRAG,
     transparent: true, depthWrite: false
   }));
@@ -653,11 +663,11 @@ export function createFire(opts) {
       const F = flames[k], d = F.d;
       F.ph += dt * (0.8 + 0.3 * k);
       const gust = 0.86 + 0.1 * Math.sin(t * 1.7 + k * 2.1) + 0.07 * Math.sin(t * 3.3 + k) + 0.05 * Math.sin(F.ph * 2.3);
-      const H = d.h * (0.28 + 1.35 * f) * gust * (1 + 0.35 * ap), W = d.w * (0.42 + 0.5 * f1) * (1 + 0.15 * ap);
+      const H = d.h * (0.28 + 1.35 * f) * gust * (1 + 0.35 * ap) * FLAME_K, W = d.w * (0.42 + 0.5 * f1) * (1 + 0.15 * ap) * FLAME_K;
       F.m.visible = on > 0.001 && H > 0.03;
       F.m.scale.set(W, H, 1);
       F.m.rotation.set(0, Math.atan2(cam.x - F.m.position.x, cam.z - F.m.position.z), 0);
-      F.mat.uniforms.uSize.value.set(W, H);
+      F.mat.uniforms.uSize.value.set(W / FLAME_K, H / FLAME_K);   // 模様は元の大きさの座標で作る（縮めても舌の数が増えない）
       F.mat.uniforms.uScroll.value = (F.mat.uniforms.uScroll.value + dt * speed) % 400;
       F.mat.uniforms.uInt.value = d.i * on * (0.8 + 0.25 * f1) * (1 + 0.4 * ap);
       F.mat.uniforms.uCool.value = 0.2 * (1 - f1);
@@ -666,17 +676,17 @@ export function createFire(opts) {
     // 光（2灯を別周期で。強さは flame に連動）
     const fa = 0.9 + 0.06 * Math.sin(t * 8.7) * Math.sin(t * 2.9 + 1) + 0.04 * Math.sin(t * 21.3) + 0.03 * (Math.random() - 0.5);
     const fb = 0.9 + 0.07 * Math.sin(t * 6.1 + 2) * Math.sin(t * 1.7) + 0.035 * Math.sin(t * 17.9 + 0.5) + 0.03 * (Math.random() - 0.5);
-    lightA.intensity = (18 * f + 2 * em) * fa * (1 + 0.9 * ap);
-    lightB.intensity = (13 * f + 5 * em) * fb * (1 + 0.9 * ap);
-    lightA.position.set(0.07 + 0.05 * Math.sin(t * 5.3), 0.8 + 0.12 * f + 0.05 * Math.sin(t * 7.1), 0.03 + 0.04 * Math.cos(t * 4.1));
-    lightB.position.set(-0.06 + 0.04 * Math.sin(t * 3.7 + 1), 0.62 + 0.15 * f + 0.04 * Math.sin(t * 9.3), -0.05 + 0.05 * Math.cos(t * 2.9));
+    lightA.intensity = (18 * f + 2 * em) * LIGHT_K * fa * (1 + 0.9 * ap);
+    lightB.intensity = (13 * f + 5 * em) * LIGHT_K * fb * (1 + 0.9 * ap);
+    lightA.position.set((0.07 + 0.05 * Math.sin(t * 5.3)) * 0.6, (0.8 + 0.12 * f + 0.05 * Math.sin(t * 7.1)) * LIGHT_Y_K, (0.03 + 0.04 * Math.cos(t * 4.1)) * 0.6);
+    lightB.position.set((-0.06 + 0.04 * Math.sin(t * 3.7 + 1)) * 0.6, (0.62 + 0.15 * f + 0.04 * Math.sin(t * 9.3)) * LIGHT_Y_K, (-0.05 + 0.05 * Math.cos(t * 2.9)) * 0.6);
     lightA.color.setRGB(1, 0.5 + 0.1 * f1 * (0.5 + 0.5 * Math.sin(t * 3)), 0.2);
     lightB.color.setRGB(1, 0.36 + 0.14 * f1, 0.12);   // 熾火寄りの赤み
 
     // 光の芯
     haloMat.opacity = ((bloom ? 0.14 : 0.24) * f1 * fa + 0.04 * em) * (1 + 0.8 * ap);
-    halo.scale.setScalar(1.3 + 1.5 * Math.min(1.2, f));
-    halo.position.set(0, 0.45 + 0.35 * f, 0);
+    halo.scale.setScalar((1.3 + 1.5 * Math.min(1.2, f)) * FLAME_K);
+    halo.position.set(0, (0.45 + 0.35 * f) * FLAME_K, 0);
 
     // 熾火（燃料が少ないほど主役）
     ckTime.value = t; ckEmber.value = em;
@@ -699,7 +709,7 @@ export function createFire(opts) {
 
     // 煙（ごく薄く。薪を足した直後は少し増える）
     smokeMat.uniforms.uTime.value = t;
-    smokeMat.uniforms.uBase.value = 0.95;
+    smokeMat.uniforms.uBase.value = 0.95;   // SMOKE_K を掛けて 炎の先のあたりから昇る
     smokeMat.uniforms.uAmt.value = st.started ? (0.06 + 0.03 * f1 + 0.05 * (st.boost || 0) + 0.03 * em) : 0;
     smoke.visible = st.started;
   }

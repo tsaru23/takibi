@@ -18,8 +18,8 @@ const HW = 1.45, SPR = 1.7, CRN = 3.0;                    // 入口の半幅・�
 const E0 = new THREE.Vector3(R0(PHE) * Math.sin(PHE), 0, -R0(PHE) * Math.cos(PHE));   // 入口の床の中心
 const NOUT = new THREE.Vector2(Math.sin(PHE), -Math.cos(PHE));                        // 外向き（xz）
 const TLAT = new THREE.Vector2(Math.cos(PHE), Math.sin(PHE));                         // 入口の横方向（xz）
-const FIRE_GAIN = 1.8, FIRE_DECAY = 1.4;                  // 焚火の光の強さの倍率と減衰（洞窟の壁の奥まで届かせるため、距離で落ちにくくする）
-const MOON_AZ = 0.28;                                     // カメラ（0, 1.5, 3.6）から入口の中心が見える方位。ここに月を置く
+const FIRE_GAIN = 4.0, FIRE_DECAY = 1.4;                  // 焚火の光の強さの倍率と減衰（洞窟の壁の奥まで届かせるため、距離で落ちにくくする）
+const MOON_AZ = 0.28;                                     // カメラ（0, 1.03, 2.5）から入口のあたりに見える方位。ここに月を置く
 
 const SEASON = {
   spring: { crown: 0x3a2433, crownE: 0x8a3f68, coniE: 0x163226, drift: 'petal', moonEl: 0.085, snow: false },
@@ -83,7 +83,7 @@ export default {
   id: 'cave',
   label: '洞窟',
   audio: { autoOn: ['cavewind', 'scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 } },
-  props: { logPile: { x: -2.1, z: 0.4, rotY: 0.4 } },   // 洞窟の床（平らな地面）の手前。壁・水たまり・石筍から離れた位置
+  props: { logPile: { x: -1.45, z: 0.35, rotY: 0.4 } },   // 洞窟の床（平らな地面）の手前。壁・水たまり・石筍から離れた位置
 
   build(ctx) {
     const { scene, root, api, ground, uScale, fireLights, lights, sky } = ctx;
@@ -491,7 +491,7 @@ void main() {
       update(dt, t, st) {
         curT = t; PU.uTime.value = t; PU.uFlame.value = (st.started ? clamp(st.flame, 0, 1.3) : 0) * (0.85 + 0.15 * Math.sin(t * 13 + Math.sin(t * 5) * 2)) + 0.12 * (st.ember || 0);
         let sum = 0; fireLights.forEach((l) => { sum += l.intensity; l.intensity *= FIRE_GAIN; });
-        fill.intensity = 0.14 * sum;   // fire3d は毎フレーム強さを入れ直す。洞窟では壁が揺らめいて見えるよう、そのあとに掛ける
+        fill.intensity = 0.32 * sum;   // fire3d は毎フレーム強さを入れ直す。洞窟では壁が揺らめいて見えるよう、そのあとに掛ける
         lights.moon.intensity = 0.03;             // 月の光は洞窟の中には差さない（外の淡い光は moonSpill）
         const fl = 0.92 + 0.08 * Math.sin(t * 0.9);
         moonSpill.intensity = 5.5 * fl;

@@ -130,9 +130,9 @@ float tkSn(vec3 p) {
 ` + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   {
     float d = length(vTkW.xz);
-    float n = tkSn(vTkW * 9.0);
+    float n = tkSn(vTkW * 22.0);
     // 焚火に近い面ほど、また低い所ほど煤で黒い（まだらに）
-    float soot = (1.0 - smoothstep(0.86, 1.3, d + (n - 0.5) * 0.14)) * (1.0 - 0.4 * smoothstep(0.12, 0.34, vTkW.y));
+    float soot = (1.0 - smoothstep(0.34, 0.52, d + (n - 0.5) * 0.056)) * (1.0 - 0.4 * smoothstep(0.05, 0.14, vTkW.y));
     diffuseColor.rgb *= (0.85 + 0.3 * n) * (1.0 - 0.92 * soot);
   }`);
   };
@@ -141,8 +141,9 @@ float tkSn(vec3 p) {
 }
 
 /* ---------- 石囲い: 隣り合う石が同じにならないよう並べ、幅の合計から半径を決めて隙間なく一周させる ---------- */
-export function buildRockRing(P, { radius = 1.12, seed = 77 } = {}) {
-  const rng = mulberry32(seed), V = P.rocks.length, N = Math.max(V + 2, 17);
+export function buildRockRing(P, { radius = 0.45, seed = 77 } = {}) {
+  // 石 1 個の幅は 約 20〜35cm（輪の長さ 2πr ÷ 約 0.28m）。個数は半径から決める
+  const rng = mulberry32(seed), V = P.rocks.length, N = Math.max(8, Math.round(2 * Math.PI * radius / 0.28));
   const seq = [];
   for (let i = 0; i < N; i++) {
     let v, tries = 0;
@@ -163,10 +164,10 @@ export function buildRockRing(P, { radius = 1.12, seed = 77 } = {}) {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pos = new THREE.Vector3(), sc = new THREE.Vector3();
   items.forEach((it, i) => {
     const next = items[(i + 1) % items.length];
-    const rr = radius + (rng() - 0.5) * 0.06;
+    const rr = radius + (rng() - 0.5) * 0.025;
     const yaw = a - Math.PI / 2 + (rng() - 0.5) * 0.35 + (rng() < 0.5 ? Math.PI : 0);   // 長手が輪に沿う
     q.setFromEuler(e.set((rng() - 0.5) * 0.12, yaw, (rng() - 0.5) * 0.12, 'YXZ'));
-    pos.set(Math.cos(a) * rr, -0.012 - rng() * 0.02, Math.sin(a) * rr);
+    pos.set(Math.cos(a) * rr, -0.005 - rng() * 0.01, Math.sin(a) * rr);
     m4.compose(pos, q, sc.set(it.sx, it.sy, it.sz));
     per[it.v].push(m4.clone());
     a += (it.w / 2 + next.w / 2) / radius;

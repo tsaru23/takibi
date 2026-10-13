@@ -138,7 +138,7 @@ export default {
   id: 'river',
   label: '川',
   audio: { autoOn: ['river'], reverb: null },
-  props: { logPile: { x: -2.0, z: 0.45, rotY: 0.45 }, pebbles: false },   // 水際から離す。共通の小石は川の水の中に出るので置かない
+  props: { logPile: { x: -1.4, z: 0.4, rotY: 0.45 }, pebbles: false },   // 水際から離す。共通の小石は川の水の中に出るので置かない
 
   build(ctx) {
     const { scene, root, ground, uScale } = ctx;
@@ -340,7 +340,7 @@ export default {
       const pts = []; let guard = 0;
       while (pts.length < 48 && guard++ < 800) {
         const x = (rng() * 2 - 1) * 28, d = 4 + rng() * 22, z = zc(clamp(x, -X_END, X_END)) - hw(clamp(x, -X_END, X_END)) - d;
-        const az = Math.atan2(x, 3.6 - z);
+        const az = Math.atan2(x, 2.5 - z);
         if (Math.abs(az - 0.5) < 0.17) continue;          // 月の前には立てない
         pts.push({ x, z, s: 0.9 + rng() * 1.1, y: bermH(Math.min(d, 8)) - 0.05 });
       }
@@ -351,7 +351,7 @@ export default {
     root.add(trees.group);
     // FABOTANIC の遠景の木。カメラから10m以上離す。読めたら仮の木と入れ替える
     let far = null;
-    loadFarTrees(ctx, treePts.filter((p) => Math.hypot(p.x, p.z - 3.6) > 10).map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })), { seed: 31, brightness: 0.55 }).then((h) => {
+    loadFarTrees(ctx, treePts.filter((p) => Math.hypot(p.x, p.z - 2.5) > 10).map((p) => ({ x: p.x, z: p.z, y: p.y, h: Math.min(14, Math.max(6, p.s * 6.8)) })), { seed: 31, brightness: 0.55 }).then((h) => {
       if (!h || disposed) { if (h) h.dispose(); return; }
       far = h; root.add(h.group); trees.group.visible = false;
       if (season) h.setSeason(season);

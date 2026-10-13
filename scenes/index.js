@@ -15,6 +15,9 @@
 //     },                                  //   y は常に地面（0）。水際・波の届く所・床のくぼみ・庭の飾りには置かない
 //     build(ctx) -> { update(dt, t, state), setSeason(season), dispose() }
 //   }
+// 縮尺: 1 unit = 1 m。焚火（石囲い 外径 約1.2m・薪 長さ 約0.45m・炎 約0.5〜1.1m・火の粉 高さ 約2〜3m）、切り株（直径・高さ 約0.4m）、
+//   カメラ（目の高さ 約1.03m・焚火の中心から水平に約2.5m。座った人の目線）を基準に、シーンの物も実物の大きさで置く
+//   （ログハウス 床 約4.4×4.6m・棟 約4.6m、鹿威し 約1.2m、石灯籠 約1.5m、鯉 約0.6m、蓮の葉 約0.3〜0.5m、川幅 約5.8m など）
 // ctx: { THREE, scene, root, renderer, camera, api, util, assets, uScale, fireCenter, isStopped }
 //   root      : シーン専用の Group（scene に追加済み）。置くものはここに add する。切替時にホスト側でも破棄する
 //   uScale    : ポイントスプライトの大きさ係数 { value }（util.makePoints に渡す）

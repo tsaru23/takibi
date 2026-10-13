@@ -4,10 +4,11 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, radialTexture, disposeTree } from './util.js';
 
 /* ---------- 配置（x は右、z は奥がマイナス。カメラは +Z 側から焚火を見る） ---------- */
-const SH_POS = { x: 2.3, z: -1.3 };          // 鹿威し
-const LANTERN = { x: 3.5, z: -3.1 };         // 石灯籠
-const STAND = { x: -1.0, z: -2.7, len: 1.9 }; // 盆栽の縁台
-const SAND = { x: -3.2, z: -0.9, w: 2.6, d: 1.8 };   // 枯山水
+const SH_POS = { x: 1.8, z: -1.4 };         // 鹿威し
+const SH_K = 0.7;                             // 鹿威しの倍率（元は 筒 約1.0m・支柱の先までの高さ 約1.7m。0.7 で 筒 約0.7m・高さ 約1.2m・石鉢の直径 約0.44m）
+const LANTERN = { x: 3.0, z: -3.5 };         // 石灯籠
+const STAND = { x: -0.9, z: -2.7, len: 1.7 }; // 盆栽の縁台
+const SAND = { x: -2.5, z: -1.2, w: 2.6, d: 1.8 };   // 枯山水
 
 const SEASON = {
   spring: { tint: [0.9, 1.0, 0.86], moss: 0x4f8a3c, bamboo: 0x7aa84a, leaf: 0x86b64c, snow: 0, groundLeaves: 0, petals: 24, wind: 1.0,
@@ -167,7 +168,7 @@ export default {
   id: 'garden',
   label: '庭園・竹藪',
   audio: { autoOn: ['bamboo', 'scenesfx'], reverb: { seconds: 1.6, decay: 3, wet: 0.22 } },
-  props: { logPile: { x: -2.0, z: 0.6, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
+  props: { logPile: { x: -1.4, z: 0.5, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
 
   build(ctx) {
     const { scene, root, api, assets, ground } = ctx;
@@ -197,7 +198,7 @@ export default {
     /* --- 飛び石 --- */
     {
       const stoneGeo = own(geos, new THREE.CylinderGeometry(1, 1.1, 0.07, 9));
-      const pos = [[1.5, 2.5], [1.95, 1.6], [2.3, 0.7], [2.45, -0.2], [-1.0, -1.35], [-0.75, -1.9], [-2.0, 1.8], [-2.5, 1.0], [-2.3, 0.2]];
+      const pos = [[1.05, 1.8], [1.4, 1.1], [1.7, 0.4], [1.85, -0.35], [-0.6, -1.15], [-0.45, -1.6], [-1.3, 1.5], [-1.6, 0.9], [-1.75, 0.3]];
       const sm = own(mats, new THREE.MeshStandardMaterial({ color: 0x77746c, roughness: 0.95, flatShading: true }));
       const im = new THREE.InstancedMesh(stoneGeo, sm, pos.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
       pos.forEach(([x, z], i) => {
@@ -241,7 +242,7 @@ export default {
     }
 
     /* --- 鹿威し --- */
-    const sh = new THREE.Group(); sh.position.set(SH_POS.x, 0, SH_POS.z); root.add(sh);
+    const sh = new THREE.Group(); sh.position.set(SH_POS.x, 0, SH_POS.z); sh.scale.setScalar(SH_K); root.add(sh);   // 部品の位置・水・波紋は sh のローカル座標なので、まとめて縮む
     const bambooMat = own(mats, new THREE.MeshLambertMaterial({ color: 0x7a8a3c }));
     const bambooDark = own(mats, new THREE.MeshLambertMaterial({ color: 0x4e5a24 }));
     const woodMat = own(mats, new THREE.MeshLambertMaterial({ color: 0x6b4a2c }));
@@ -428,7 +429,7 @@ export default {
     {
       const top = new THREE.Mesh(own(geos, new THREE.BoxGeometry(STAND.len, 0.06, 0.46)), woodMat); top.position.y = 0.5; stand.add(top);
       const lg = own(geos, new THREE.BoxGeometry(0.06, 0.5, 0.06));
-      [[-0.88, -0.19], [0.88, -0.19], [-0.88, 0.19], [0.88, 0.19]].forEach(([x, z]) => { const l = new THREE.Mesh(lg, woodMat); l.position.set(x, 0.25, z); stand.add(l); });
+      [[-1, -0.19], [1, -0.19], [-1, 0.19], [1, 0.19]].map(([sx, z]) => [sx * (STAND.len / 2 - 0.07), z]).forEach(([x, z]) => { const l = new THREE.Mesh(lg, woodMat); l.position.set(x, 0.25, z); stand.add(l); });
       const shelf = new THREE.Mesh(own(geos, new THREE.BoxGeometry(STAND.len - 0.1, 0.03, 0.4)), woodMat); shelf.position.y = 0.16; stand.add(shelf);
     }
     const potCols = [0x34344c, 0x6a4a3a, 0x30484a];
@@ -441,7 +442,7 @@ export default {
         const x = (i - 1) * 0.62, g = new THREE.Group(); g.position.set(x, 0.53, 0);
         const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.095, 0.085, 10), new THREE.MeshStandardMaterial({ color: potCols[i], roughness: 0.4, metalness: 0.05 })); pot.position.y = 0.043; g.add(pot);
         const soil = new THREE.Mesh(new THREE.CircleGeometry(0.115, 10), new THREE.MeshLambertMaterial({ color: cfg.snow ? 0xe4ecf6 : 0x3a5a2c })); soil.rotation.x = -Math.PI / 2; soil.position.y = 0.087; g.add(soil);
-        const tree = buildBonsai(kind, cfg, 300 + i * 17); tree.position.y = 0.08; tree.scale.setScalar(1.25); g.add(tree);
+        const tree = buildBonsai(kind, cfg, 300 + i * 17); tree.position.y = 0.08; tree.scale.setScalar(1.0); g.add(tree);   // 鉢と木で 約0.4〜0.7m
         bonsaiRoot.add(g);
       });
     }

@@ -19,6 +19,10 @@ const GAP_MS = 250;                  // これを超えるフレーム間隔は�
 const FOV = 55;
 const SKY_R = 150;                   // 空の物（月・流れ星・星）を置く半径
 const TILE_M = 1.75;                 // 土のテクスチャ1タイルの大きさ(m)
+// 世界の縮尺は 1 unit = 1 m。焚火まわり（実物の目安: 石囲い外径 約1.1m・石 20〜35cm・薪 長さ約45cm 太さ約12cm・切り株 直径約40cm 高さ約40cm）
+const LOG_K = 0.5;                   // 薪の長さの倍率（元の GLB の薪は 長さ 0.9 → 約 0.45m）
+const POS_K = 0.45;                  // 焚火まわりの置き位置の倍率（薪の根元など）
+const RING_R = 0.45;                 // 石囲いの石の中心を結ぶ円の半径(m)
 const SITE = new URL('./', import.meta.url);
 
 /* 季節ごとの環境色と月 */
@@ -200,19 +204,20 @@ export async function start(opts) {
   {
     if (props && props.stump) {
       const stump = new THREE.Mesh(props.stump, props.stumpMat);
-      stump.position.set(2.05, 0, 0.55); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump;
+      stump.scale.set(0.53, 0.95, 0.53);   // GLB は直径 約0.77m・高さ 0.42m。直径 約0.4m・高さ 約0.4m に
+      stump.position.set(1.25, 0, 0.45); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump;
     } else {
       const barkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1d, roughness: 1 });
       const cutMat = new THREE.MeshStandardMaterial({ color: 0x7d5f40, roughness: 0.95 });
-      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.33, 0.42, 14), [barkMat, cutMat, cutMat]);
-      stump.position.set(2.05, 0.19, 0.55); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump; stumpY = 0.19;
+      const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 0.4, 14), [barkMat, cutMat, cutMat]);
+      stump.position.set(1.25, 0.19, 0.45); stump.rotation.y = 0.5; scene.add(stump); stumpObj = stump; stumpY = 0.19;
     }
     const bundle = new THREE.Group();
     if (props && props.logs) {
       // 手前の予備の薪: 下に3本、上に2本。GLB の薪（長さ1に正規化済み・軸は Y）を横に寝かせて重ねる。半割は割り面を下にする
       const L = props.logs, halfI = L.findIndex((l) => l.half), full = L.map((l, i) => i).filter((i) => !L[i].half);
       const fi = (k) => (full.length ? full[k % full.length] : 0);
-      const LEN = 0.68, rZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
+      const LEN = 0.45, rZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2);
       const D = (L[fi(0)].dia) * LEN;    // 丸太の太さ（断面の直径。軸の長さを含む thick を使うと、上の段が宙に浮く）
       const lay = [[-D, 0, halfI >= 0 ? halfI : fi(1)], [0, 0, fi(0)], [D, 0, fi(1)], [-D / 2, 1, fi(1)], [D / 2, 1, fi(0)]];
       const br = mulberry32(21);
@@ -223,7 +228,7 @@ export async function start(opts) {
         // Y 軸まわりの向き × 軸を水平に倒す回転 × （丸太は軸まわりにランダムに回す。半割は割り面を下に固定）
         m.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i - 2) * 0.05 + (br() - 0.5) * 0.05).multiply(rZ)
           .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), isHalf ? 0 : br() * 6.28));
-        m.position.set((i % 3 - 1) * 0.03, row ? D * 0.88 + r : (isHalf ? 0.004 : r), z);
+        m.position.set((i % 3 - 1) * 0.02, row ? D * 0.88 + r : (isHalf ? 0.004 : r), z);
         bundle.add(m);
       });
     } else {
@@ -233,13 +238,14 @@ export async function start(opts) {
         const m = new THREE.Mesh(bundleGeo, i % 2 ? barkMat : new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 }));
         m.position.set((i % 3 - 1) * 0.04, y, z); m.rotation.y = (i - 2) * 0.05; bundle.add(m);
       });
+      bundle.scale.setScalar(0.55);
     }
-    bundle.position.set(-2.0, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle); bundleObj = bundle;
+    bundle.position.set(-1.4, 0, 0.1); bundle.rotation.y = 0.35; scene.add(bundle); bundleObj = bundle;
     const pebGeo = new THREE.IcosahedronGeometry(1, 0);
     const pebbles = new THREE.InstancedMesh(pebGeo, new THREE.MeshStandardMaterial({ color: 0x3a3836, roughness: 0.95, flatShading: true }), 16);
     const pr = mulberry32(5), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler();
     for (let i = 0; i < 16; i++) {
-      const a = pr() * Math.PI * 2, r = 1.7 + pr() * 1.5, s2 = 0.03 + pr() * 0.05;
+      const a = pr() * Math.PI * 2, r = 0.9 + pr() * 1.5, s2 = 0.025 + pr() * 0.04;
       q.setFromEuler(e3.set(pr() * 3, pr() * 3, pr() * 3));
       m4.compose(new THREE.Vector3(Math.sin(a) * r, s2 * 0.4, Math.cos(a) * r), q, new THREE.Vector3(s2 * 1.3, s2 * 0.7, s2));
       pebbles.setMatrixAt(i, m4);
@@ -254,15 +260,17 @@ export async function start(opts) {
     roughness: 1, metalness: 0, transparent: true, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
   });
-  const ash = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), ashMat);
+  const ash = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.25), ashMat);
   ash.rotation.x = -Math.PI / 2; ash.position.y = 0.012; scene.add(ash);
 
   /* 石囲い */
   let stoneGeo = null;
-  if (props && props.rocks) scene.add(buildRockRing(props));      // Blender 製の石 rock_01〜08 を、焚火を囲むリングに並べる
+  if (props && props.rocks) scene.add(buildRockRing(props, { radius: RING_R }));      // Blender 製の石 rock_01〜08 を、焚火を囲むリングに並べる
   else {
     stoneGeo = buildStones(BU.mergeVertices, BU.mergeGeometries);
-    scene.add(new THREE.Mesh(stoneGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 })));
+    const stoneMesh = new THREE.Mesh(stoneGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+    stoneMesh.scale.setScalar(RING_R / 1.12);   // コード製の石囲いは半径 1.12 で作ってあるので縮める
+    scene.add(stoneMesh);
   }
 
   /* 薪: 燃料の量に応じて本数が変わる。手前（カメラ側）の薪は低く寝かせて、炎を隠さない。
@@ -286,13 +294,13 @@ export async function start(opts) {
     if (fr) {
       const hl = Math.hypot(fr.h[0], fr.h[1]), th = 1.2;
       dir = new THREE.Vector3(fr.h[0] / hl * Math.sin(th), Math.cos(th), fr.h[1] / hl * Math.sin(th));
-      base = new THREE.Vector3(...fr.base); len = GL ? 0.74 : 0.78;
+      base = new THREE.Vector3(...fr.base).multiplyScalar(POS_K); len = (GL ? 0.74 : 0.78) * LOG_K;
     } else {
       const a = slot * (Math.PI / 4) + (slot % 2) * 0.12;
-      const R0 = 0.5 + (slot % 2) * 0.12, th = 0.52 + (slot % 2) * 0.14;
-      len = (GL ? 0.9 : 1.0) - (slot % 2) * (GL ? 0.14 : 0.16);
+      const R0 = (0.5 + (slot % 2) * 0.12) * POS_K, th = 0.52 + (slot % 2) * 0.14;
+      len = ((GL ? 0.9 : 1.0) - (slot % 2) * (GL ? 0.14 : 0.16)) * LOG_K;
       dir = new THREE.Vector3(-Math.cos(a) * Math.sin(th), Math.cos(th), -Math.sin(a) * Math.sin(th));
-      base = new THREE.Vector3(Math.cos(a) * R0, 0.1, Math.sin(a) * R0);
+      base = new THREE.Vector3(Math.cos(a) * R0, 0.1 * POS_K, Math.sin(a) * R0);
       outward = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
       // 奥側の薪も、上の断面がカメラを向きすぎないよう水平方向にひねる（視点を回したときの偏りも減らす）
       const twist = { 5: 0.6, 6: 1.0, 7: -0.6 }[slot];
@@ -316,12 +324,12 @@ export async function start(opts) {
           const ang = r1.angleTo(t) * (dir.dot(r1.clone().cross(t)) < 0 ? -1 : 1);
           q1.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, ang));
         }
-        if (fr) base.y = Math.max(0.03, base.y - l.thick * len * 0.5);
+        if (fr) base.y = Math.max(0.015, base.y - l.thick * len * 0.5);
       } else q1.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, i * 2.1));   // 丸太は軸まわりにばらす
       m.quaternion.copy(q1);
     } else {
       m = new THREE.Mesh(logGeo, new THREE.MeshStandardMaterial({ color: 0x4a2f1c, roughness: 0.92, emissive: 0x000000 }));
-      m.scale.y = len;
+      m.scale.set(LOG_K, len, LOG_K);
       m.quaternion.setFromUnitVectors(Y_UP, dir);
     }
     m.position.copy(base).addScaledVector(dir, len / 2);
@@ -458,9 +466,9 @@ export async function start(opts) {
   }
 
   /* ---------- カメラ ---------- */
-  const target = new THREE.Vector3(0, 0.9, 0);
+  const target = new THREE.Vector3(0, 0.68, 0);
   let azT = 0, az = 0, elT = 0, el = 0;
-  const CAM_R = 3.6, CAM_EL = 0.155;   // 焚火の前に座って、火と空を一緒に見る目線
+  const CAM_R = 2.5, CAM_EL = 0.14;   // 焚火の前に座った人の目線（目の高さ 約1.03m・焚火の中心から水平に約2.5m）。火と空を一緒に見る
 
   /* 入力: ドラッグで視点、ドラッグでないクリックで薪をくべる */
   let down = null, dragged = false;
@@ -518,7 +526,7 @@ export async function start(opts) {
     setVisible(v) { hills.visible = !!v; hillMeshes.forEach((h) => { h.visible = hills.visible; }); }
   };
   /* 共通の小物の置き場所: シーン定義の props で上書きできる（未指定は既定、null は非表示）。位置は地面の上（y は自動） */
-  const DEFAULT_PROPS = { logPile: { x: -2.0, z: 0.1, rotY: 0.35 }, stump: { x: 2.05, z: 0.55, rotY: 0.5 }, pebbles: true };
+  const DEFAULT_PROPS = { logPile: { x: -1.4, z: 0.1, rotY: 0.35 }, stump: { x: 1.25, z: 0.45, rotY: 0.5 }, pebbles: true };
   function applyProps(p) {
     p = p || {};
     const pick = (k) => (p[k] === undefined ? DEFAULT_PROPS[k] : p[k]);
@@ -575,9 +583,9 @@ export async function start(opts) {
     api.onLogAdded((ev) => {
       if (ev.type === 'drop') {
         const mesh = new THREE.Mesh(GL ? GL[fullI.length ? fullI[0] : 0].geo : logGeo, dropMat);
-        if (GL) mesh.scale.setScalar(0.85); else mesh.scale.y = 0.95;
+        if (GL) mesh.scale.setScalar(0.85 * LOG_K); else mesh.scale.set(LOG_K, 0.95 * LOG_K, LOG_K);
         scene.add(mesh);
-        falling.push({ mesh, t0: ev.t0, landAt: ev.landAt, dx: ev.dx * 1.6, ang: ev.ang });
+        falling.push({ mesh, t0: ev.t0, landAt: ev.landAt, dx: ev.dx * 1.6 * POS_K, ang: ev.ang });
       }
     }),
     api.onActiveChange((on) => setActive(on))
@@ -629,7 +637,7 @@ export async function start(opts) {
     for (let i = 0; i < logs.length; i++) logs[i].visible = i < shown;
     for (let i = falling.length - 1; i >= 0; i--) {
       const d = falling[i], p = clamp((now - d.t0) / (d.landAt - d.t0), 0, 1), e2 = p * p;
-      d.mesh.position.set(d.dx * (1 - e2 * 0.6), 3.4 + (0.6 - 3.4) * e2, 0);
+      d.mesh.position.set(d.dx * (1 - e2 * 0.6), 2.2 + (0.35 - 2.2) * e2, 0);
       d.mesh.rotation.set(0, 0, Math.PI / 2 + d.ang * (1 - 0.6 * e2));
       if (now >= d.landAt + 40) { scene.remove(d.mesh); falling.splice(i, 1); }
     }

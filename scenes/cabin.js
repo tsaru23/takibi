@@ -11,7 +11,7 @@ import { makeSnowPoints } from './snow.js';
 import { loadFarTrees, inSkyClearing } from './farTrees.js';
 
 /* 家の位置（焚火の奥・やや左）と向き（焚火の方へ少し振る）。寸法は家のローカル座標（+Z が玄関側）*/
-const CAB = { x: -3.1, z: -8.6, ry: 0.32 };
+const CAB = { x: -2.6, z: -10.4, ry: 0.32 };
 const W = 4.4, D = 4.6, R = 0.135, S = 0.245, NC = 9;        // 幅・奥行き・丸太の半径・段の間隔・壁の段数
 const Y0 = 0.14, Y_TOP = Y0 + (NC - 1) * S + R;               // 最下段の中心の高さ / 壁の上面
 const HALF = W / 2 + 0.35, RISE = 1.6, ALPHA = Math.atan2(RISE, HALF), SLANT = Math.hypot(HALF, RISE);
@@ -310,7 +310,7 @@ export default {
     }
     function buildStump(g, m) {
       g.computeBoundingBox(); const bb = g.boundingBox, h = bb.max.y - bb.min.y, k = 0.45 / h, c = bb.getCenter(new THREE.Vector3());
-      const gg = own(geos, g.clone()); gg.translate(-c.x, -bb.min.y, -c.z); gg.scale(k, k, k);
+      const gg = own(geos, g.clone()); gg.translate(-c.x, -bb.min.y, -c.z); gg.scale(k * 0.8, k, k * 0.8);   // 斧を打つ台。直径 約0.5m
       const mesh = new THREE.Mesh(gg, m); mesh.rotation.y = 0.8; stumpGrp.add(mesh); stumpTop = 0.45;
       stumpGrp.userData.axe.position.y = stumpTop - 0.04; stumpSnow.position.y = stumpTop + 0.01;
       stumpGrp.userData.fallback && (stumpGrp.userData.fallback.visible = false);

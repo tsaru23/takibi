@@ -125,7 +125,7 @@ export default {
   id: 'sea',
   label: '海',
   audio: { autoOn: ['wave'], reverb: null },
-  props: { logPile: { x: -2.0, z: 0.3, rotY: 0.35 } },   // 波が届かない平らな砂の上（z > -3）
+  props: { logPile: { x: -1.4, z: 0.25, rotY: 0.35 } },   // 波が届かない平らな砂の上（z > -3）
 
   build(ctx) {
     const { root, api, assets, ground, uScale, camera, hills, sky } = ctx;

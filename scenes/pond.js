@@ -4,15 +4,15 @@ import * as THREE from 'three';
 import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, loadOptionalModel, materialTextures } from './util.js';
 
 /* ---------- 池の形（焚火の右奥〜右） ----------
-   カメラ（0, 1.46, 3.6 から -Z を見る・縦画角55°）は低いので、手前の石囲いの陰にならないよう池を焚火から離し、
+   カメラ（0, 1.03, 2.5 から -Z を見る・縦画角55°）は低いので、手前の石囲いの陰にならないよう池を焚火から離し、
    水面が帯として見渡せる位置に置く。右端は 4:3 の画面の右端（奥行き d のとき x = 0.69 d）より内側に収める。
    月の映り込みの筋（カメラから右へ約29°の方向）が池を横切る位置でもある */
-const PC = { x: 1.9, z: -2.6, a: 1.6, b: 1.4 };     // 中心と楕円の半径（x 方向 a, z 方向 b）
+const PC = { x: 1.3, z: -3.3, a: 1.95, b: 1.65 };    // 中心と楕円の半径（x 方向 a, z 方向 b）。直径 約3.9 × 3.3m（輪郭のゆらぎで ±10%）
 const Y_WATER = -0.06, Y_FLOOR = -1.0;
 const outline = (th) => 1 + 0.10 * Math.sin(3 * th + 1.0) + 0.06 * Math.sin(5 * th + 2.0) + 0.04 * Math.sin(2 * th + 0.3);
 const pondXZ = (th, u) => { const r = outline(th) * u; return [PC.x + Math.cos(th) * PC.a * r, PC.z + Math.sin(th) * PC.b * r]; };
 const pondU = (x, z) => { const dx = (x - PC.x) / PC.a, dz = (z - PC.z) / PC.b; return Math.hypot(dx, dz) / outline(Math.atan2(dz, dx)); };
-const FIRE = new THREE.Vector3(0, 0.55, 0);
+const FIRE = new THREE.Vector3(0, 0.35, 0);
 
 const SEASON = {
   spring: { leafN: 6, leaf: 0x3d7a3a, frogs: 3, flowers: 0, floating: 0, ice: false, ff: 1, riseEvery: [60, 140], grass: 0x6da85c,
@@ -371,7 +371,7 @@ export default {
       const lr = mulberry32(555), c = new THREE.Color(), base = new THREE.Color(cfg.leaf);
       let guard = 0;
       while (leaves.length < n && guard++ < 800) {
-        const [x, z] = pondXZ(lr() * 6.28, Math.sqrt(0.04 + lr() * 0.6)), r = 0.2 + lr() * 0.14;
+        const [x, z] = pondXZ(lr() * 6.28, Math.sqrt(0.04 + lr() * 0.6)), r = 0.16 + lr() * 0.08;   // 葉の直径 約0.3〜0.5m（leafK=2 を掛けて描く）
         if (leaves.some((l) => Math.hypot(l.x - x, l.z - z) < (l.r + r) * 0.95)) continue;
         if (pondU(x, z) > 0.84) continue;
         leaves.push({ x, z, r, ph: lr() * 6.28, rot: lr() * 6.28, tx: (lr() - 0.5) * 0.12, tz: (lr() - 0.5) * 0.12, y: Y_WATER + 0.01, occ: -1 });
@@ -486,7 +486,7 @@ export default {
     for (let i = 0; i < 3; i++) {
       const g = new THREE.Group(), body = new THREE.Mesh(fp.body, frogMat), eyes = new THREE.Mesh(fp.eyes, eyeMat), throat = new THREE.Mesh(fp.throat, throatMat);
       throat.position.set(0.5, 0.22, 0); throat.scale.set(0.12, 0.1, 0.12);
-      g.add(body, eyes, throat); g.scale.setScalar(0.17); g.visible = false; root.add(g);
+      g.add(body, eyes, throat); g.scale.setScalar(0.08); g.visible = false;   // 体長 約8cm root.add(g);
       frogs.push({ g, body, eyes, throat, state: 'sit', until: 0, leaf: -1, calls: [], t0: 0, dur: 1, from: new THREE.Vector3(), to: new THREE.Vector3(), nextLeaf: -1, psi: 0, active: false });
     }
     // frog.glb が読めたら { lift（体の底を原点に合わせる持ち上げ量）, tp（喉の中心）, tgeo } 。喉は GLB の楕円体を中心に置き直し、膨らませる
