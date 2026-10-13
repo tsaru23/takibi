@@ -98,7 +98,10 @@ function dropTexture() { return radialTexture(64, [[0, 'rgba(255,255,255,1)'], [
 export default {
   id: 'cave',
   label: '洞窟',
-  audio: { autoOn: ['cavewind', 'scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 } },
+  audio: {
+    autoOn: ['cavewind', 'scenesfx'], reverb: { seconds: 4.4, decay: 2.2, wet: 0.55 },
+    sources: { cavewind: [{ x: E0.x + TLAT.x, y: 1.2, z: E0.z + TLAT.y }, { x: E0.x - TLAT.x, y: 2.2, z: E0.z - TLAT.y }] }   // 入口のアーチの左右
+  },
   props: { logPile: { x: -1.45, z: 0.35, rotY: 0.4 } },   // 洞窟の床（平らな地面）の手前。壁・水たまり・石筍から離れた位置
 
   build(ctx) {
@@ -401,7 +404,7 @@ void main() {
           d.bead.scale.setScalar(0.004 + 0.016 * p * p); d.bead.position.set(d.x, d.tipY - 0.02 * p * p, d.z);
           if (p >= 1) {
             d.state = 'fall'; d.t0 = t; d.bead.visible = false; d.streak.visible = true;
-            api.playSfx && api.playSfx('drip', { delay: d.fall, vol: rnd(0.8, 1.0), pan: clamp(d.x / 5, -0.8, 0.8) });   // 映像の着水の時刻に合わせて予約
+            api.playSfx && api.playSfx('drip', { delay: d.fall, vol: rnd(0.8, 1.0), pos: { x: d.x, y: 0.05, z: d.z } });   // 映像の着水の時刻に合わせて予約
           }
         } else if (d.state === 'fall') {
           const tau = t - d.t0;

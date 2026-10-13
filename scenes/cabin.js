@@ -499,7 +499,7 @@ export default {
         smoke.flush(NSM);
         updateDrift(season, dt, t, st.seasonFx !== false);
         // 家の木が小さくきしむ
-        if (t > nextCreak) { nextCreak = t + rnd(45, 140); api.playSfx && api.playSfx('creak', { vol: rnd(0.5, 0.9), pan: clamp(CAB.x / 5, -0.8, 0.8) }); }
+        if (t > nextCreak) { nextCreak = t + rnd(45, 140); api.playSfx && api.playSfx('creak', { vol: rnd(0.5, 0.9), pos: { x: CAB.x + 0.8, y: 1.8, z: CAB.z + 2.2 } }); }   // 音の位置は家の手前の壁のあたり
       },
       dispose() {
         disposed = true;

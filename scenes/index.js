@@ -6,7 +6,12 @@
 //     label: '季節の木',              // 設定パネルの表示名
 //     audio: {
 //       autoOn: ['brook'],          // このシーンを選んだとき自動でオンにする環境音の id（index.html の ENV。frog, bamboo, scenesfx なども）。離れると元に戻る
-//       reverb: null                // または { seconds: 2.4, decay: 3, wet: 0.35 }。ConvolverNode の残響（IR はコードで生成）
+//       reverb: null,               // または { seconds: 2.4, decay: 3, wet: 0.35 }。ConvolverNode の残響（IR はコードで生成）
+//       sources: {                  // 省略可。音の鳴る場所（立体音響。1 unit = 1 m、焚火が原点、y は高さ。省略した y は既定の高さ）。
+//         river: [{x, z}, ...],     //   川の流れ: 川の帯に沿った点（3点に間引いて使う）。 wave: 波打ち際に沿った点（3点）
+//         brook: [..], cavewind: [..],  // せせらぎ（1点）、洞窟の風（2点）
+//         frog: [..], chime: [..],  //   蛙（個体ごと3点）、風鈴（1点）。 owl: [..] はフクロウの候補（無ければ 18〜32m 先のランダム）
+//       }                           //   指定の無い音は、聞き手のまわりに包まれる音として鳴る（風鈴・蛙はシーンごとのランダムな固定位置）
 //     },
 //     props: {                      // 省略可。共通の小物（scene3d.js が置く）の置き場所。未指定の項目は既定の位置、null は非表示
 //       logPile: { x, z, rotY } | null,   // 手前の予備の薪の束（既定 x -2.0, z 0.1, rotY 0.35）
@@ -42,7 +47,7 @@
 //   草（FABOTANIC のフィールド）の間引く扇形は、カメラの方向について回る（forest.js の patchFieldMaterial）。
 //   描く量: 視錐台の外の物は描かれないが、InstancedMesh は frustumCulled=false だと全部を処理する。大きな物（竹の株など）は方位ごとに InstancedMesh を分ける（garden.js）。
 // api（window.TAKIBI）にシーン向けの窓口:
-//   api.playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null : 効果音（plop splash plip lap kakon pour drip trickle creak）。delay は「映像でその瞬間が来るまでの秒数」で、音は出力遅延ぶん早めに予約される
+//   api.playSfx(name, {delay, vol, pos:{x,y,z}, dur}) -> {stop()}|null : 効果音（pos は鳴る場所。無ければ聞き手のまわり。旧 pan も使える）（plop splash plip lap kakon pour drip trickle creak）。delay は「映像でその瞬間が来るまでの秒数」で、音は出力遅延ぶん早めに予約される
 //   api.onEnvEvent(cb) -> 解除関数 : 環境音の予約時刻に同期したイベント {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]}（蛙の喉の動き用）
 //                                   他に {kind:'wave', t, rise, fall, peak}（さざ波の寄せ始め・寄せる秒・引く秒・強さ 0.6〜1）と {kind:'fw', t}（遠くの花火。音の1秒前）
 // GLB: assets/models/ に置いたファイル名を assets/plants/manifest.json の "models" 配列に書くと、util.loadOptionalModel で読める

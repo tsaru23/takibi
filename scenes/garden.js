@@ -6,6 +6,7 @@ import { mulberry32, rnd, clamp, mergeGeoms, tileNoise, heightToNormalTexture, r
 /* ---------- 配置（x は右、z は奥がマイナス。カメラは +Z 側から焚火を見る） ---------- */
 const SH_POS = { x: 1.8, z: -1.4 };         // 鹿威し
 const SH_K = 0.7;                             // 鹿威しの倍率（元は 筒 約1.0m・支柱の先までの高さ 約1.7m。0.7 で 筒 約0.7m・高さ 約1.2m・石鉢の直径 約0.44m）
+const SH_SND = { x: SH_POS.x, y: 0.35, z: SH_POS.z };   // 鹿威しの音の位置
 const LANTERN = { x: 3.0, z: -3.5 };         // 石灯籠
 const STAND = { x: -0.9, z: -2.7, len: 1.7 }; // 盆栽の縁台
 const SAND = { x: -2.5, z: -1.2, w: 2.6, d: 1.8 };   // 枯山水
@@ -177,7 +178,7 @@ function stripeTex() {
 export default {
   id: 'garden',
   label: '庭園・竹藪',
-  audio: { autoOn: ['bamboo', 'scenesfx'], reverb: { seconds: 1.6, decay: 3, wet: 0.22 } },
+  audio: { autoOn: ['bamboo', 'scenesfx'], reverb: { seconds: 1.6, decay: 3, wet: 0.22 }, sources: { brook: [{ x: SH_POS.x, y: 0.2, z: SH_POS.z }] } },
   props: { logPile: { x: -1.4, z: 0.5, rotY: 0.35 } },   // 枯山水（x -4.5〜-1.9, z -1.8〜0）に重ならない手前へ
 
   build(ctx) {
@@ -311,7 +312,7 @@ export default {
       SHI.t0 = t - skip; SHI.T = rnd(20, 40); SHI.tFill = SHI.T - (D_TIP + D_HOLD + D_RET + D_BOUNCE);
       SHI.played = { pour: false, kakon: false, drip: false }; SHI.struck = false;
       if (SHI.trickle) { try { SHI.trickle.stop(); } catch (e) {} }
-      SHI.trickle = api.playSfx && SHI.tFill - skip > 1 ? api.playSfx('trickle', { dur: SHI.tFill - skip, pan: 0.3 }) : null;
+      SHI.trickle = api.playSfx && SHI.tFill - skip > 1 ? api.playSfx('trickle', { dur: SHI.tFill - skip, pos: SH_SND }) : null;
     }
     function ringAdd(t) { const r = rings.reduce((a, b) => (a.t0 < b.t0 ? a : b)); r.t0 = t; }
     const pan = clamp(SH_POS.x / 5, -0.8, 0.8);
@@ -337,7 +338,7 @@ export default {
         if (!SHI.played.kakon) {          // 戻り始めの時点で、石に当たる時刻（D_RET 秒後）に合わせて音を予約する
           SHI.played.kakon = true;
           const remain = Math.max(0, SHI.t0 + tBounce - t);     // 石に当たる時刻までの残り（映像と同じ時刻表）
-          api.playSfx && api.playSfx('kakon', { delay: remain, pan, vol: rnd(0.85, 1) });
+          api.playSfx && api.playSfx('kakon', { delay: remain, pos: SH_SND, vol: rnd(0.85, 1) });
           SHI.schedPerf = performance.now() / 1000 + remain;
         }
       } else {
@@ -362,7 +363,7 @@ export default {
         if (on) { r.m.scale.setScalar(0.04 + age * 0.14); r.m.material.opacity = 0.7 * (1 - age / 1.6); }
       });
     }
-    function ctxSfx(name, dx, p, delay) { api.playSfx && api.playSfx(name, { vol: 1, pan: p, delay: delay || 0 }); }
+    function ctxSfx(name, dx, p, delay) { api.playSfx && api.playSfx(name, { vol: 1, pos: SH_SND, delay: delay || 0 }); }
 
     /* --- 石灯籠 --- */
     const lantern = new THREE.Group(); lantern.position.set(LANTERN.x, 0, LANTERN.z); root.add(lantern);

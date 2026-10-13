@@ -145,7 +145,7 @@ void main() {
 export default {
   id: 'river',
   label: '川',
-  audio: { autoOn: ['river'], reverb: null },
+  audio: { autoOn: ['river'], reverb: null, sources: { river: [-7, 0, 7].map((x) => ({ x, y: 0.15, z: zc(x) })) } },   // 川の帯に沿って左・中・右
   props: { logPile: { x: -1.4, z: 0.4, rotY: 0.45 }, pebbles: false },   // 水際から離す。共通の小石は川の水の中に出るので置かない
 
   build(ctx) {

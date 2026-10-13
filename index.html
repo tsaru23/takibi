@@ -822,11 +822,12 @@ function mkSP(prof, nom) {
   pn.panningModel = spOut === 'headphones' ? 'HRTF' : 'equalpower';
   pn.distanceModel = 'inverse'; pn.refDistance = prof.ref; pn.rolloffFactor = prof.rf;
   var g = ac.createGain(), mk = 1 / profGain(prof, nom || prof.nom);
-  g.gain.value = mk; g.connect(pn); pn.connect(bus);
-  var r = { pn: pn, g: g, mk: mk, rel: null };
+  g.gain.value = mk;
+  var r = { pn: pn, g: g, mk: mk, rel: null, live: false };   // 音が来るまで経路につながない（使わないパンナーの計算を省く。wake で つなぐ）
   SP.all.push(r);
   return r;
 }
+function wake(r) { if (!r.live) { r.live = true; r.g.connect(r.pn); r.pn.connect(bus); } }
 // 位置を置く。t が無ければ即座に、t があれば t の時刻に切り替える（tc があればそこへなめらかに寄せる）
 function pset(r, x, y, z, t, tc) {
   var pn = r.pn;
@@ -842,7 +843,7 @@ function mkPool(n, prof) { var s = []; for (var i = 0; i < n; i++) s.push(mkSP(p
 // 使い回しのパンナーを1つ取って、時刻 t に位置と音量を替える。戻り値は、音をつなぐ入口のノード
 function poolSlot(pool, t, x, y, z, vol) {
   var r = pool.s[pool.i++ % pool.s.length], tt = Math.max(0, t - 0.003);
-  pset(r, x, y, z, tt);
+  wake(r); pset(r, x, y, z, tt);
   r.g.gain.setValueAtTime(r.mk * vol, tt);
   return r.g;
 }
@@ -952,7 +953,7 @@ function layerSet(id, v, t) {
   var st = SP.ST[id] || (SP.ST[id] = { on: false, off: 0 });
   if (v > 0) {
     st.off = 0;
-    if (!st.on) { st.on = true; a.forEach(function (it) { it.vg.connect(it.to.g); }); }
+    if (!st.on) { st.on = true; a.forEach(function (it) { if (it.to !== SP.long) wake(it.to); it.vg.connect(it.to.g); }); }
   } else if (st.on && !rendering) {
     if (!st.off) st.off = t;
     else if (t - st.off > 3.5) { st.on = false; a.forEach(function (it) { try { it.vg.disconnect(); } catch (e) {} }); }
@@ -971,7 +972,7 @@ function initSpatial() {
   SP.duck = ac.createGain(); mg.connect(SP.duck); SP.duck.connect(outGain);
   outMix(true);
   var i;
-  SP.fireBed = mkSP(PROF_FIRE); pset(SP.fireBed, 0, 0.35, 0);
+  SP.fireBed = mkSP(PROF_FIRE); pset(SP.fireBed, 0, 0.35, 0); wake(SP.fireBed);
   SP.fireP = mkPool(6, PROF_FIRE);
   SP.kettle = mkSP(PROF_FIRE); pset(SP.kettle, 0.75, 0.5, -0.35);
   SP.ring = []; for (i = 0; i < RING.length; i++) { var rr = mkSP(PROF_NEAR, 7.5); rr.rel = RING[i]; SP.ring.push(rr); }
@@ -1494,7 +1495,7 @@ function playSfx(name, o) {
   else if (o.pan) c = [Math.max(-1, Math.min(1, o.pan)) * 6, 0.3, -5];
   else c = around(3, 7, 0.1, 1.5);
   var dest;
-  if (name === 'trickle') { pset(SP.long, c[0], c[1], c[2], t); dest = SP.longVg; }   // 長く続く音は、専用のパンナーに置く
+  if (name === 'trickle') { wake(SP.long); pset(SP.long, c[0], c[1], c[2], t); dest = SP.longVg; }   // 長く続く音は、専用のパンナーに置く
   else dest = poolSlot(SP.spotP, t, c[0], c[1], c[2], lvl('scenesfx'));
   try { return fn(t, o.vol == null ? 1 : o.vol, dest, o) || { stop: function () {} }; } catch (e) { console.error(e); return null; }
 }
@@ -1747,7 +1748,7 @@ window.TAKIBI = {
   },
   addLog: tapFeed,                    // 画面のタップ用（スマホでは上端・下端の帯のタップは薪をくべず、UI表示になる）。tapFeed({x,y}) と座標を渡してもよい
   playSfx: playSfx,                   // シーンから効果音を鳴らす。playSfx(name, {delay, vol, pan, dur}) -> {stop()}|null。name: plop splash plip lap kakon pour drip trickle creak
-  setListener: setListener,           // 聞き手（カメラ）の位置と向き。setListener({pos:[x,y,z], forward:[x,y,z], up:[x,y,z]})。映像オフ・映像なしのときは初期の視点に固定
+  setListener: setListener,          // 聞き手（カメラ）の位置と向き。setListener({pos:[x,y,z], forward:[x,y,z], up:[x,y,z]})。映像オフ・映像なしのときは初期の視点に固定
   setAudioOutput: setAudioOutput,     // 音の聞き方: 'headphones'（HRTF）| 'speakers'（左右を少し混ぜる）| 'mono'。再生中でも途切れず切り替わる
   getAudioOutput: function () { return spOut; },
   onEnvEvent: function (cb) { return subscribe(envCbs, cb); },       // {kind:'frog', voice, t, dur, call, syl:[[開始秒,長さ秒]..]} 蛙の声の予約時刻に同期（喉の動き用）

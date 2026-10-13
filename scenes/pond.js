@@ -226,7 +226,7 @@ function petalTex() {
 export default {
   id: 'pond',
   label: '池',
-  audio: { autoOn: ['frog', 'scenesfx'], reverb: null },
+  audio: { autoOn: ['frog', 'scenesfx'], reverb: null, sources: { frog: [{ x: PC.x - 1.2, z: PC.z - 0.9 }, { x: PC.x + 1.3, z: PC.z + 0.5 }, { x: PC.x + 0.2, z: PC.z - 1.3 }], brook: [{ x: PC.x - 2.2, y: 0.1, z: PC.z + 0.3 }] } },
 
   build(ctx) {
     const { scene, root, api, assets, ground } = ctx;
@@ -598,7 +598,7 @@ export default {
           const l = leaves[f.nextLeaf]; if (!l) { f.state = 'sit'; return; }
           const a = rnd(0, 6.28), sx = l.x + Math.cos(a) * (l.r + 0.25), sz = l.z + Math.sin(a) * (l.r + 0.25);
           f.from.set(sx, Y_WATER + 0.01, sz); ripple(sx, sz, 0.45);
-          ctxSfx('plip', sx, 0.8);
+          ctxSfx('plip', sx, sz, 0.8);
           f.state = 'surf'; f.t0 = t; f.dur = 0.7; f.g.visible = true; f.g.position.copy(f.from); f.psi = Math.atan2(l.z - sz, l.x - sx);
         }
       } else if (f.state === 'surf') {
@@ -618,9 +618,9 @@ export default {
       frogLeafPos(f, f.from); f.to.set(tx, Y_WATER, tz);
       f.psi = Math.atan2(tz - f.from.z, tx - f.from.x); f.t0 = t; f.dur = 0.5; f.state = 'jumpOut'; f.nextLeaf = nl;
       leaves[f.leaf].occ = -1; f.leaf = -1;
-      ctxSfx('splash', tx, 1, f.dur);   // 着水の時刻に合わせて予約する
+      ctxSfx('splash', tx, tz, 1, f.dur);   // 着水の時刻に合わせて予約する
     }
-    function ctxSfx(name, x, vol, delay) { api.playSfx && api.playSfx(name, { vol, pan: clamp(x / 5, -0.8, 0.8), delay: delay || 0 }); }
+    function ctxSfx(name, x, z, vol, delay) { api.playSfx && api.playSfx(name, { vol, pos: { x, y: 0, z }, delay: delay || 0 }); }
 
     /* --- 波紋（水面シェーダーへ最大8つ） --- */
     const ripples = [];
@@ -766,7 +766,7 @@ export default {
           const p = clamp((t - k.t0) / 0.9, 0, 1), e = p * p * (3 - 2 * p);
           yT = k.y0 + (-0.12 - k.y0) * e; pT = 0.5 * e;
           if (p >= 1) { k.state = 'hold'; k.t0 = t; const hx = k.x + Math.cos(k.psi) * koiS * 0.5, hz = k.z + Math.sin(k.psi) * koiS * 0.5;
-            ripple(hx, hz, 1.0); ctxSfx('plop', hx, 1); k.sec = false; }
+            ripple(hx, hz, 1.0); ctxSfx('plop', hx, hz, 1); k.sec = false; }
           else { k.y = yT; }
         } else if (k.state === 'hold') {
           yT = -0.12; pT = 0.5;
@@ -830,7 +830,7 @@ export default {
         flowers.children.forEach((f) => { f.rotation.z = Math.sin(t * 0.6 + f.userData.ph) * 0.03; f.position.y = Y_WATER; });
         if (cfg.floating) updateFloating(t);
         nextLap -= dt;
-        if (nextLap < 0) { nextLap = rnd(1.5, 4); api.playSfx && api.playSfx('lap', { vol: rnd(0.5, 1), pan: rnd(-0.3, 0.8) }); }
+        if (nextLap < 0) { nextLap = rnd(1.5, 4); if (api.playSfx) { const [lx, lz] = pondXZ(rnd(0, 6.28), rnd(0.3, 0.9)); api.playSfx('lap', { vol: rnd(0.5, 1), pos: { x: lx, y: 0, z: lz } }); } }
       },
       dispose() {
         disposed = true;
